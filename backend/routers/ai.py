@@ -15,6 +15,8 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from services.trend import compute_trend_signals
+
 try:
     from dotenv import load_dotenv
 except Exception:  # pragma: no cover - fallback for environments without python-dotenv
@@ -52,12 +54,33 @@ class BudgetInput(BaseModel):
     preoccupied_total: float = 0
 
 
+class FourClassWarningItem(BaseModel):
+    """四类工程预警单条"""
+    status: str  # "已触发" / "预警"
+    type: str  # "列账不及时" / "预转固不及时" / "关闭不及时" / "长期挂账"
+    name: str
+    manager: str
+    days_label: str
+    suggestion: str
+
+
+class FourClassWarningSummary(BaseModel):
+    """四类工程预警汇总"""
+    hit_count: int = 0  # 已触发总数
+    warn_count: int = 0  # 预警总数
+    summary: dict = {}  # {"列账不及时": {"triggered": 0, "warning": 0}, ...}
+    top_items: list[FourClassWarningItem] = []  # 最紧急的5条
+
+
 class AnalyzeRequest(BaseModel):
     metrics: MetricsInput
     summary: list[ManagerSummary]
     budget: Optional[BudgetInput] = None
     analysis_date: Optional[str] = None
     style: str = "management"
+    four_class_warnings: Optional[FourClassWarningSummary] = None
+    history_records: Optional[list[dict]] = None  # [{"month": "2026-03", "total_capital": ..., "pending": ..., "rate": ...}]
+    use_rule_only: bool = False  # 跳过 AI 调用，直接返回规则分析结果
 
 
 def get_ai_env() -> Tuple[Optional[str], Optional[str], str]:
@@ -122,6 +145,7 @@ def compute_rule_signals(
     summary: list[ManagerSummary],
     budget: Optional[BudgetInput],
     analysis_date: Optional[str],
+    four_class: Optional[FourClassWarningSummary] = None,
 ) -> dict:
     analysis_dt = parse_analysis_date(analysis_date)
     month_index = max(1, min(analysis_dt.month, 12))
@@ -162,6 +186,9 @@ def compute_rule_signals(
         risk_score += 1
     if approval_spend_gap_pct >= 15:
         risk_score += 1
+    # 四类预警风险加成
+    if four_class and four_class.hit_count > 0:
+        risk_score += min(four_class.hit_count, 3)  # 最多+3
 
     if risk_score >= 4:
         risk_level = "高"
@@ -184,6 +211,17 @@ def compute_rule_signals(
             "待收货压力靠前管理员："
             + "；".join([f"{item.manager} {item.pending:.2f} 万元" for item in top_pending if item.pending > 0])
         )
+
+    # 四类预警风险描述
+    four_class_risk_text = ""
+    if four_class and four_class.hit_count > 0:
+        type_hits = []
+        for type_name, counts in four_class.summary.items():
+            if counts.get("triggered", 0) > 0:
+                type_hits.append(f"{type_name}{counts.get('triggered', 0)}项")
+        if type_hits:
+            four_class_risk_text = f"四类工程预警：已触发 {four_class.hit_count} 项（{', '.join(type_hits)}），预警 {four_class.warn_count} 项。"
+            basis.append(four_class_risk_text)
 
     return {
         "analysis_month": analysis_dt.month,
@@ -213,6 +251,9 @@ def compute_rule_signals(
             {"manager": item.manager, "month_spend": round(item.month_spend, 2), "capital": round(item.capital, 2)}
             for item in slow_month
         ],
+        "four_class_summary": four_class.summary if four_class else {},
+        "four_class_hit_count": four_class.hit_count if four_class else 0,
+        "four_class_warn_count": four_class.warn_count if four_class else 0,
         "basis": [line for line in basis if str(line).strip()],
     }
 
@@ -223,6 +264,8 @@ def build_prompt(
     budget: Optional[BudgetInput],
     style: str,
     rule_signals: dict,
+    trend_signals: dict,
+    four_class: Optional[FourClassWarningSummary] = None,
 ) -> str:
     """构建发给 MiniMax 的 prompt。"""
     manager_lines = []
@@ -244,7 +287,61 @@ def build_prompt(
 - 已占用：{budget.occupied_total:.2f} 万元
 - 预占用：{budget.preoccupied_total:.2f} 万元"""
     else:
-        budget_block = "\n- 预算侧指标：暂无"
+        budget_block = "- 预算侧指标：暂无"
+
+    # === 四类工程预警文本 ===
+    four_class_text = ""
+    if four_class and (four_class.hit_count > 0 or four_class.warn_count > 0):
+        type_summary_lines = []
+        for type_name, counts in four_class.summary.items():
+            if counts.get("triggered", 0) > 0 or counts.get("warning", 0) > 0:
+                type_summary_lines.append(
+                    f"{type_name}：已触发 {counts.get('triggered', 0)} 项，预警 {counts.get('warning', 0)} 项"
+                )
+
+        top_items_text = ""
+        if four_class.top_items:
+            item_lines = []
+            for item in four_class.top_items[:5]:  # 最多5条
+                item_lines.append(
+                    f"  • [{item.status}] {item.name}（{item.manager}）：{item.days_label}，建议：{item.suggestion}"
+                )
+            top_items_text = "\n最紧急的预警项：\n" + "\n".join(item_lines)
+
+        four_class_text = f"""
+## 四类工程预警（已触发 {four_class.hit_count} 项，预警 {four_class.warn_count} 项）
+{'；'.join(type_summary_lines) if type_summary_lines else '暂无预警'}
+{top_items_text}
+"""
+
+    # === 趋势变化文本 ===
+    trend_text = ""
+    if trend_signals.get("avg_monthly_spend_3m", 0) > 0:
+        trend_parts = []
+        mom_capital_pct = trend_signals.get("mom_capital_change_pct", 0)
+        mom_pending = trend_signals.get("mom_pending_change", 0)
+        if mom_capital_pct != 0:
+            trend_parts.append(f"资本支出环比 {mom_capital_pct:+.1f}%")
+        if mom_pending != 0:
+            trend_parts.append(f"待收货环比 {mom_pending:+.2f} 万元")
+        if trend_parts:
+            trend_text = "\n## 趋势变化\n- " + "\n- ".join(trend_parts)
+
+    # === 场景预测文本 ===
+    scenario_text = ""
+    scenario_likely = trend_signals.get("scenario_likely", 0)
+    scenario_best = trend_signals.get("scenario_best", 0)
+    scenario_worst = trend_signals.get("scenario_worst", 0)
+    required_monthly = trend_signals.get("required_monthly_to_target", 0)
+    avg_monthly = trend_signals.get("avg_monthly_spend_3m", 0)
+    if scenario_likely > 0:
+        scenario_text = f"""
+## 目标完成预测
+- 按当前月均支出 {avg_monthly:.2f} 万元 计算：
+  - 最佳情景（支出提速20%）：{scenario_best:.2f} 万元
+  - 一般情景：{scenario_likely:.2f} 万元
+  - 最差情景（支出放缓40%）：{scenario_worst:.2f} 万元
+- 要完成年度目标 {metrics.year_target:.2f} 万元，后续月均需达到 {required_monthly:.2f} 万元"""
 
     style_text = (
         "输出风格：管理汇报版。优先给结论、差距、风险等级和三条关键动作，语言凝练。"
@@ -254,7 +351,15 @@ def build_prompt(
 
     rule_lines = "\n".join([f"- {line}" for line in rule_signals.get("basis", [])])
 
-    return f"""你是一位专业的在建工程数据分析师，需要基于给定指标做“先判断、再归因、再给动作”的分析。
+    return f"""你是一位专业的在建工程数据分析师，负责诊断工程进度健康度、预判风险、给出可落地动作。
+
+## 分析范式要求（请严格遵循）
+1. **先判断、后归因、再给动作** — 不要只描述数字，要解释原因和影响
+2. **四类工程预警优先** — 已触发的预警必须点名，说明如果不处理的后果
+3. **纵向趋势分析** — 结合环比变化，判断趋势是加速还是放缓
+4. **横向对比** — 点名具体管理员的相对表现，不能泛泛说"部分管理员"
+5. **情景预测** — 明确告知维持现状 vs 干预的结果差异
+6. **动作要具体** — 每条必须包含：谁、做什、什么时间、解决什么问题
 
 ## 原始数据
 - 年度资本性支出目标：{metrics.year_target:.2f} 万元
@@ -264,32 +369,50 @@ def build_prompt(
 - 已下单待收货：{metrics.pending:.2f} 万元
 - 综合转固率：{metrics.transfer_rate * 100:.1f}%
 {budget_block}
-- 各管理员推进情况（按累计支出降序）：
-{manager_table}
+
+## 四类工程预警（重点关注，已触发项必须点名分析）{"（暂无预警）" if not four_class_text else ""}
+{four_class_text if four_class_text else ""}
+
+## 趋势变化
+{trend_text if trend_text else "- 暂无历史数据，无法分析趋势"}
+
+## 目标完成预测
+{scenario_text if scenario_text else "- 数据不足，无法预测"}
 
 ## 已计算规则信号
 {rule_lines}
 
-## 分析要求
-1. 先判断整体进度是否跑赢或落后当前月份应有节奏，再说明差距。
-2. 必须结合预算侧指标判断“立项推进”和“支出兑现”是否脱节。
-3. 必须点出最关键的风险来源，优先从待收货、转固率、支出兑现三个角度归因。
-4. 至少点名 1-2 个管理员现象，不能只说泛泛结论。
-5. 每一条结论尽量引用具体数字，不要空话。
-6. {style_text}
-
 ## 输出要求
-请只输出一个 JSON 对象，不要输出 Markdown，不要输出代码块，不要包含额外说明文字。
-JSON 字段如下：
+请只输出一个 JSON 对象，不要输出 Markdown，不要输出代码块：
 {{
-  "overall": "综合评估，1-2句，要带数字",
-  "progress": "进度评估，1句，要说明与当前月份节奏的差距",
-  "spend": "支出分析，1句，要提预算或管理员兑现情况",
-  "rate": "转固率分析，1句，要提具体比例",
-  "risk": "风险预警，1句，要说明最关键风险来源",
-  "next_month": "下月预测，1句，要有依据",
-  "actions": ["重点动作1", "重点动作2", "重点动作3"],
-  "basis": ["分析依据1", "分析依据2", "分析依据3"]
+  "verdict": "一句话定性判断，包含进度状态和最关键风险",
+  "diagnosis": [
+    "诊断1：重点指出四类预警中哪类问题最严重及原因（必须点名具体工程名称）",
+    "诊断2：结合趋势变化分析当前进度是真慢还是假慢",
+    "诊断3：识别最关键的待收货/转固/支出风险及其根因"
+  ],
+  "person_bound_actions": [
+    "动作1：[四类预警相关] 责任人A，在X月X日前完成[具体整改事项]，解决[哪类预警]",
+    "动作2：[趋势相关] 责任人B，在X月X日前完成[具体事项]，改善[哪项趋势指标]",
+    "动作3：[综合] 责任人C，协调[资源/部门]，确保[目标]达成"
+  ],
+  "four_class_priority": [
+    {{
+      "type": "列账不及时/预转固不及时/关闭不及时/长期挂账",
+      "top_item_name": "最紧急的工程名称",
+      "owner": "责任人",
+      "urgency": "超期X天或剩余X天",
+      "if_not_handled": "不处理将导致的直接后果",
+      "recommended_action": "具体可落地的整改动作"
+    }}
+  ],
+  "risk_scenarios": {{
+    "if_continue": "如果四类预警不处理 + 维持当前支出节奏，N月后预计[结果]",
+    "if_take_action": "如果落实上述动作，可达到[结果]",
+    "critical_point": "关键节点：若[X]四类预警超[Y]天未处理，会导致[Z]后果"
+  }},
+  "red_flags": ["四类预警相关异常项1", "趋势相关异常项2"],
+  "confidence": "高/中/低（基于数据完整性判断）"
 }}"""
 
 
@@ -299,6 +422,8 @@ def build_fallback_analysis(
     budget: Optional[BudgetInput],
     style: str,
     rule_signals: dict,
+    trend_signals: dict,
+    four_class: Optional[FourClassWarningSummary] = None,
 ) -> dict:
     """AI 响应异常时的兜底结构化分析，确保前端始终可展示结果。"""
     progress_gap_pct = rule_signals["progress_gap_pct"]
@@ -317,6 +442,11 @@ def build_fallback_analysis(
     else:
         progress_eval = "低于年内节奏"
 
+    # 四类预警相关
+    four_class_hit = rule_signals.get("four_class_hit_count", 0)
+    four_class_warn = rule_signals.get("four_class_warn_count", 0)
+    four_class_summary = rule_signals.get("four_class_summary", {})
+
     if budget and abs(rule_signals["approval_spend_gap_pct"]) >= 10:
         spend_eval = (
             f"立项进度 {budget.approval_progress_pct:.1f}% 与年度支出进度 "
@@ -331,67 +461,173 @@ def build_fallback_analysis(
             else "当前缺少管理员明细支撑，支出分析以总体完成率为主。"
         )
 
+    # 风险文本
+    risk_items = []
+    if four_class_hit > 0:
+        type_hits = []
+        for type_name, counts in four_class_summary.items():
+            if counts.get("triggered", 0) > 0:
+                type_hits.append(f"{type_name}{counts.get('triggered', 0)}项")
+        if type_hits:
+            risk_items.append(f"四类工程预警：{', '.join(type_hits)}已触发，{four_class_warn}项预警")
     if top_pending:
-        risk_text = (
-            f"风险等级 {risk_level}，待收货压力主要集中在 {top_pending[0]['manager']} "
-            f"等管理员，最高 {top_pending[0]['pending']:.2f} 万元。"
+        risk_items.append(
+            f"待收货压力主要集中在 {top_pending[0]['manager']} 等，最高 {top_pending[0]['pending']:.2f} 万元"
         )
     elif low_rate:
-        risk_text = (
-            f"风险等级 {risk_level}，转固率偏低管理员已出现，最低仅 {low_rate[0]['rate_pct']:.1f}%。"
+        risk_items.append(f"转固率偏低管理员已出现，最低仅 {low_rate[0]['rate_pct']:.1f}%")
+
+    risk_text = f"风险等级 {risk_level}，" + "；".join(risk_items) if risk_items else f"当前风险等级 {risk_level}，暂无明显单点异常"
+
+    # 场景预测
+    scenario_likely = trend_signals.get("scenario_likely", 0)
+    scenario_best = trend_signals.get("scenario_best", 0)
+    if scenario_likely > 0:
+        scenario_text = (
+            f"按当前月均支出 {trend_signals.get('avg_monthly_spend_3m', 0):.2f} 万元推算，"
+            f"预计全年可达 {scenario_likely:.2f} 万元（最佳情景 {scenario_best:.2f} 万元），"
+            f"较年度目标 {metrics.year_target:.2f} 万元{'可完成' if scenario_likely >= metrics.year_target else '存在缺口'}"
         )
     else:
-        risk_text = f"当前风险等级 {risk_level}，暂无明显单点异常，但仍需跟踪兑现节奏。"
+        scenario_text = f"若下月月度支出仍低于 {avg_monthly_required:.2f} 万元，年度目标缺口将继续扩大"
 
-    next_month = (
-        f"若下月月度支出仍低于 {avg_monthly_required:.2f} 万元，年度目标缺口将继续扩大；"
-        "若同步压降待收货并提升转固率，完成率仍有改善空间。"
-    )
-    actions = [
-        f"围绕剩余 {remaining:.2f} 万元缺口，按月倒排支出目标，单月至少完成 {avg_monthly_required:.2f} 万元。",
-        "逐项清理待收货项目，优先推动高待收货管理员在本周明确到货与列账时间。",
-        "按周复盘低转固率和低月度支出管理员，形成责任到人的推进清单。",
-    ]
+    # 动作
+    actions = []
+    if four_class_hit > 0:
+        actions.append(f"优先处理四类工程预警：已触发 {four_class_hit} 项，需在本周内完成整改")
+    if remaining > 0:
+        actions.append(
+            f"围绕剩余 {remaining:.2f} 万元缺口，按月倒排支出目标，单月至少完成 {avg_monthly_required:.2f} 万元"
+        )
+    else:
+        actions.append("年度资本性支出目标已超额完成，重点转向待收货清理和转固率提升")
+    if top_pending:
+        actions.append(
+            f"逐项清理待收货项目，优先推动 {top_pending[0]['manager']} 等管理员明确到货与列账时间"
+        )
     if style == "execution":
         actions = [
-            "本周完成高待收货项目逐项盘点，明确到货时间、责任人和列账节点。",
-            "对低月度支出管理员下达周目标，例会逐人通报完成情况。",
-            "同步清理可转固项目，按周更新转固明细并追踪闭环。",
+            f"本周完成四类工程预警整改（已触发 {four_class_hit} 项）",
+            "本周完成高待收货项目逐项盘点，明确到货时间、责任人和列账节点",
+            "对低月度支出管理员下达周目标，例会逐人通报完成情况",
         ]
 
+    # 四类预警优先级
+    four_class_priority = []
+    if four_class and four_class.top_items:
+        for item in four_class.top_items[:3]:
+            four_class_priority.append({
+                "type": item.type,
+                "top_item_name": item.name,
+                "owner": item.manager,
+                "urgency": item.days_label,
+                "if_not_handled": "将影响工程结算和转固进度",
+                "recommended_action": item.suggestion
+            })
+
+    # 根据实际情况组织 verdict，避免"进度良好"和"风险等级高"同时出现造成混淆
+    if metrics.progress_pct >= 100:
+        if four_class_hit > 0:
+            verdict_risk = f"存在四类工程预警 {four_class_hit} 项需处理。"
+        elif top_pending and top_pending[0]['pending'] > 30:
+            verdict_risk = f"注意待收货压力（{top_pending[0]['manager']} {top_pending[0]['pending']:.1f} 万元）。"
+        elif rate_pct < 60:
+            verdict_risk = f"转固率 {rate_pct:.1f}% 仍需提升至 60%。"
+        else:
+            verdict_risk = ""
+    else:
+        verdict_risk = f"风险等级 {risk_level}。"
+
+    # diagnosis[1]：目标已完成时不说"差0.00万元"
+    if remaining <= 0:
+        diagnosis_progress = f"年度资本性支出目标已超额完成（{metrics.progress_pct:.1f}%），较时点节奏超出 {progress_gap_pct:+.1f}pct。"
+    else:
+        diagnosis_progress = f"支出进度{progress_eval}：较时点节奏 {progress_gap_pct:+.1f}pct，距年度目标差 {remaining:.2f} 万元。"
+
     return {
-        "overall": (
-            f"当前累计支出 {metrics.total_current:.2f} 万元，完成 {metrics.progress_pct:.1f}%，"
-            f"较当前月份应有节奏 {rule_signals['expected_progress_pct']:.1f}% {progress_eval}。"
+        "verdict": (
+            f"当前累计支出 {metrics.total_current:.2f} 万元（{metrics.progress_pct:.1f}%），{progress_eval}。"
+            f"{verdict_risk}"
         ),
-        "progress": (
-            f"距离年度目标仍差 {remaining:.2f} 万元，当前进度较时点节奏 {progress_gap_pct:+.1f}pct。"
-        ),
-        "spend": spend_eval,
-        "rate": f"综合转固率 {rate_pct:.1f}%，{'偏低' if rate_pct < 60 else '总体正常'}，需和支出兑现同步推进。",
-        "risk": risk_text,
-        "next_month": next_month,
-        "actions": actions,
-        "basis": rule_signals.get("basis", [])[:4],
+        "diagnosis": [
+            f"四类工程预警{'严重' if four_class_hit > 3 else '存在'}：已触发 {four_class_hit} 项，预警 {four_class_warn} 项，"
+            + (", ".join([f"{k}{v.get('triggered', 0)}项" for k, v in four_class_summary.items() if v.get('triggered', 0) > 0]) if four_class_hit > 0 else "暂无")
+            + "，需优先处理。" if four_class_hit > 0 else "暂无预警。",
+            diagnosis_progress,
+            f"待收货压力：{top_pending[0]['manager']} 等最高 {top_pending[0]['pending']:.2f} 万元，需加快订单转化。"
+            if top_pending else "待收货暂无异常。"
+        ],
+        "person_bound_actions": actions[:3],
+        "four_class_priority": four_class_priority,
+        "risk_scenarios": {
+            "if_continue": scenario_text + "，缺口可能持续扩大。",
+            "if_take_action": "若落实上述整改动作，可加速推进工程进度和四类预警销项。",
+            "critical_point": f"关键节点：四类预警超期处理将影响工程结算；支出节奏持续偏慢将导致年度目标缺口。"
+        },
+        "red_flags": [
+            f"四类工程预警{four_class_hit}项已触发",
+            f"进度较时点节奏 {progress_gap_pct:+.1f}pct",
+            f"待收货压力 {top_pending[0]['pending']:.2f} 万元" if top_pending else "待收货正常"
+        ],
+        "confidence": "中（基于规则计算，AI分析异常时使用兜底逻辑）",
     }
 
 
 def format_analysis_to_text(analysis: dict) -> str:
-    actions = analysis.get("actions") or []
-    basis = analysis.get("basis") or []
-    action_text = "；".join([str(a) for a in actions if str(a).strip()])
-    basis_text = "；".join([str(item) for item in basis if str(item).strip()])
-    lines = [
-        f"**综合评估**：{analysis.get('overall', '')}",
-        f"**进度评估**：{analysis.get('progress', '')}",
-        f"**支出分析**：{analysis.get('spend', '')}",
-        f"**转固率分析**：{analysis.get('rate', '')}",
-        f"**风险预警**：{analysis.get('risk', '')}",
-        f"**下月预测**：{analysis.get('next_month', '')}",
-        f"**重点动作**：{action_text}",
-    ]
-    if basis_text:
+    """将结构化分析结果格式化为可读文本"""
+    lines = []
+
+    # 综合定论
+    verdict = analysis.get("verdict") or analysis.get("overall", "")
+    if verdict:
+        lines.append(f"**综合定论**：{verdict}")
+
+    # 诊断发现
+    diagnosis = analysis.get("diagnosis", [])
+    if diagnosis:
+        lines.append("**诊断分析**：")
+        for i, d in enumerate(diagnosis, 1):
+            lines.append(f"  {i}. {d}")
+
+    # 四类预警优先级
+    four_class_priority = analysis.get("four_class_priority", [])
+    if four_class_priority:
+        lines.append("**四类预警（按紧急程度）**：")
+        for item in four_class_priority:
+            lines.append(f"  • [{item.get('type', '')}] {item.get('top_item_name', '')}（{item.get('owner', '')}）：{item.get('urgency', '')}")
+            lines.append(f"   建议：{item.get('recommended_action', '')}")
+
+    # 风险情景
+    risk_scenarios = analysis.get("risk_scenarios", {})
+    if risk_scenarios:
+        if_continue = risk_scenarios.get("if_continue", "")
+        if if_continue:
+            lines.append(f"**维持现状**：{if_continue}")
+        if_take_action = risk_scenarios.get("if_take_action", "")
+        if if_take_action:
+            lines.append(f"**干预效果**：{if_take_action}")
+        critical = risk_scenarios.get("critical_point", "")
+        if critical:
+            lines.append(f"**关键节点**：{critical}")
+
+    # 重点动作
+    actions = analysis.get("person_bound_actions") or analysis.get("actions", [])
+    if actions:
+        action_text = "；".join([str(a) for a in actions if str(a).strip()])
+        lines.append(f"**重点动作**：{action_text}")
+
+    # 风险标识
+    red_flags = analysis.get("red_flags", [])
+    if red_flags:
+        flags_text = "、".join([str(f) for f in red_flags if str(f).strip()])
+        lines.append(f"**风险标识**：{flags_text}")
+
+    # 分析依据（旧格式兼容）
+    basis = analysis.get("basis", [])
+    if basis:
+        basis_text = "；".join([str(b) for b in basis if str(b).strip()])
         lines.append(f"**分析依据**：{basis_text}")
+
     return "\n".join(lines)
 
 
@@ -420,29 +656,74 @@ def parse_structured_analysis(text: str) -> Optional[dict]:
 
 
 def normalize_analysis_payload(payload: Optional[dict], fallback: dict) -> dict:
+    """兼容新旧两种输出格式的解析"""
     source = payload or {}
-    actions = source.get("actions")
-    if not isinstance(actions, list):
-        actions = []
-    actions = [str(item).strip() for item in actions if str(item).strip()][:3]
-    if not actions:
-        actions = fallback.get("actions", [])
 
+    # 尝试从新格式解析
+    verdict = str(source.get("verdict") or fallback.get("verdict") or "").strip()
+    diagnosis = source.get("diagnosis")
+    if isinstance(diagnosis, list):
+        diagnosis = [str(d).strip() for d in diagnosis if str(d).strip()]
+    else:
+        diagnosis = fallback.get("diagnosis", [])
+
+    actions = source.get("person_bound_actions")
+    if isinstance(actions, list):
+        actions = [str(a).strip() for a in actions if str(a).strip()][:3]
+    else:
+        # 兼容旧格式
+        actions = source.get("actions")
+        if isinstance(actions, list):
+            actions = [str(a).strip() for a in actions if str(a).strip()]
+        else:
+            actions = fallback.get("person_bound_actions", fallback.get("actions", []))
+
+    four_class_priority = source.get("four_class_priority")
+    if not isinstance(four_class_priority, list):
+        four_class_priority = fallback.get("four_class_priority", [])
+
+    risk_scenarios = source.get("risk_scenarios")
+    if not isinstance(risk_scenarios, dict):
+        risk_scenarios = fallback.get("risk_scenarios", {})
+
+    red_flags = source.get("red_flags")
+    if isinstance(red_flags, list):
+        red_flags = [str(r).strip() for r in red_flags if str(r).strip()]
+    else:
+        # 兼容旧格式的 risk 字段
+        risk = str(source.get("risk") or "").strip()
+        red_flags = [risk] if risk else fallback.get("red_flags", [])
+
+    confidence = str(source.get("confidence") or fallback.get("confidence") or "").strip()
+
+    # 兼容旧格式的字段
+    overall = str(source.get("overall") or fallback.get("overall") or verdict or "").strip()
+    progress = str(source.get("progress") or fallback.get("progress") or "").strip()
+    spend = str(source.get("spend") or fallback.get("spend") or "").strip()
+    rate = str(source.get("rate") or fallback.get("rate") or "").strip()
+    next_month = str(source.get("next_month") or fallback.get("next_month") or "").strip()
     basis = source.get("basis")
-    if not isinstance(basis, list):
-        basis = []
-    basis = [str(item).strip() for item in basis if str(item).strip()][:4]
-    if not basis:
+    if isinstance(basis, list):
+        basis = [str(b).strip() for b in basis if str(b).strip()]
+    else:
         basis = fallback.get("basis", [])
 
     return {
-        "overall": str(source.get("overall") or fallback.get("overall") or "").strip(),
-        "progress": str(source.get("progress") or fallback.get("progress") or "").strip(),
-        "spend": str(source.get("spend") or fallback.get("spend") or "").strip(),
-        "rate": str(source.get("rate") or fallback.get("rate") or "").strip(),
+        # 新格式
+        "verdict": verdict,
+        "diagnosis": diagnosis,
+        "person_bound_actions": actions,
+        "four_class_priority": four_class_priority,
+        "risk_scenarios": risk_scenarios,
+        "red_flags": red_flags,
+        "confidence": confidence,
+        # 旧格式兼容
+        "overall": overall,
+        "progress": progress,
+        "spend": spend,
+        "rate": rate,
         "risk": str(source.get("risk") or fallback.get("risk") or "").strip(),
-        "next_month": str(source.get("next_month") or fallback.get("next_month") or "").strip(),
-        "actions": actions,
+        "next_month": next_month,
         "basis": basis,
     }
 
@@ -563,11 +844,66 @@ async def ai_status():
 @router.post("/analyze")
 async def analyze(request: AnalyzeRequest):
     style = normalize_style(request.style)
-    rule_signals = compute_rule_signals(request.metrics, request.summary, request.budget, request.analysis_date)
+    four_class = request.four_class_warnings
+
+    # 计算规则信号
+    rule_signals = compute_rule_signals(
+        request.metrics,
+        request.summary,
+        request.budget,
+        request.analysis_date,
+        four_class,
+    )
+
+    # 计算趋势信号
+    history_records = request.history_records or []
+    trend_signals = compute_trend_signals(
+        {
+            "total_current": request.metrics.total_current,
+            "total_pending": request.metrics.pending,
+            "total_today_month": request.metrics.month_spend,
+            "total_rate": request.metrics.transfer_rate,
+            "year_target": request.metrics.year_target,
+        },
+        history_records,
+    )
+
+    fallback = build_fallback_analysis(
+        request.metrics,
+        request.summary,
+        request.budget,
+        style,
+        rule_signals,
+        trend_signals,
+        four_class,
+    )
+
+    if request.use_rule_only:
+        structured = normalize_analysis_payload(None, fallback)
+        return {
+            "success": True,
+            "data": {
+                "content": format_analysis_to_text(structured),
+                "structured": structured,
+                "style": style,
+                "generated_at": datetime.now().isoformat(),
+                "model": "rule-based",
+                "signals": rule_signals,
+                "trends": trend_signals,
+            },
+        }
+
     try:
-        prompt = build_prompt(request.metrics, request.summary, request.budget, style, rule_signals)
+        prompt = build_prompt(
+            request.metrics,
+            request.summary,
+            request.budget,
+            style,
+            rule_signals,
+            trend_signals,
+            four_class,
+        )
         raw_text = await call_minimax(prompt)
-        fallback = build_fallback_analysis(request.metrics, request.summary, request.budget, style, rule_signals)
         structured = normalize_analysis_payload(parse_structured_analysis(raw_text), fallback)
         return {
             "success": True,
@@ -578,11 +914,11 @@ async def analyze(request: AnalyzeRequest):
                 "generated_at": datetime.now().isoformat(),
                 "model": "MiniMax-M2.5",
                 "signals": rule_signals,
+                "trends": trend_signals,
             },
         }
     except ValueError as exc:
         if "返回内容为空或格式不支持" in str(exc):
-            fallback = build_fallback_analysis(request.metrics, request.summary, request.budget, style, rule_signals)
             return {
                 "success": True,
                 "data": {
@@ -592,6 +928,7 @@ async def analyze(request: AnalyzeRequest):
                     "generated_at": datetime.now().isoformat(),
                     "model": "local-fallback",
                     "signals": rule_signals,
+                    "trends": trend_signals,
                 },
             }
         error_code = "AI_NOT_CONFIGURED" if "未配置" in str(exc) else "AI_RESPONSE_ERROR"

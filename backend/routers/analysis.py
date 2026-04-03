@@ -32,6 +32,7 @@ def build_dashboard_snapshot(record: ZaigongRecord) -> dict:
     raw_summary = json.loads(record.summary_data) if record.summary_data else []
     raw_metrics = json.loads(record.metrics_data) if record.metrics_data else {}
     detail_data = json.loads(record.detail_data) if record.detail_data else []
+    four_class = json.loads(record.four_class_warnings) if record.four_class_warnings else {}
 
     detail_rows = [
         row for row in raw_summary
@@ -77,6 +78,7 @@ def build_dashboard_snapshot(record: ZaigongRecord) -> dict:
         },
         "summary": raw_summary,
         "metrics": raw_metrics,
+        "four_class_warnings": four_class,
     }
 
 
@@ -85,8 +87,21 @@ async def upload_excel(file: UploadFile = File(...), target: float = Query(503.0
     """
     上传 Excel 文件，返回分析结果，并保存到数据库
     """
+    # 文件类型校验
+    if not (file.filename or "").lower().endswith((".xlsx", ".xls")):
+        return JSONResponse(status_code=400, content={"success": False, "message": "仅支持 Excel 文件（.xlsx / .xls）"})
+
+    # 目标值校验
+    if target <= 0:
+        return JSONResponse(status_code=400, content={"success": False, "message": "目标值必须大于 0"})
+
     try:
         contents = await file.read()
+
+        # 文件大小校验（20MB）
+        if len(contents) > 20 * 1024 * 1024:
+            return JSONResponse(status_code=400, content={"success": False, "message": "文件大小不能超过 20MB"})
+
         df = pd.read_excel(BytesIO(contents))
 
         # 执行分析
@@ -118,6 +133,7 @@ async def upload_excel(file: UploadFile = File(...), target: float = Query(503.0
                 summary_data=json.dumps(cleaned_data.get("summary", []), ensure_ascii=False),
                 metrics_data=json.dumps(cleaned_data.get("metrics", {}), ensure_ascii=False),
                 detail_data=json.dumps(cleaned_data.get("dashboard", {}).get("detail", []), ensure_ascii=False),
+                four_class_warnings=json.dumps(cleaned_data.get("four_class_warnings", {}), ensure_ascii=False),
                 target_value=target
             )
             db.add(record)
@@ -163,7 +179,8 @@ async def get_history(limit: int = Query(10, ge=1, le=100)):
                     "uploaded_at": r.uploaded_at.isoformat(),
                     "source_filename": r.source_filename,
                     "file_date": r.file_date,
-                    "target_value": r.target_value
+                    "target_value": r.target_value,
+                    "metrics": json.loads(r.metrics_data) if r.metrics_data else {}
                 }
                 for r in records
             ]
@@ -241,6 +258,7 @@ async def compare_with_previous():
                 "file_date": latest.file_date,
                 "summary": json.loads(latest.summary_data) if latest.summary_data else [],
                 "metrics": json.loads(latest.metrics_data) if latest.metrics_data else {},
+                "four_class_warnings": json.loads(latest.four_class_warnings) if latest.four_class_warnings else {},
                 "target_value": latest.target_value
             },
             "previous": None
@@ -254,6 +272,7 @@ async def compare_with_previous():
                 "file_date": previous.file_date,
                 "summary": json.loads(previous.summary_data) if previous.summary_data else [],
                 "metrics": json.loads(previous.metrics_data) if previous.metrics_data else {},
+                "four_class_warnings": json.loads(previous.four_class_warnings) if previous.four_class_warnings else {},
                 "target_value": previous.target_value
             }
 
@@ -302,3 +321,280 @@ async def get_metrics():
             "year_target": YEARLY_TARGET,
         }
     }
+
+
+@router.get("/four-class-warnings/{record_id}")
+async def get_four_class_warnings(record_id: int):
+    """
+    获取指定记录的的四类工程预警数据
+    """
+    db = get_db()
+    try:
+        record = db.query(ZaigongRecord).filter(ZaigongRecord.id == record_id).first()
+        if not record:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "记录不存在"}
+            )
+
+        four_class = json.loads(record.four_class_warnings) if record.four_class_warnings else None
+        return {
+            "success": True,
+            "data": four_class
+        }
+    finally:
+        db.close()
+
+
+@router.get("/four-class-warnings/{record_id}/export")
+async def export_four_class_excel(record_id: int):
+    """
+    导出四类工程预警Excel文件（按Agent规范格式）
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    import io
+
+    db = get_db()
+    try:
+        record = db.query(ZaigongRecord).filter(ZaigongRecord.id == record_id).first()
+        if not record:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "记录不存在"}
+            )
+
+        four_class = json.loads(record.four_class_warnings) if record.four_class_warnings else None
+        if not four_class or not four_class.get("items"):
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "无预警数据"}
+            )
+
+        wb = Workbook()
+
+        # ===== Sheet1: 四类工程预警清单 =====
+        ws1 = wb.active
+        ws1.title = "四类工程预警清单"
+
+        C_NAVY = "1B2A4A"
+        C_BLUE = "2E5F9E"
+        C_WHITE = "FFFFFF"
+
+        # 类型颜色（分组标题背景/字色）
+        TYPE_COLORS = {
+            "列账不及时": ("DCE6F1", "1F497D"),
+            "预转固不及时": ("FEF3E8", "7B3F00"),
+            "关闭不及时": ("FFF0E5", "843C0C"),
+            "长期挂账": ("DDE8F0", "244062"),
+        }
+
+        # 第1行：标题
+        ws1.merge_cells("A1:M1")
+        ws1["A1"].value = '中国电信股份有限公司仙桃分公司  "四类工程"预警清单'
+        ws1["A1"].font = Font(name="微软雅黑", size=15, bold=True, color=C_WHITE)
+        ws1["A1"].fill = PatternFill("solid", fgColor=C_NAVY)
+        ws1["A1"].alignment = Alignment(horizontal="center", vertical="center")
+        ws1.row_dimensions[1].height = 38
+
+        # 第2行：副标题
+        today_str = four_class.get("analysis_date", "")
+        total = four_class.get("total", 0)
+        hit = four_class.get("hit_count", 0)
+        warn = four_class.get("warn_count", 0)
+        ws1.merge_cells("A2:M2")
+        ws1["A2"].value = f"数据截止：{today_str}  |  排除局房类  |  预警窗口60天  |  共{total}项（已触发{hit}项/预警{warn}项）"
+        ws1["A2"].font = Font(name="微软雅黑", size=9, color="D9E8F5")
+        ws1["A2"].fill = PatternFill("solid", fgColor=C_BLUE)
+        ws1["A2"].alignment = Alignment(horizontal="center", vertical="center")
+        ws1.row_dimensions[2].height = 20
+
+        # 第3行：图例三段
+        ws1.merge_cells("A3:D3")
+        ws1["A3"].value = "🔴 已触发：指标已超红线，须立即处置"
+        ws1["A3"].font = Font(name="微软雅黑", size=9, bold=True, color="7B0000")
+        ws1["A3"].fill = PatternFill("solid", fgColor="FFD7D7")
+        ws1["A3"].alignment = Alignment(horizontal="center", vertical="center")
+
+        ws1.merge_cells("E3:H3")
+        ws1["E3"].value = "🟡 预警：距红线不足60天，需重点跟进"
+        ws1["E3"].font = Font(name="微软雅黑", size=9, bold=True, color="7B5200")
+        ws1["E3"].fill = PatternFill("solid", fgColor="FFF3C8")
+        ws1["E3"].alignment = Alignment(horizontal="center", vertical="center")
+
+        ws1.merge_cells("I3:M3")
+        ws1["I3"].value = "局房及基础设施、保密项目不纳入四类工程考核范围"
+        ws1["I3"].font = Font(name="微软雅黑", size=9, italic=True, color="595959")
+        ws1["I3"].fill = PatternFill("solid", fgColor="F0F0F0")
+        ws1["I3"].alignment = Alignment(horizontal="center", vertical="center")
+        ws1.row_dimensions[3].height = 20
+
+        # 第4行：表头
+        headers = ["编号", "状态", "四类工程类型", "工程编码", "工程名称", "一级专业", "验收类型", "工程管理员", "关键日期", "关键日期说明", "截止日期", "工程状态", "逾期/剩余天数", "处置建议"]
+        for col, header in enumerate(headers, 1):
+            cell = ws1.cell(row=4, column=col)
+            cell.value = header
+            cell.font = Font(name="微软雅黑", size=10, bold=True, color=C_WHITE)
+            cell.fill = PatternFill("solid", fgColor=C_NAVY)
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws1.row_dimensions[4].height = 28
+
+        # 列宽
+        col_widths = [5, 12, 13, 18, 44, 10, 8, 9, 11, 12, 11, 12, 40]
+        for col, width in enumerate(col_widths, 1):
+            ws1.column_dimensions[get_column_letter(col)].width = width
+
+        # 数据行
+        items = four_class.get("items", [])
+        current_row = 5
+
+        # 按类型分组
+        types_order = ["列账不及时", "预转固不及时", "关闭不及时", "长期挂账"]
+        TYPE_STANDARDS = {
+            "列账不及时": "初验批复后累计收货占比 < 85%",
+            "预转固不及时": "初验批复后60天内未完成预转固",
+            "关闭不及时": "一次验收终验后150天/两次验收终验后90天内未正式转固",
+            "长期挂账": "实际工期超建议工期2倍",
+        }
+
+        for wtype in types_order:
+            type_items = [it for it in items if it.get("type") == it.get("type") == wtype]
+            if not type_items:
+                continue
+
+            triggered_count = sum(1 for it in type_items if it.get("status", "").startswith("已触发"))
+            warning_count = sum(1 for it in type_items if it.get("status") == "预警")
+
+            # 分组标题行
+            bg_color, text_color = TYPE_COLORS.get(wtype, ("F0F0F0", "595959"))
+            ws1.merge_cells(f"A{current_row}:M{current_row}")
+            cell = ws1[f"A{current_row}"]
+            cell.value = f"▌ {wtype}　{TYPE_STANDARDS.get(wtype, '')}　已触发：{triggered_count}项　预警：{warning_count}项"
+            cell.font = Font(name="微软雅黑", size=10, bold=True, color=text_color)
+            cell.fill = PatternFill("solid", fgColor=bg_color)
+            cell.alignment = Alignment(horizontal="left", vertical="center")
+            ws1.row_dimensions[current_row].height = 22
+            current_row += 1
+
+            # 数据行
+            for item in type_items:
+                status = item.get("status", "")
+                is_triggered = status.startswith("已触发")
+
+                # 行背景色
+                if is_triggered:
+                    row_bg = "FFEDED"
+                    status_color = "C00000"
+                else:
+                    row_bg = "FFF9E6"
+                    status_color = "7B5200"
+
+                row_data = [
+                    item.get("id", ""),
+                    status,
+                    item.get("type", ""),
+                    item.get("code", ""),
+                    item.get("name", ""),
+                    item.get("major", ""),
+                    item.get("acceptType", ""),
+                    item.get("manager", ""),
+                    item.get("keyDate", ""),
+                    item.get("keyDateLabel", ""),
+                    item.get("deadline", ""),
+                    item.get("projectStatus", ""),
+                    item.get("daysLabel", ""),
+                    item.get("suggestion", ""),
+                ]
+
+                for col, value in enumerate(row_data, 1):
+                    cell = ws1.cell(row=current_row, column=col)
+                    cell.value = value
+                    cell.font = Font(name="微软雅黑", size=9, color=text_color if col == 3 else "000000")
+                    cell.fill = PatternFill("solid", fgColor=row_bg)
+                    cell.alignment = Alignment(horizontal="left" if col in [5, 13] else "center", vertical="center", wrap_text=True)
+                    cell.border = Border(
+                        left=Side(style="thin", color="BFBFBF"),
+                        right=Side(style="thin", color="BFBFBF"),
+                        top=Side(style="thin", color="BFBFBF"),
+                        bottom=Side(style="thin", color="BFBFBF"),
+                    )
+
+                    # B列状态颜色
+                    if col == 2:
+                        cell.font = Font(name="微软雅黑", size=9, bold=True, color=status_color)
+
+                    # L列天数颜色
+                    if col == 12:
+                        days_text = str(value)
+                        if "逾期" in days_text or "超期" in days_text:
+                            cell.font = Font(name="微软雅黑", size=9, bold=True, color="C00000")
+                        elif "剩余" in days_text:
+                            import re
+                            match = re.search(r'(\d+)', days_text)
+                            if match:
+                                num = int(match.group(1))
+                                if num <= 15:
+                                    cell.font = Font(name="微软雅黑", size=9, bold=True, color="C00000")
+                                elif num <= 30:
+                                    cell.font = Font(name="微软雅黑", size=9, bold=True, color="ED7D31")
+                                else:
+                                    cell.font = Font(name="微软雅黑", size=9, color="375623")
+
+                ws1.row_dimensions[current_row].height = 40
+                current_row += 1
+
+        # 冻结窗格
+        ws1.freeze_panes = "A5"
+
+        # ===== Sheet2: 四类工程定义说明 =====
+        ws2 = wb.create_sheet(title="四类工程定义说明")
+        ws2.column_dimensions["A"].width = 16
+        ws2.column_dimensions["B"].width = 72
+
+        ws2.merge_cells("A1:B1")
+        ws2["A1"].value = "四类工程定义说明"
+        ws2["A1"].font = Font(name="微软雅黑", size=14, bold=True, color=C_WHITE)
+        ws2["A1"].fill = PatternFill("solid", fgColor=C_NAVY)
+        ws2["A1"].alignment = Alignment(horizontal="center", vertical="center")
+        ws2.row_dimensions[1].height = 30
+
+        def_content = [
+            ("① 列账不及时", "初验批复后，累计收货金额÷累计订单金额<85%则触发；85%~90%预警。"),
+            ("② 预转固不及时", "初验批复起60天内须完成预转固（取预转固日期，无则取决算转固日期）；截止前60天内未完成则预警。"),
+            ("③ 关闭不及时", "一次验收终验批复后150天、两次验收90天内须完成正式转固（工程关闭）；截止前60天内预警。优先取系统字段「应关闭日期」。"),
+            ("④ 长期挂账", "实际工期超建议工期2倍（有线接入9月/无线1年/省内1.5年/一干2年）；系统字段「长期挂账建议关闭日期」直接使用，距此日期60天内预警。"),
+            ("排除范围", "局房及基础设施类工程、保密项目不纳入四类工程考核范围，在过滤阶段排除。"),
+            ("预警窗口", "本清单预警窗口设定为60天，即距截止日期不足60天纳入预警提示。"),
+            ("数据说明", "数据来源：在建工程明细总表（实时）。分析对象：排除局房类和已关闭工程后的全部在建工程。"),
+        ]
+
+        for i, (col_a, col_b) in enumerate(def_content, 2):
+            bg = "EBF3FB" if i % 2 == 0 else "FFFFFF"
+            ws2.cell(row=i, column=1).value = col_a
+            ws2.cell(row=i, column=1).font = Font(name="微软雅黑", size=10, bold=True)
+            ws2.cell(row=i, column=1).fill = PatternFill("solid", fgColor=bg)
+            ws2.cell(row=i, column=1).alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+            ws2.cell(row=i, column=2).value = col_b
+            ws2.cell(row=i, column=2).font = Font(name="微软雅黑", size=10)
+            ws2.cell(row=i, column=2).fill = PatternFill("solid", fgColor=bg)
+            ws2.cell(row=i, column=2).alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+            ws2.row_dimensions[i].height = 35
+
+        # 保存
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        from fastapi.responses import StreamingResponse
+        from urllib.parse import quote
+        filename = f"四类工程预警清单_{record.file_date or 'export'}.xlsx"
+        encoded_filename = quote(filename)
+        return StreamingResponse(
+            io.BytesIO(output.getvalue()),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"}
+        )
+    finally:
+        db.close()

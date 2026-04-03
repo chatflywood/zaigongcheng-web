@@ -18,6 +18,8 @@ const zaigongDate = ref(null)
 const budgetDate = ref(null)
 const zaigongSnapshotLabel = ref('')
 const budgetSnapshotLabel = ref('')
+const zaigongFourClassWarnings = ref(null)  // 四类工程预警数据（当前视图）
+const zaigongLatestFourClassWarnings = ref(null)  // 四类工程预警数据（最新）
 const historyCenterVisible = ref(false)
 const historyCenterLoading = ref(false)
 const historyTab = ref('all')
@@ -99,6 +101,7 @@ function onZaigongDataUpdate(data) {
   } else {
     zaigongDate.value = null
     zaigongLatestDate.value = null
+    zaigongFourClassWarnings.value = null
   }
 }
 
@@ -190,6 +193,15 @@ function onZaigongRestoreLatest() {
   if (zaigongLatestData.value) {
     zaigongData.value = zaigongLatestData.value
     zaigongDate.value = zaigongLatestDate.value
+    zaigongFourClassWarnings.value = zaigongLatestFourClassWarnings.value
+  }
+}
+
+function onZaigongWarningsUpdate(warnings) {
+  zaigongFourClassWarnings.value = warnings
+  // 如果当前不是查看历史，则同时更新最新的四类预警
+  if (!zaigongSnapshotLabel.value) {
+    zaigongLatestFourClassWarnings.value = warnings
   }
 }
 
@@ -363,6 +375,7 @@ async function buildComparison(sectionKey) {
         :snapshot-label="zaigongSnapshotLabel"
         @data-update="onZaigongDataUpdate"
         @restore-latest="onZaigongRestoreLatest"
+        @warnings-update="onZaigongWarningsUpdate"
       />
       <Budget
         v-else-if="currentView === 'budget'"
@@ -379,6 +392,7 @@ async function buildComparison(sectionKey) {
         :budget-data="budgetData"
         :zaigong-date="zaigongDate"
         :budget-date="budgetDate"
+        :four-class-warnings="zaigongFourClassWarnings"
         @presentation-change="onPresentationChange"
       />
     </main>

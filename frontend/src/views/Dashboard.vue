@@ -220,6 +220,186 @@
         </div>
       </div>
 
+      <!-- 四类工程预警面板 -->
+      <div v-if="fourClassWarnings && fourClassWarnings.items && fourClassWarnings.items.length > 0" class="four-class-card">
+        <div class="four-class-title-row" @click="showFourClassAllDetail" style="cursor:pointer">
+          <h3>四类工程预警 <span class="four-class-subtitle">(预警期60天)</span></h3>
+        </div>
+        <div class="four-class-cards-row">
+          <div class="four-class-mini-card" :class="'type-liezhang'" @click="showFourClassDetail('列账不及时')">
+            <div class="mini-card-label">列账不及时</div>
+            <div class="mini-card-nums">
+              <div class="mini-card-triggered">
+                <span class="num" :class="{ active: fourClassWarnings.summary?.['列账不及时']?.triggered > 0 }">
+                  {{ fourClassWarnings.summary?.['列账不及时']?.triggered || 0 }}
+                </span>
+                <span class="label">已触发</span>
+              </div>
+              <div class="mini-card-warning">
+                <span class="num" :class="{ active: fourClassWarnings.summary?.['列账不及时']?.warning > 0 }">
+                  {{ fourClassWarnings.summary?.['列账不及时']?.warning || 0 }}
+                </span>
+                <span class="label">预警</span>
+              </div>
+            </div>
+          </div>
+          <div class="four-class-mini-card" :class="'type-yuzhuang'" @click="showFourClassDetail('预转固不及时')">
+            <div class="mini-card-label">预转固不及时</div>
+            <div class="mini-card-nums">
+              <div class="mini-card-triggered">
+                <span class="num" :class="{ active: fourClassWarnings.summary?.['预转固不及时']?.triggered > 0 }">
+                  {{ fourClassWarnings.summary?.['预转固不及时']?.triggered || 0 }}
+                </span>
+                <span class="label">已触发</span>
+              </div>
+              <div class="mini-card-warning">
+                <span class="num" :class="{ active: fourClassWarnings.summary?.['预转固不及时']?.warning > 0 }">
+                  {{ fourClassWarnings.summary?.['预转固不及时']?.warning || 0 }}
+                </span>
+                <span class="label">预警</span>
+              </div>
+            </div>
+          </div>
+          <div class="four-class-mini-card" :class="'type-guanbi'" @click="showFourClassDetail('关闭不及时')">
+            <div class="mini-card-label">关闭不及时</div>
+            <div class="mini-card-nums">
+              <div class="mini-card-triggered">
+                <span class="num" :class="{ active: fourClassWarnings.summary?.['关闭不及时']?.triggered > 0 }">
+                  {{ fourClassWarnings.summary?.['关闭不及时']?.triggered || 0 }}
+                </span>
+                <span class="label">已触发</span>
+              </div>
+              <div class="mini-card-warning">
+                <span class="num" :class="{ active: fourClassWarnings.summary?.['关闭不及时']?.warning > 0 }">
+                  {{ fourClassWarnings.summary?.['关闭不及时']?.warning || 0 }}
+                </span>
+                <span class="label">预警</span>
+              </div>
+            </div>
+          </div>
+          <div class="four-class-mini-card" :class="'type-guazhang'" @click="showFourClassDetail('长期挂账')">
+            <div class="mini-card-label">长期挂账</div>
+            <div class="mini-card-nums">
+              <div class="mini-card-triggered">
+                <span class="num" :class="{ active: fourClassWarnings.summary?.['长期挂账']?.triggered > 0 }">
+                  {{ fourClassWarnings.summary?.['长期挂账']?.triggered || 0 }}
+                </span>
+                <span class="label">已触发</span>
+              </div>
+              <div class="mini-card-warning">
+                <span class="num" :class="{ active: fourClassWarnings.summary?.['长期挂账']?.warning > 0 }">
+                  {{ fourClassWarnings.summary?.['长期挂账']?.warning || 0 }}
+                </span>
+                <span class="label">预警</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 四类工程明细弹窗 -->
+      <div v-if="fourClassDetailVisible" class="four-class-modal-overlay" @click.self="fourClassDetailVisible = false">
+        <div class="four-class-modal">
+          <div class="modal-header">
+            <div class="modal-title-wrap">
+              <h3>{{ fourClassDetailType }}</h3>
+              <span v-if="fourClassWarnings?.analysis_date" class="modal-date">
+                数据日期：{{ fourClassWarnings.analysis_date }}
+              </span>
+            </div>
+            <div class="modal-header-actions">
+              <button class="export-btn-primary" @click="exportFourClassWarnings" :disabled="!currentRecordId">
+                <span>↓</span> 导出预警清单
+              </button>
+              <button class="modal-close" @click="fourClassDetailVisible = false">×</button>
+            </div>
+          </div>
+          <div class="modal-body">
+            <!-- 全部预警明细：分组显示 -->
+            <template v-if="fourClassDetailType === '四类工程预警明细'">
+              <template v-for="type in fourClassTypes" :key="type.name">
+                <div v-if="getGroupItems(type.name).length > 0" class="four-class-group"
+                  :class="'group-' + type.key">
+                  <div class="group-header">
+                    <span class="group-title">{{ type.name }}</span>
+                    <span class="group-count">
+                      已触发 {{ getGroupStats(type.name).triggered }} / 预警 {{ getGroupStats(type.name).warning }}
+                    </span>
+                  </div>
+                <table class="data-table four-class-modal-table">
+                  <thead>
+                    <tr>
+                      <th class="col-status">状态</th>
+                      <th class="col-name">工程名称</th>
+                      <th class="col-accept">验收类型</th>
+                      <th class="col-manager">管理员</th>
+                      <th class="col-date">关键日期</th>
+                      <th class="col-date">截止日期</th>
+                      <th class="col-project-status">工程状态</th>
+                      <th class="col-days">天数</th>
+                      <th class="col-suggestion">处置建议</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="item in getGroupItems(type.name)" :key="item.id" :class="'row-' + item.status">
+                      <td class="col-status">
+                        <span class="status-tag" :class="item.status">{{ item.status }}</span>
+                      </td>
+                      <td class="col-name" :title="item.name">{{ item.name }}</td>
+                      <td class="col-accept">{{ item.acceptType }}</td>
+                      <td class="col-manager">{{ item.manager }}</td>
+                      <td class="col-date">{{ item.keyDate }}</td>
+                      <td class="col-date">{{ item.deadline || '-' }}</td>
+                      <td class="col-project-status">{{ item.projectStatus || '—' }}</td>
+                      <td class="col-days" :class="getDaysClass(item.daysLabel, item.status)">
+                        <span v-if="item.status === '预警' && parseInt(item.daysLabel?.match(/\d+/)?.[0]) <= 30" style="margin-right:2px">⚠️</span>{{ item.daysLabel }}
+                      </td>
+                      <td class="col-suggestion">{{ item.suggestion }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </template>
+            </template>
+            <!-- 单类型明细 -->
+            <template v-else>
+              <table class="data-table four-class-modal-table">
+                <thead>
+                  <tr>
+                    <th class="col-status">状态</th>
+                    <th class="col-name">工程名称</th>
+                    <th class="col-accept">验收类型</th>
+                    <th class="col-manager">管理员</th>
+                    <th class="col-date">关键日期</th>
+                    <th class="col-date">截止日期</th>
+                    <th class="col-project-status">工程状态</th>
+                    <th class="col-days">天数</th>
+                    <th class="col-suggestion">处置建议</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="item in fourClassDetailItems" :key="item.id" :class="'row-' + item.status">
+                    <td class="col-status">
+                      <span class="status-tag" :class="item.status">{{ item.status }}</span>
+                    </td>
+                    <td class="col-name" :title="item.name">{{ item.name }}</td>
+                    <td class="col-accept">{{ item.acceptType }}</td>
+                    <td class="col-manager">{{ item.manager }}</td>
+                    <td class="col-date">{{ item.keyDate }}</td>
+                    <td class="col-date">{{ item.deadline || '-' }}</td>
+                    <td class="col-project-status">{{ item.projectStatus || '—' }}</td>
+                    <td class="col-days" :class="getDaysClass(item.daysLabel, item.status)">
+                      <span v-if="item.status === '预警' && parseInt(item.daysLabel?.match(/\d+/)?.[0]) <= 30" style="margin-right:2px">⚠️</span>{{ item.daysLabel }}
+                    </td>
+                    <td class="col-suggestion">{{ item.suggestion }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </template>
+          </div>
+        </div>
+      </div>
+
       <div class="progress-row">
         <div class="progress-label">当期资本性支出进度</div>
         <div class="progress-track-wrap">
@@ -243,7 +423,6 @@
       <div class="table-card">
         <div class="card-header">
           <h3>各工程管理员汇总</h3>
-          <span class="record-count">{{ summaryRows.length }} 位管理员</span>
         </div>
         <div class="table-wrapper">
           <table class="data-table">
@@ -476,6 +655,72 @@ const progressChart = ref(null)
 const barChart = ref(null)
 let progressChartInstance = null
 let barChartInstance = null
+
+// 四类工程预警
+const fourClassWarnings = ref(null)
+const fourClassDetailVisible = ref(false)
+const fourClassDetailType = ref('')
+const fourClassDetailItems = ref([])
+const fourClassExpanded = ref(false)
+const fourClassTypes = [
+  { name: '列账不及时', key: 'liezhang' },
+  { name: '预转固不及时', key: 'yuzhuang' },
+  { name: '关闭不及时', key: 'guanbi' },
+  { name: '长期挂账', key: 'guazhang' },
+]
+
+function showFourClassDetail(type) {
+  fourClassDetailType.value = type
+  fourClassDetailItems.value = fourClassWarnings.value?.items?.filter(item => item.type === type) || []
+  fourClassDetailVisible.value = true
+}
+
+function showFourClassAllDetail() {
+  fourClassDetailType.value = '四类工程预警明细'
+  fourClassDetailItems.value = fourClassWarnings.value?.items || []
+  fourClassDetailVisible.value = true
+}
+
+function getGroupItems(type) {
+  return fourClassWarnings.value?.items?.filter(item => item.type === type) || []
+}
+
+function getGroupStats(type) {
+  const items = getGroupItems(type)
+  return {
+    triggered: items.filter(i => i.status === '已触发' || i.status === '已触发(超期完成)').length,
+    warning: items.filter(i => i.status === '预警').length
+  }
+}
+
+function getDaysClass(daysLabel, status) {
+  if (!daysLabel) return ''
+  const match = daysLabel.match(/\d+/)
+  if (!match) return ''
+  const days = parseInt(match[0])
+  if (status === '已触发' || status === '已触发(超期完成)') return 'days-overdue'
+  if (days <= 10) return 'days-overdue'
+  if (days <= 30) return 'days-warning'
+  return ''
+}
+
+async function exportFourClassWarnings() {
+  try {
+    const { exportFourClassExcel } = await import('../api')
+    const blob = await exportFourClassExcel(currentRecordId.value)
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    const fileDate = fourClassWarnings.value?.summary?.analysis_date?.replace(/-/g, '') || ''
+    link.download = `四类工程预警清单_${fileDate}.xlsx`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    console.error('导出失败:', error)
+  }
+}
 const handleResize = () => {
   progressChartInstance?.resize()
   barChartInstance?.resize()
@@ -812,6 +1057,10 @@ async function processFile(file) {
       }
       applyDashboardData(data)
       targetValue.value = Number(data.metrics?.yearTarget) || Number(targetValue.value) || null
+      // 存储四类工程预警数据
+      fourClassWarnings.value = result.data?.four_class_warnings || null
+      console.log('four_class_warnings:', fourClassWarnings.value)
+      fourClassExpanded.value = false
       isViewingHistory.value = false
       snapshotDisplayDate.value = null
       clearSelectedFile()
@@ -3517,7 +3766,7 @@ onUnmounted(() => {
 }
 
 .progress-label {
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 600;
   color: #1c1b18;
   min-width: 132px;
@@ -3581,7 +3830,7 @@ onUnmounted(() => {
 .gauge-header h3,
 .card-header h3 {
   color: #1c1b18 !important;
-  font-size: 13px !important;
+  font-size: 15px !important;
 }
 
 .gauge-chart,
@@ -3764,6 +4013,328 @@ onUnmounted(() => {
   .table-footnote {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+/* 四类工程预警面板 */
+.four-class-card {
+  background: #fff;
+  border: 1px solid #e4e3dc;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.four-class-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.four-class-title-row h3 {
+  margin: 0;
+  font-size: 15px;
+  color: #1c1b18;
+}
+
+.four-class-subtitle {
+  font-size: 11px;
+  color: #8a8680;
+  font-weight: normal;
+  margin-left: 8px;
+}
+
+.four-class-cards-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.four-class-mini-card {
+  background: #f8f6f1;
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.four-class-mini-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.four-class-mini-card.type-liezhang { border-left: 3px solid #1F497D; }
+.four-class-mini-card.type-yuzhuang { border-left: 3px solid #7B3F00; }
+.four-class-mini-card.type-guanbi { border-left: 3px solid #843C0C; }
+.four-class-mini-card.type-guazhang { border-left: 3px solid #244062; }
+
+.mini-card-label {
+  font-size: 11px;
+  color: #6b6a63;
+  margin-bottom: 8px;
+}
+
+.mini-card-nums {
+  display: flex;
+  gap: 16px;
+}
+
+.mini-card-triggered .num,
+.mini-card-warning .num {
+  font-size: 22px;
+  font-weight: 700;
+  color: #aaa;
+  display: block;
+}
+
+.mini-card-triggered .num.active { color: #C00000; }
+.mini-card-warning .num.active { color: #D4A800; }
+
+.mini-card-triggered .label,
+.mini-card-warning .label {
+  font-size: 10px;
+  color: #8a8680;
+}
+
+/* 四类工程明细弹窗 */
+.four-class-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.four-class-modal {
+  background: #fff;
+  border-radius: 10px;
+  width: 98%;
+  max-width: 1400px;
+  max-height: 84vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.22);
+}
+
+.four-class-modal .modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #e4e3dc;
+}
+
+.four-class-modal .modal-title-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.four-class-modal .modal-title-wrap h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1c1b18;
+  margin: 0;
+}
+
+.four-class-modal .modal-date {
+  font-size: 11px;
+  color: #8a8680;
+}
+
+.four-class-modal .modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.four-class-modal .export-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: #1a56a4;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.four-class-modal .export-btn-primary:hover {
+  background: #145293;
+}
+
+.four-class-modal .export-btn-primary:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.four-class-modal .export-btn-primary span {
+  font-size: 14px;
+}
+
+.four-class-modal-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1000px;
+  table-layout: fixed;
+}
+
+.four-class-modal-table th {
+  background: #f8f6f1;
+  color: #6b6a63;
+  font-weight: 600;
+  font-size: 11px;
+  padding: 6px 4px;
+  text-align: left;
+  border-bottom: 1px solid #e4e3dc;
+  position: sticky;
+  top: 0;
+  word-break: break-word;
+}
+
+.four-class-modal-table td {
+  padding: 4px 4px;
+  border-bottom: 1px solid #f0efe9;
+  color: #1c1b18;
+  font-size: 11px;
+}
+
+.four-class-modal-table tr:hover td {
+  background: #faf9f7;
+}
+
+.four-class-modal-table .col-status {
+  width: 48px;
+  white-space: nowrap;
+}
+
+.four-class-modal-table .col-name {
+  width: 240px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.four-class-modal-table .col-accept {
+  width: 64px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.four-class-modal-table .col-manager {
+  width: 52px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.four-class-modal-table .col-date {
+  width: 76px;
+  white-space: nowrap;
+  font-size: 10px;
+  color: #5e5a52;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.four-class-modal-table .col-project-status {
+  width: 100px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.four-class-modal-table .col-days {
+  width: 72px;
+  white-space: nowrap;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.four-class-modal-table .col-days.days-overdue {
+  color: #C00000;
+  font-weight: 700;
+}
+
+.four-class-modal-table .col-days.days-warning {
+  color: #D4A800;
+  font-weight: 700;
+}
+
+.four-class-group {
+  margin-bottom: 20px;
+}
+
+.four-class-group .group-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+
+.four-class-group.group-liezhang .group-header { background: #DCE6F1; color: #1F497D; }
+.four-class-group.group-yuzhuang .group-header { background: #FEF3E8; color: #7B3F00; }
+.four-class-group.group-guanbi .group-header { background: #FFF0E5; color: #843C0C; }
+.four-class-group.group-guazhang .group-header { background: #DDE8F0; color: #244062; }
+
+.group-title {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.group-count {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.four-class-modal-table .col-suggestion {
+  color: #6b6a63;
+  font-size: 11px;
+  white-space: normal;
+  line-height: 1.4;
+  width: 140px;
+  word-break: break-word;
+}
+
+.four-class-modal-table .status-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.four-class-modal-table .status-tag.已触发,
+.four-class-modal-table .row-已触发 td {
+  background: rgba(192, 0, 0, 0.06);
+  color: #C00000;
+}
+
+.four-class-modal-table .status-tag.已触发\(超期完成\),
+.four-class-modal-table .row-已触发\(超期完成\) td {
+  background: rgba(255, 153, 0, 0.06);
+  color: #ED7D31;
+}
+
+.four-class-modal-table .status-tag.预警,
+.four-class-modal-table .row-预警 td {
+  color: #7B5200;
+}
+
+@media (max-width: 900px) {
+  .four-class-cards-row {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 </style>

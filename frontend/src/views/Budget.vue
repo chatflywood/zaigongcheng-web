@@ -89,8 +89,9 @@
                 <span>上次上传：</span>
                 <strong>{{ recentHistoryCards[0] ? formatHistoryDateOnly(recentHistoryCards[0].uploaded_at) : '暂无' }}</strong>
               </div>
-              <button class="upload-submit-btn" :class="{ ready: canUploadNow }" :disabled="!canUploadNow" @click.stop="processSelectedFile">上传分析</button>
+              <div class="auto-upload-tip">{{ loading ? '分析中...' : '上传后自动分析' }}</div>
             </div>
+            <div v-if="uploadMessage" class="upload-feedback" :class="uploadMessageType">{{ uploadMessage }}</div>
             <input ref="fileInput" type="file" accept=".xlsx,.xls" @change="handleFileChange" hidden />
           </div>
         </div>
@@ -174,35 +175,37 @@
         </div>
       </div>
 
-      <div class="progress-row">
-        <div class="progress-label">年度立项进度</div>
-        <div class="progress-track-wrap">
-          <div class="progress-nums-row">
-            <span>小计 {{ formatNum(data.total_used) }} 万元</span>
-            <span class="pct">{{ formatPercent(data.approval_progress) }}</span>
+      <div class="progress-overview-card">
+        <div class="progress-row-inner">
+          <div class="progress-label">年度立项进度</div>
+          <div class="progress-track-wrap">
+            <div class="progress-nums-row">
+              <span>小计 {{ formatNum(data.total_used) }} 万元</span>
+              <span class="pct">{{ formatPercent(data.approval_progress) }}</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" :style="{ width: formatPercent(data.approval_progress) }"></div>
+            </div>
           </div>
-          <div class="progress-track">
-            <div class="progress-fill" :style="{ width: formatPercent(data.approval_progress) }"></div>
-          </div>
-        </div>
-        <div class="progress-right">
-          <div class="progress-completed">年度预算 {{ formatNum(data.budget_total) }} 万元</div>
-        </div>
-      </div>
-
-      <div class="progress-row">
-        <div class="progress-label">年度支出进度</div>
-        <div class="progress-track-wrap">
-          <div class="progress-nums-row">
-            <span>年度支出 {{ formatNum(data.annual_spend_total) }} 万元</span>
-            <span class="pct spend">{{ formatPercent(data.spend_progress) }}</span>
-          </div>
-          <div class="progress-track">
-            <div class="progress-fill spend" :style="{ width: formatPercent(data.spend_progress) }"></div>
+          <div class="progress-right">
+            <div class="progress-completed">年度预算 {{ formatNum(data.budget_total) }} 万元</div>
           </div>
         </div>
-        <div class="progress-right">
-          <div class="progress-completed">年度预算 {{ formatNum(data.budget_total) }} 万元</div>
+        <div class="progress-inner-divider"></div>
+        <div class="progress-row-inner">
+          <div class="progress-label">年度支出进度</div>
+          <div class="progress-track-wrap">
+            <div class="progress-nums-row">
+              <span>年度支出 {{ formatNum(data.annual_spend_total) }} 万元</span>
+              <span class="pct spend">{{ formatPercent(data.spend_progress) }}</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill spend" :style="{ width: formatPercent(data.spend_progress) }"></div>
+            </div>
+          </div>
+          <div class="progress-right">
+            <div class="progress-completed">年度预算 {{ formatNum(data.budget_total) }} 万元</div>
+          </div>
         </div>
       </div>
 
@@ -265,7 +268,7 @@
             </svg>
           </button>
         </div>
-        <div v-show="!categoryTableCollapsed" class="table-wrapper">
+        <div class="table-wrapper">
           <table class="data-table">
             <thead>
               <tr>
@@ -304,30 +307,32 @@
                   </div>
                 </td>
               </tr>
-              <tr v-for="cat in data.categories" :key="cat.name">
-                <td class="category-name">{{ cat.name }}</td>
-                <td>{{ formatNum(cat.budget) }}</td>
-                <td :class="{ 'value-highlight': cat.annual_spend > 0 }">{{ cat.annual_spend > 0 ? formatNum(cat.annual_spend) : '—' }}</td>
-                <td :class="{ 'value-highlight': cat.occupied > 0 }">{{ cat.occupied > 0 ? formatNum(cat.occupied) : '—' }}</td>
-                <td :class="{ 'value-warning': cat.preoccupied > 0 }">{{ cat.preoccupied > 0 ? formatNum(cat.preoccupied) : '—' }}</td>
-                <td class="subtotal">{{ formatNum(cat.subtotal) }}</td>
-                <td>
-                  <div class="progress-cell">
-                    <div class="progress-bar">
-                      <div class="progress-fill" :style="{ width: formatPercent(cat.progress) }"></div>
+              <template v-if="!categoryTableCollapsed">
+                <tr v-for="cat in data.categories" :key="cat.name">
+                  <td class="category-name">{{ cat.name }}</td>
+                  <td>{{ formatNum(cat.budget) }}</td>
+                  <td :class="{ 'value-highlight': cat.annual_spend > 0 }">{{ cat.annual_spend > 0 ? formatNum(cat.annual_spend) : '—' }}</td>
+                  <td :class="{ 'value-highlight': cat.occupied > 0 }">{{ cat.occupied > 0 ? formatNum(cat.occupied) : '—' }}</td>
+                  <td :class="{ 'value-warning': cat.preoccupied > 0 }">{{ cat.preoccupied > 0 ? formatNum(cat.preoccupied) : '—' }}</td>
+                  <td class="subtotal">{{ formatNum(cat.subtotal) }}</td>
+                  <td>
+                    <div class="progress-cell">
+                      <div class="progress-bar">
+                        <div class="progress-fill" :style="{ width: formatPercent(cat.progress) }"></div>
+                      </div>
+                      <span class="progress-text">{{ formatPercent(cat.progress) }}</span>
                     </div>
-                    <span class="progress-text">{{ formatPercent(cat.progress) }}</span>
-                  </div>
-                </td>
-                <td>
-                  <div class="progress-cell">
-                    <div class="progress-bar">
-                      <div class="progress-fill spend" :style="{ width: formatPercent(cat.spend_progress) }"></div>
+                  </td>
+                  <td>
+                    <div class="progress-cell">
+                      <div class="progress-bar">
+                        <div class="progress-fill spend" :style="{ width: formatPercent(cat.spend_progress) }"></div>
+                      </div>
+                      <span class="progress-text">{{ formatPercent(cat.spend_progress) }}</span>
                     </div>
-                    <span class="progress-text">{{ formatPercent(cat.spend_progress) }}</span>
-                  </div>
-                </td>
-              </tr>
+                  </td>
+                </tr>
+              </template>
             </tbody>
           </table>
         </div>
@@ -493,6 +498,8 @@ const categoryTableCollapsed = ref(true)
 const projectTableCollapsed = ref(true)
 const selectedFile = ref(null)
 const selectedFileName = ref('')
+const uploadMessage = ref('')
+const uploadMessageType = ref('info')
 
 // 监听父组件传来的数据
 watch(() => props.initialData, (newData) => {
@@ -654,6 +661,9 @@ async function handleFileChange(e) {
   if (file) {
     selectedFile.value = file
     selectedFileName.value = file.name
+    uploadMessage.value = `已选择文件：${file.name}`
+    uploadMessageType.value = 'info'
+    await processFile(file)
   }
 }
 
@@ -662,6 +672,9 @@ async function handleDrop(e) {
   if (file) {
     selectedFile.value = file
     selectedFileName.value = file.name
+    uploadMessage.value = `已选择文件：${file.name}`
+    uploadMessageType.value = 'info'
+    await processFile(file)
   }
 }
 
@@ -673,6 +686,7 @@ async function processSelectedFile() {
 function clearSelectedFile() {
   selectedFile.value = null
   selectedFileName.value = ''
+  uploadMessage.value = ''
   if (fileInput.value) fileInput.value.value = ''
 }
 
@@ -691,7 +705,8 @@ async function processFile(file) {
       emit('dataUpdate', result.data)
     }
   } catch (error) {
-    alert('分析失败：' + (error.message || '未知错误'))
+    uploadMessage.value = '分析失败：' + (error.message || '未知错误')
+    uploadMessageType.value = 'error'
   } finally {
     loading.value = false
   }
@@ -2143,16 +2158,36 @@ onMounted(() => {
   font-size: 12px !important;
 }
 
-.header-side .ghost-action:last-child {
+.header-side .ghost-action:first-child {
   background: #1f1c17 !important;
   border-color: #1f1c17 !important;
   color: #ffffff !important;
 }
 
-.header-side .ghost-action:last-child:hover {
+.header-side .ghost-action:first-child:hover {
   background: #2d2923 !important;
   border-color: #2d2923 !important;
   color: #ffffff !important;
+}
+
+.progress-overview-card {
+  background: #fff;
+  border: 1px solid #e4e3dc;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.progress-row-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+}
+
+.progress-inner-divider {
+  height: 1px;
+  background: #f0efe9;
+  margin: 0 14px;
 }
 
 .progress-row {
@@ -2687,30 +2722,39 @@ onMounted(() => {
   font-family: 'IBM Plex Mono', monospace !important;
 }
 
-.upload-submit-btn {
+.auto-upload-tip {
   display: inline-flex !important;
   align-items: center !important;
-  gap: 6px !important;
-  min-width: 0 !important;
-  height: 34px !important;
-  padding: 0 18px !important;
-  border: none !important;
+  justify-content: center !important;
+  min-height: 34px !important;
+  padding: 0 12px !important;
   border-radius: 6px !important;
-  background: #d0cfc6 !important;
-  color: #ffffff !important;
-  font-size: 13px !important;
+  background: #f0efe9 !important;
+  color: #8a867f !important;
+  font-size: 12px !important;
   font-weight: 500 !important;
-  box-shadow: none !important;
-  cursor: not-allowed !important;
+  white-space: nowrap !important;
 }
 
-.upload-submit-btn.ready {
-  background: #1c1b18 !important;
-  cursor: pointer !important;
+.upload-feedback {
+  width: 100% !important;
+  margin-top: 8px !important;
+  padding: 10px 12px !important;
+  border-radius: 8px !important;
+  font-size: 12px !important;
+  line-height: 1.5 !important;
 }
 
-.upload-submit-btn.ready:hover {
-  background: #2d2d2a !important;
+.upload-feedback.info {
+  background: rgba(17, 94, 89, 0.08) !important;
+  color: #0f766e !important;
+  border: 1px solid rgba(15, 118, 110, 0.18) !important;
+}
+
+.upload-feedback.error {
+  background: rgba(220, 38, 38, 0.08) !important;
+  color: #b91c1c !important;
+  border: 1px solid rgba(185, 28, 28, 0.18) !important;
 }
 
 .selected-file-banner {

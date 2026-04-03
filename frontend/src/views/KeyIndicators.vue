@@ -43,7 +43,7 @@
           <svg width="140" height="80" viewBox="0 0 140 80">
             <path d="M15 75 A55 55 0 0 1 125 75" fill="none" stroke="rgba(167,139,250,0.1)" stroke-width="8" stroke-linecap="round"/>
             <path class="gauge-arc" d="M15 75 A55 55 0 0 1 125 75" fill="none" stroke="url(#g-violet)" stroke-width="8" stroke-linecap="round"
-              stroke-dasharray="251" :stroke-dashoffset="dashOffset(approvalProgress)"/>
+              stroke-dasharray="172.8" :stroke-dashoffset="dashOffset(approvalProgress)"/>
             <defs>
               <linearGradient id="g-violet" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" stop-color="#7C3AED"/>
@@ -51,7 +51,7 @@
               </linearGradient>
             </defs>
             <text x="70" y="62" text-anchor="middle" font-size="26" font-weight="500" fill="#A78BFA" font-family="DM Mono,monospace" letter-spacing="-1">{{ approvalProgress }}%</text>
-            <text x="70" y="78" text-anchor="middle" font-size="10" fill="#4A505A" font-family="DM Sans,sans-serif">完成</text>
+            <text x="70" y="78" text-anchor="middle" font-size="10" fill="#4A505A" font-family="DM Sans,sans-serif">{{ Number(approvalProgress) >= 100 ? '已完成' : '进行中' }}</text>
           </svg>
         </div>
         <div class="kpi-divider"></div>
@@ -81,7 +81,7 @@
           <svg width="140" height="80" viewBox="0 0 140 80">
             <path d="M15 75 A55 55 0 0 1 125 75" fill="none" stroke="rgba(34,211,238,0.1)" stroke-width="8" stroke-linecap="round"/>
             <path class="gauge-arc" d="M15 75 A55 55 0 0 1 125 75" fill="none" stroke="url(#g-cyan)" stroke-width="8" stroke-linecap="round"
-              stroke-dasharray="251" :stroke-dashoffset="dashOffset(capitalProgress)"/>
+              stroke-dasharray="172.8" :stroke-dashoffset="dashOffset(capitalProgress)"/>
             <defs>
               <linearGradient id="g-cyan" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" stop-color="#0891B2"/>
@@ -89,7 +89,7 @@
               </linearGradient>
             </defs>
             <text x="70" y="62" text-anchor="middle" font-size="26" font-weight="500" fill="#22D3EE" font-family="DM Mono,monospace" letter-spacing="-1">{{ capitalProgress }}%</text>
-            <text x="70" y="78" text-anchor="middle" font-size="10" fill="#4A505A" font-family="DM Sans,sans-serif">完成</text>
+            <text x="70" y="78" text-anchor="middle" font-size="10" fill="#4A505A" font-family="DM Sans,sans-serif">{{ Number(capitalProgress) >= 100 ? '已完成' : '进行中' }}</text>
           </svg>
         </div>
         <div class="kpi-divider"></div>
@@ -119,7 +119,7 @@
           <svg width="140" height="80" viewBox="0 0 140 80">
             <path d="M15 75 A55 55 0 0 1 125 75" fill="none" stroke="rgba(96,165,250,0.1)" stroke-width="8" stroke-linecap="round"/>
             <path class="gauge-arc" d="M15 75 A55 55 0 0 1 125 75" fill="none" stroke="url(#g-blue)" stroke-width="8" stroke-linecap="round"
-              stroke-dasharray="251" :stroke-dashoffset="dashOffset(annualCapitalProgress)"/>
+              stroke-dasharray="172.8" :stroke-dashoffset="dashOffset(annualCapitalProgress)"/>
             <defs>
               <linearGradient id="g-blue" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" stop-color="#1D4ED8"/>
@@ -159,7 +159,7 @@
           <svg width="140" height="80" viewBox="0 0 140 80">
             <path d="M15 75 A55 55 0 0 1 125 75" fill="none" stroke="rgba(248,113,113,0.1)" stroke-width="8" stroke-linecap="round"/>
             <path class="gauge-arc" d="M15 75 A55 55 0 0 1 125 75" fill="none" stroke="url(#g-red)" stroke-width="8" stroke-linecap="round"
-              stroke-dasharray="251" :stroke-dashoffset="dashOffset(transferRate)"/>
+              stroke-dasharray="172.8" :stroke-dashoffset="dashOffset(transferRate)"/>
             <defs>
               <linearGradient id="g-red" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" stop-color="#991B1B"/>
@@ -182,120 +182,15 @@
           <div class="kpi-meta">
             <div class="kpi-meta-label">年度目标</div>
             <div class="kpi-meta-val amber">60.0%</div>
-            <div class="kpi-meta-unit">差距 {{ (60 - transferRate).toFixed(1) }}pct</div>
+            <div class="kpi-meta-unit">{{ Number(transferRate) >= 60 ? '已达标' : `差距 ${(60 - Number(transferRate)).toFixed(1)}pct` }}</div>
           </div>
         </div>
         <div class="kpi-date">📅 {{ normalizedZaigongDate || '—' }}</div>
       </div>
     </div>
 
-    <!-- 底部双栏 -->
+    <!-- 底部全宽 -->
     <div class="bottom-grid">
-      <!-- AI 工程进度分析 -->
-      <div class="card ai-card">
-        <div class="section-head">
-          <div class="section-title-group">
-            <span class="section-tag tag-ai">AI</span>
-            <span class="section-title">工程进度分析</span>
-          </div>
-          <div class="section-actions">
-            <button class="action-btn" :class="{ active: aiMode === 'management' }" @click="switchAIMode('management')">管理汇报版</button>
-            <button class="action-btn" :class="{ active: aiMode === 'execution' }" @click="switchAIMode('execution')">执行推进版</button>
-            <button class="refresh-btn" @click="refreshAIAnalysis" :disabled="aiAnalysisLoading || !aiConfigured">
-              <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-                <path d="M9 5.5A3.5 3.5 0 1 1 5.5 2a3.5 3.5 0 0 1 2.5 1.04" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
-                <path d="M8 1v2.5H5.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              {{ aiAnalysisLoading ? '分析中...' : '刷新分析' }}
-            </button>
-          </div>
-        </div>
-
-        <div class="ai-timestamp" v-if="aiAnalysisGeneratedAt">生成于 {{ new Date(aiAnalysisGeneratedAt).toLocaleString('zh-CN') }}</div>
-
-        <div v-if="!aiConfigured" class="ai-message error">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" y1="8" x2="12" y2="12"/>
-            <line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-          <span>AI 服务未配置，请先配置后端 MiniMax 环境变量</span>
-        </div>
-        <div v-else-if="aiAnalysisError" class="ai-message" :class="aiMessageTone">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" y1="8" x2="12" y2="12"/>
-            <line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-          <span>{{ aiAnalysisError }}</span>
-        </div>
-        <div v-else-if="!aiAnalysisContent" class="ai-empty">
-          <p>点击"刷新分析"生成 AI 分析报告</p>
-        </div>
-        <div v-else class="ai-content-v2">
-          <!-- ① 状态行 -->
-          <div class="ai-status-bar">
-            <div class="ai-status-left">
-              <div class="ai-status-dot" :style="{ background: overallStatus.color, boxShadow: `0 0 8px ${overallStatus.color}` }"></div>
-              <span class="ai-status-label" :style="{ color: overallStatus.color }">{{ overallStatus.label }}</span>
-              <span class="ai-status-divider">·</span>
-              <span class="ai-status-summary">{{ summaryOneLiner }}</span>
-            </div>
-            <span class="ai-timestamp-v2" v-if="aiAnalysisGeneratedAt">{{ new Date(aiAnalysisGeneratedAt).toLocaleString('zh-CN') }}</span>
-          </div>
-
-          <!-- ② 三格指标 -->
-          <div class="ai-metrics-v2">
-            <div class="ai-metric-v2">
-              <div class="ai-metric-header">
-                <span class="ai-metric-label-v2">进度评估</span>
-                <span class="ai-metric-num" style="color:#60A5FA">{{ progressKeyNum }}</span>
-              </div>
-              <div class="ai-metric-text">{{ sanitizeAIContent(aiResult.progress || '').slice(0, 50) }}{{ (aiResult.progress || '').length > 50 ? '…' : '' }}</div>
-            </div>
-
-            <div class="ai-metric-v2">
-              <div class="ai-metric-header">
-                <span class="ai-metric-label-v2">支出分析</span>
-                <span class="ai-metric-num" style="color:#22D3EE">{{ expendKeyInfo }}</span>
-              </div>
-              <div class="ai-metric-text">{{ sanitizeAIContent(aiResult.spend || '').slice(0, 50) }}{{ (aiResult.spend || '').length > 50 ? '…' : '' }}</div>
-            </div>
-
-            <div class="ai-metric-v2" :class="{ 'metric-danger': isHighRisk }">
-              <div class="ai-metric-header">
-                <span class="ai-metric-label-v2">风险预警</span>
-                <span v-if="isHighRisk" class="ai-risk-badge">高风险</span>
-              </div>
-              <div class="ai-metric-text" :style="{ color: isHighRisk ? '#F87171' : 'var(--text-2)' }">
-                {{ riskKeyText }}
-              </div>
-            </div>
-          </div>
-
-          <!-- ③ 重点动作 -->
-          <div class="ai-actions-v2" v-if="parsedActions.length">
-            <div class="ai-actions-header">重点动作</div>
-            <div class="ai-action-list">
-              <div
-                v-for="(action, i) in parsedActions"
-                :key="i"
-                class="ai-action-item-v2"
-                :title="action.fullText"
-              >
-                <span class="ai-priority-tag" :style="{ color: action.priority.color, background: action.priority.bg, border: `0.5px solid ${action.priority.color}40` }">
-                  {{ action.priority.label }}
-                </span>
-                <span class="ai-action-text">{{ action.text }}</span>
-                <div class="ai-person-chips" v-if="action.persons.length">
-                  <span v-for="person in action.persons" :key="person" class="ai-person-chip">{{ person }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <!-- 近期重点工作 -->
       <div class="card todo-card">
         <div class="section-head">
@@ -360,14 +255,14 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { generateAIAnalysis, getAIStatus } from '../api'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps({
   zaigongData: Object,
   budgetData: Object,
   zaigongDate: String,
-  budgetDate: String
+  budgetDate: String,
+  fourClassWarnings: Object
 })
 
 const emit = defineEmits(['presentation-change'])
@@ -440,172 +335,8 @@ const rateStatusClass = computed(() => {
 
 // SVG 仪表盘 dashOffset 计算
 const dashOffset = (value) => {
-  const num = parseFloat(value) || 0
-  return Math.round(251 * (1 - num / 100))
-}
-
-// AI 分析相关
-const aiConfigured = ref(false)
-const aiAnalysisContent = ref('')
-const aiAnalysisStructured = ref(null)
-const aiAnalysisLoading = ref(false)
-const aiAnalysisError = ref('')
-const aiAnalysisGeneratedAt = ref('')
-const aiCacheKey = 'ai_analysis_cache_v2'
-const aiMode = ref('management')
-
-// AI 结果中文别名，兼容模板中的中文键名
-const aiResult = computed(() => aiAnalysisStructured.value || {})
-
-const aiMessageTone = computed(() => {
-  const text = String(aiAnalysisError.value || '')
-  if (text.includes('数据已更新') || text.includes('分析风格已切换')) return 'info'
-  return 'error'
-})
-
-const parsedAISections = computed(() => {
-  const source = String(aiAnalysisContent.value || '').trim()
-  if (!source) return []
-  const lines = source.split('\n').map(line => line.trim()).filter(Boolean)
-  const sections = []
-  for (const line of lines) {
-    const matched = line.match(/^\*\*(.+?)\*\*[：:]\s*(.+)$/)
-    if (matched) {
-      sections.push({ title: matched[1].trim(), content: matched[2].trim() })
-    }
-  }
-  return sections
-})
-
-// 处理 AI 返回内容中的"差距 0.00 万元"等不合理表述
-function sanitizeAIContent(text) {
-  if (!text) return text
-  // 差距为0时，替换为"已达标"或"无需补充"
-  return text
-    .replace(/差距\s*0\.?\d*\s*万元/g, '已达标')
-    .replace(/缺口\s*0\.?\d*\s*万元/g, '已达标')
-    .replace(/单月至少完成\s*0\.?\d*\s*万元/g, '已完成目标')
-    .replace(/剩余\s*0\.?\d*\s*万元/g, '已完成')
-}
-
-const displayAISections = computed(() => {
-  const structured = aiAnalysisStructured.value || {}
-  const mapping = [
-    ['综合评估', structured.overall],
-    ['进度评估', structured.progress],
-    ['支出分析', structured.spend],
-    ['转固率分析', structured.rate],
-    ['风险预警', structured.risk],
-    ['下月预测', structured.next_month]
-  ]
-  const sections = mapping.filter(([, content]) => String(content || '').trim())
-    .map(([title, content]) => ({ title, content: sanitizeAIContent(String(content).trim()) }))
-  if (sections.length) return sections
-  return parsedAISections.value.map(s => ({ ...s, content: sanitizeAIContent(s.content) }))
-})
-
-const aiActionItems = computed(() => {
-  const actions = aiAnalysisStructured.value?.actions
-  if (!Array.isArray(actions)) return []
-  return actions.map(item => sanitizeAIContent(String(item || '').trim())).filter(Boolean)
-})
-
-// ── AI 分析 V2 新增计算属性 ──
-
-// 整体状态等级
-const overallStatus = computed(() => {
-  const text = aiResult.value?.overall || ''
-  const pctMatch = text.match(/(\d+\.?\d*)%/)
-  const pct = pctMatch ? parseFloat(pctMatch[1]) : 0
-  if (text.includes('超额') || pct > 100) {
-    return { level: 'good', label: '进度良好', color: '#34D399' }
-  }
-  if (text.includes('高风险') || text.includes('偏低') || text.includes('预警')) {
-    return { level: 'warn', label: '需要关注', color: '#FBBF24' }
-  }
-  if (text.includes('严重') || text.includes('风险极高')) {
-    return { level: 'danger', label: '立即处理', color: '#F87171' }
-  }
-  return { level: 'normal', label: '正常推进', color: '#60A5FA' }
-})
-
-// 综合评估一句话摘要
-const summaryOneLiner = computed(() => {
-  const text = aiResult.value?.overall || ''
-  const parts = text.split(/[，,]/)
-  const first = parts.slice(0, 2).join('，')
-  return first.length > 42 ? first.slice(0, 40) + '…' : first
-})
-
-// 是否高风险
-const isHighRisk = computed(() => {
-  const text = aiResult.value?.risk || ''
-  return text.includes('高风险') || text.includes('高 风险')
-})
-
-// 解析重点动作：优先级 + 截断 + 责任人提取
-const parsedActions = computed(() => {
-  return (aiResult.value?.actions || []).map((action, i) => {
-    const actionStr = String(action || '')
-    // 提取中文人名（2-3个汉字）
-    const persons = actionStr.match(/[\u4e00-\u9fa5]{2,3}(?=[、；;]|负责|跟进|督促)/g) || []
-    const priority = i === 0
-      ? { label: '紧急', color: '#F87171', bg: 'rgba(248,113,113,0.12)' }
-      : i === 1
-      ? { label: '重要', color: '#FBBF24', bg: 'rgba(251,191,36,0.12)' }
-      : { label: '跟进', color: '#34D399', bg: 'rgba(52,211,153,0.12)' }
-    const shortText = actionStr.length > 34 ? actionStr.slice(0, 32) + '…' : actionStr
-    return { text: shortText, fullText: actionStr, persons, priority }
-  })
-})
-
-// 进度评估关键数字
-const progressKeyNum = computed(() => {
-  const text = aiResult.value?.progress || ''
-  const match = text.match(/([+-]?\d+\.?\d*pct|[+-]?\d+\.?\d*%)/)
-  return match ? match[1] : '—'
-})
-
-// 支出分析关键金额
-const expendKeyInfo = computed(() => {
-  const text = aiResult.value?.spend || ''
-  const match = text.match(/(\d+\.?\d*)\s*万元/)
-  return match ? match[1] + '万' : '—'
-})
-
-// 风险预警关键内容
-const riskKeyText = computed(() => {
-  const text = aiResult.value?.risk || ''
-  return text.slice(0, 50) + (text.length > 50 ? '…' : '')
-})
-
-const riskMetrics = computed(() => {
-  const metrics = []
-  const progress = displayAISections.value.find(s => s.title === '进度评估')
-  if (progress) {
-    metrics.push({ label: '进度评估', content: progress.content, isRisk: false })
-  }
-  const spend = displayAISections.value.find(s => s.title === '支出分析')
-  if (spend) {
-    metrics.push({ label: '支出分析', content: spend.content, isRisk: false })
-  }
-  const risk = displayAISections.value.find(s => s.title === '风险预警')
-  if (risk) {
-    metrics.push({ label: '风险预警', content: risk.content, isRisk: true })
-  }
-  return metrics
-})
-
-function renderAIHighlight(text) {
-  return text.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
-}
-
-function switchAIMode(mode) {
-  if (mode === aiMode.value) return
-  aiMode.value = mode
-  if (aiAnalysisContent.value) {
-    aiAnalysisError.value = '分析风格已切换，请点击刷新'
-  }
+  const num = Math.min(100, Math.max(0, parseFloat(value) || 0))
+  return Math.round(172.8 * (1 - num / 100))
 }
 
 // 全屏展示模式
@@ -630,122 +361,6 @@ async function togglePresentationMode() {
 function handleFullscreenChange() {
   presentationMode.value = Boolean(document.fullscreenElement)
   emit('presentation-change', presentationMode.value)
-}
-
-// AI 分析
-function buildAISnapshotHash() {
-  const metrics = props.zaigongData?.metrics || {}
-  const budget = props.budgetData || {}
-  return JSON.stringify({
-    yearTarget: Number(metrics.yearTarget || 0),
-    capital: Number(metrics.capital || 0),
-    pending: Number(metrics.pending || 0),
-    rate: Number(metrics.rate || 0),
-    budgetTotal: Number(budget.budget_total || 0),
-    approvalProgress: Number(budget.approval_progress || 0),
-    annualSpendTotal: Number(budget.annual_spend_total || 0)
-  })
-}
-
-function saveAICache(content, structured, generatedAt, mode) {
-  localStorage.setItem(aiCacheKey, JSON.stringify({
-    content, structured, generatedAt, mode,
-    snapshotHash: buildAISnapshotHash()
-  }))
-}
-
-function isCacheStale() {
-  try {
-    const cache = JSON.parse(localStorage.getItem(aiCacheKey) || '{}')
-    if (!cache.snapshotHash) return true
-    if (cache.mode !== aiMode.value) return true
-    return cache.snapshotHash !== buildAISnapshotHash()
-  } catch { return true }
-}
-
-function loadAICache() {
-  try {
-    const cache = JSON.parse(localStorage.getItem(aiCacheKey) || '{}')
-    if (!cache.content) return
-    aiAnalysisStructured.value = cache.structured || null
-    aiAnalysisContent.value = cache.content || ''
-    aiAnalysisGeneratedAt.value = cache.generatedAt || ''
-    if (isCacheStale()) {
-      aiAnalysisError.value = '数据已更新，请点击刷新'
-    }
-  } catch {}
-}
-
-async function checkAIStatus() {
-  try {
-    const status = await getAIStatus()
-    aiConfigured.value = Boolean(status?.success && status?.data?.configured)
-  } catch {
-    aiConfigured.value = false
-  }
-}
-
-function buildAIRequestPayload() {
-  const metrics = props.zaigongData?.metrics || {}
-  const budget = props.budgetData || {}
-  return {
-    metrics: {
-      year_target: Number(metrics.yearTarget || 0),
-      total_current: Number(metrics.capital || 0),
-      progress_pct: Number(metrics.progress || 0) * 100,
-      month_spend: Number(metrics.monthSpend || 0),
-      pending: Number(metrics.pending || 0),
-      transfer_rate: Number(metrics.rate || 0)
-    },
-    summary: (props.zaigongData?.summary || [])
-      .filter(r => (r.manager || r['工程管理员']) !== '合计')
-      .map(r => ({
-        manager: r.manager || r['工程管理员'],
-        capital: Number(r.capital || r['本年累计资本性支出'] || 0),
-        pending: Number(r.pending || r['已下单待收货'] || 0),
-        rate: Number(r.rate || r['转固率'] || 0),
-        month_spend: Number(r.monthSpend || r['本月资本性支出'] || 0),
-        transfer: Number(r.transfer || r['结转额'] || 0)
-      })),
-    budget: {
-      total_budget: Number(budget.budget_total || 0),
-      approval_progress_pct: Number(budget.approval_progress || 0) * 100,
-      annual_spend_total: Number(budget.annual_spend_total || 0),
-      occupied_total: Number(budget.occupied_total || 0),
-      preoccupied_total: Number(budget.preoccupied_total || 0)
-    },
-    analysis_date: normalizedZaigongDate.value || normalizedBudgetDate.value || '',
-    style: aiMode.value
-  }
-}
-
-async function refreshAIAnalysis() {
-  if (!props.zaigongData?.metrics) {
-    aiAnalysisError.value = '请先上传在建工程数据'
-    return
-  }
-  if (!aiConfigured.value) {
-    aiAnalysisError.value = 'AI 服务未配置'
-    return
-  }
-  aiAnalysisLoading.value = true
-  aiAnalysisError.value = ''
-  try {
-    const result = await generateAIAnalysis(buildAIRequestPayload())
-    if (result?.success && result?.data?.content) {
-      aiAnalysisContent.value = result.data.content
-      aiAnalysisStructured.value = result.data.structured || null
-      aiAnalysisGeneratedAt.value = result.data.generated_at || ''
-      saveAICache(aiAnalysisContent.value, aiAnalysisStructured.value, aiAnalysisGeneratedAt.value, aiMode.value)
-    } else {
-      aiAnalysisError.value = result?.message || 'AI 分析生成失败'
-    }
-  } catch (error) {
-    const backendMessage = error?.response?.data?.message
-    aiAnalysisError.value = backendMessage || 'AI 服务调用失败，请稍后重试'
-  } finally {
-    aiAnalysisLoading.value = false
-  }
 }
 
 // 重点工作
@@ -889,8 +504,6 @@ function toggleStatus(item) {
 }
 
 onMounted(() => {
-  checkAIStatus()
-  loadAICache()
   loadWorkItems()
   presentationMode.value = Boolean(document.fullscreenElement)
   document.addEventListener('fullscreenchange', handleFullscreenChange)
@@ -964,35 +577,6 @@ onUnmounted(() => {
 
 .key-indicators.fullscreen-mode .bottom-grid {
   padding: 0 24px 16px;
-}
-
-.key-indicators.fullscreen-mode .ai-card {
-  padding: 16px 20px;
-}
-
-.key-indicators.fullscreen-mode .ai-content-v2 {
-  gap: 10px;
-}
-
-.key-indicators.fullscreen-mode .ai-metrics-v2 {
-  gap: 10px;
-}
-
-.key-indicators.fullscreen-mode .ai-metric-v2 {
-  padding: 10px 12px;
-}
-
-.key-indicators.fullscreen-mode .ai-metric-text {
-  font-size: 11px;
-  line-height: 1.4;
-}
-
-.key-indicators.fullscreen-mode .ai-actions-v2 {
-  padding: 10px 12px;
-}
-
-.key-indicators.fullscreen-mode .ai-action-text {
-  font-size: 11px;
 }
 
 /* 背景光晕 */
@@ -1133,64 +717,29 @@ onUnmounted(() => {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 14px;
   flex: 1;
 }
 
-/* AI 卡片 */
-.ai-card { padding: 20px 22px; display: flex; flex-direction: column; }
+/* 卡片头部 */
 .section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .section-title-group { display: flex; align-items: center; gap: 8px; }
 .section-tag {
   font-size: 9px; font-weight: 500; padding: 2px 7px; border-radius: 4px;
   text-transform: uppercase; letter-spacing: 0.6px;
 }
-.tag-ai { background: var(--cyan-dim); color: var(--cyan); border: 0.5px solid rgba(34,211,238,0.2); }
 .tag-todo { background: var(--violet-dim); color: var(--violet); border: 0.5px solid rgba(167,139,250,0.2); }
 .section-title { font-size: 14px; font-weight: 500; color: var(--text-1); }
 .section-actions { display: flex; align-items: center; gap: 6px; }
 
-.action-btn {
-  padding: 4px 11px; border-radius: 6px; font-size: 11px;
-  border: 0.5px solid var(--border-dim); color: var(--text-2);
-  background: var(--glass); cursor: pointer; font-family: var(--font); transition: all .2s;
+.ai-message {
+  padding: 14px 16px; border-radius: 10px; font-size: 12px;
+  display: flex; align-items: center; gap: 10px;
 }
-.action-btn:hover { background: var(--glass-2); color: var(--text-1); border-color: var(--border-glow); }
-.action-btn.active { background: var(--cyan-dim); color: var(--cyan); border-color: rgba(34,211,238,0.3); }
-.refresh-btn {
-  padding: 4px 11px; border-radius: 6px; font-size: 11px;
-  background: var(--cyan-dim); color: var(--cyan);
-  border: 0.5px solid rgba(34,211,238,0.3);
-  cursor: pointer; font-family: var(--font); transition: all .2s;
-  display: flex; align-items: center; gap: 5px;
-}
-.refresh-btn:hover { background: rgba(34,211,238,0.2); }
-.refresh-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-
-.ai-timestamp { font-size: 11px; color: var(--text-3); font-family: var(--mono); margin-bottom: 14px; }
-
-.ai-content { flex: 1; display: flex; flex-direction: column; gap: 10px; }
-.ai-summary { background: rgba(34,211,238,0.04); border: 0.5px solid rgba(34,211,238,0.12); border-radius: 10px; padding: 12px 14px; }
-.ai-summary-label { font-size: 10px; color: var(--cyan); font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 6px; }
-.ai-summary-text { font-size: 12px; color: var(--text-2); line-height: 1.7; }
-.ai-summary-text :deep(b) { color: var(--text-1); font-weight: 500; }
-
-.ai-metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.ai-metric { background: rgba(255,255,255,0.025); border: 0.5px solid var(--border-dim); border-radius: 8px; padding: 10px 12px; }
-.ai-metric-label { font-size: 10px; color: var(--text-3); margin-bottom: 5px; letter-spacing: 0.3px; }
-.ai-metric-val { font-size: 12px; color: var(--text-1); line-height: 1.5; }
-
-.ai-actions-row { background: rgba(251,191,36,0.04); border: 0.5px solid rgba(251,191,36,0.12); border-radius: 10px; padding: 12px 14px; }
-.ai-actions-label { font-size: 10px; color: var(--amber); font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 8px; }
-.ai-action-items { display: flex; flex-direction: column; gap: 5px; }
-.ai-action-item { display: flex; align-items: flex-start; gap: 7px; font-size: 12px; color: var(--text-2); line-height: 1.5; }
-.ai-action-num {
-  width: 16px; height: 16px; border-radius: 4px; flex-shrink: 0;
-  background: var(--amber-dim); color: var(--amber);
-  font-size: 9px; font-weight: 500;
-  display: flex; align-items: center; justify-content: center; margin-top: 1px;
-}
+.ai-message svg { width: 16px; height: 16px; flex-shrink: 0; }
+.ai-message.info { background: rgba(34,211,238,0.08); border: 0.5px solid rgba(34,211,238,0.2); color: var(--cyan); }
+.ai-message.error { background: rgba(248,113,113,0.08); border: 0.5px solid rgba(248,113,113,0.2); color: var(--red); }
 
 /* TODO 卡片 */
 .todo-card { padding: 20px 22px; display: flex; flex-direction: column; }
@@ -1281,9 +830,6 @@ onUnmounted(() => {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
 }
-@keyframes gaugeDraw {
-  from { stroke-dashoffset: 251; }
-}
 
 .kpi-card { animation: fadeSlideUp .5s ease both; }
 .kpi-card:nth-child(1) { animation-delay: .05s; }
@@ -1292,17 +838,13 @@ onUnmounted(() => {
 .kpi-card:nth-child(4) { animation-delay: .26s; }
 .bottom-grid { animation: fadeSlideUp .5s .35s ease both; }
 
-.gauge-arc { animation: gaugeDraw .9s cubic-bezier(.4,0,.2,1) both; }
-.kpi-card:nth-child(1) .gauge-arc { animation-delay: .3s; }
-.kpi-card:nth-child(2) .gauge-arc { animation-delay: .37s; }
-.kpi-card:nth-child(3) .gauge-arc { animation-delay: .44s; }
-.kpi-card:nth-child(4) .gauge-arc { animation-delay: .51s; }
+/* 圆环：无动画，直接显示计算后的值 */
+/* stroke-dashoffset 由 Vue 绑定计算值 */
 
 /* 响应式 */
 @media (max-width: 1200px) {
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .bottom-grid { grid-template-columns: 1fr; }
-  .ai-metrics-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 640px) {
@@ -1316,184 +858,4 @@ onUnmounted(() => {
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
 
-/* ── AI 分析 V2 ── */
-.ai-content-v2 {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  flex: 1;
-}
-
-/* ① 状态行 */
-.ai-status-bar {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 10px 14px;
-  background: rgba(255,255,255,0.03);
-  border: 0.5px solid rgba(255,255,255,0.07);
-  border-radius: 10px;
-  gap: 12px;
-}
-.ai-status-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-  flex-wrap: wrap;
-}
-.ai-status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.ai-status-label {
-  font-size: 13px;
-  font-weight: 500;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.ai-status-divider {
-  color: var(--text-3);
-  flex-shrink: 0;
-}
-.ai-status-summary {
-  font-size: 12px;
-  color: var(--text-2);
-  white-space: normal;
-  overflow: visible;
-  text-overflow: inherit;
-  flex: 1;
-  min-width: 0;
-}
-.ai-timestamp-v2 {
-  font-size: 11px;
-  color: var(--text-3);
-  font-family: var(--mono);
-  flex-shrink: 0;
-  margin-left: 12px;
-}
-
-/* ② 三格指标 */
-.ai-metrics-v2 {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-}
-.ai-metric-v2 {
-  background: rgba(255,255,255,0.025);
-  border: 0.5px solid var(--border-dim);
-  border-radius: 10px;
-  padding: 11px 13px;
-  transition: border-color .2s;
-}
-.ai-metric-v2:hover {
-  border-color: var(--border-glow);
-}
-.ai-metric-v2.metric-danger {
-  background: rgba(248,113,113,0.04);
-  border-color: rgba(248,113,113,0.18);
-}
-.ai-metric-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
-}
-.ai-metric-label-v2 {
-  font-size: 10px;
-  color: var(--text-3);
-  letter-spacing: 0.3px;
-}
-.ai-metric-num {
-  font-size: 14px;
-  font-weight: 500;
-  font-family: var(--mono);
-  letter-spacing: -0.3px;
-}
-.ai-metric-text {
-  font-size: 12px;
-  color: var(--text-2);
-  line-height: 1.5;
-}
-.ai-risk-badge {
-  font-size: 10px;
-  font-weight: 500;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: rgba(248,113,113,0.14);
-  color: #F87171;
-  border: 0.5px solid rgba(248,113,113,0.3);
-  animation: pulse-red 2s ease-in-out infinite;
-}
-
-/* ③ 重点动作 */
-.ai-actions-v2 {
-  background: rgba(251,191,36,0.04);
-  border: 0.5px solid rgba(251,191,36,0.12);
-  border-radius: 10px;
-  padding: 11px 14px;
-}
-.ai-actions-header {
-  font-size: 10px;
-  font-weight: 500;
-  color: #FBBF24;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  margin-bottom: 9px;
-}
-.ai-action-list {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-.ai-action-item-v2 {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  cursor: default;
-}
-.ai-action-item-v2:hover .ai-action-text {
-  color: var(--text-1);
-}
-.ai-priority-tag {
-  font-size: 10px;
-  font-weight: 500;
-  padding: 2px 7px;
-  border-radius: 4px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.ai-action-text {
-  font-size: 12px;
-  color: var(--text-2);
-  flex: 1;
-  white-space: normal;
-  overflow: visible;
-  text-overflow: inherit;
-  line-height: 1.4;
-  transition: color .15s;
-}
-.ai-person-chips {
-  display: flex;
-  gap: 4px;
-  flex-shrink: 0;
-}
-.ai-person-chip {
-  font-size: 10px;
-  padding: 1px 6px;
-  border-radius: 10px;
-  background: rgba(255,255,255,0.06);
-  color: var(--text-2);
-  border: 0.5px solid rgba(255,255,255,0.1);
-  white-space: nowrap;
-  font-family: var(--mono);
-}
-
-@keyframes pulse-red {
-  0%,100% { box-shadow: 0 0 0 0 rgba(248,113,113,0); }
-  50%      { box-shadow: 0 0 0 3px rgba(248,113,113,0.15); }
-}
 </style>

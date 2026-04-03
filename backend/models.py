@@ -35,6 +35,7 @@ class ZaigongRecord(Base):
     summary_data = Column(Text)  # JSON 存储汇总数据
     metrics_data = Column(Text)  # JSON 存储指标数据
     detail_data = Column(Text)  # JSON 存储明细数据（工程维度）
+    four_class_warnings = Column(Text)  # JSON 存储四类工程预警数据
     target_value = Column(Float, default=503.0)  # 当期目标
 
     def __repr__(self):

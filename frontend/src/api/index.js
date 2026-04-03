@@ -67,3 +67,11 @@ export async function getAIStatus() {
   const response = await axios.get(`${API_BASE}/ai/status`)
   return response.data
 }
+
+export async function exportFourClassExcel(recordId) {
+  const response = await axios.get(
+    `${API_BASE}/zaigong/four-class-warnings/${recordId}/export`,
+    { responseType: 'blob' }
+  )
+  return response.data
+}
