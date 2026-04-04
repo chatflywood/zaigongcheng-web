@@ -58,6 +58,11 @@ export async function getManagerDetails(recordId, manager) {
   return response.data
 }
 
+export async function getTransferPriority(recordId) {
+  const response = await axios.get(`${API_BASE}/zaigong/transfer-priority/${recordId}`)
+  return response.data
+}
+
 export async function generateAIAnalysis(payload) {
   const response = await axios.post(`${API_BASE}/ai/analyze`, payload)
   return response.data
@@ -72,6 +77,43 @@ export async function exportFourClassExcel(recordId) {
   const response = await axios.get(
     `${API_BASE}/zaigong/four-class-warnings/${recordId}/export`,
     { responseType: 'blob' }
+  )
+  return response.data
+}
+
+export async function getNotifyConfig() {
+  const response = await axios.get(`${API_BASE}/notify/config`)
+  return response.data
+}
+
+export async function saveNotifyConfig(webhookUrl, autoPush) {
+  const response = await axios.post(`${API_BASE}/notify/config`, {
+    webhook_url: webhookUrl,
+    auto_push: autoPush,
+  })
+  return response.data
+}
+
+export async function clearNotifyConfig() {
+  const response = await axios.post(`${API_BASE}/notify/config/clear`)
+  return response.data
+}
+
+export async function testNotifyWebhook(webhookUrl) {
+  const response = await axios.post(`${API_BASE}/notify/test`, { webhook_url: webhookUrl })
+  return response.data
+}
+
+export async function pushNotify(recordId) {
+  const response = await axios.post(`${API_BASE}/notify/push/${recordId}`)
+  return response.data
+}
+
+export async function exportTransferPriority(recordId, targetRate) {
+  const params = targetRate ? { target_rate: targetRate / 100 } : {}
+  const response = await axios.get(
+    `${API_BASE}/zaigong/transfer-priority/${recordId}/export`,
+    { params, responseType: 'blob' }
   )
   return response.data
 }

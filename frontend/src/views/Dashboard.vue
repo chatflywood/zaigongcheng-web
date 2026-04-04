@@ -423,6 +423,13 @@
       <div class="table-card">
         <div class="card-header">
           <h3>各工程管理员汇总</h3>
+          <button v-if="currentRecordId" class="ghost-action tp-btn" @click="openTransferPriority">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+              <path d="M3 6h18M3 12h12M3 18h8"/>
+              <path d="M17 14l4 4-4 4"/>
+            </svg>
+            转固推进清单
+          </button>
         </div>
         <div class="table-wrapper">
           <table class="data-table">
@@ -594,16 +601,226 @@
       </div>
     </div>
   </div>
+
+  <!-- 转固推进清单弹窗 -->
+  <div v-if="transferPriorityVisible" class="tp-overlay" @click.self="transferPriorityVisible = false">
+    <div class="tp-modal">
+      <div class="tp-header">
+        <div class="tp-header-left">
+          <h3>转固推进清单</h3>
+          <span class="tp-subtitle">各管理员待转固项目 · 按转固贡献从高到低排序</span>
+        </div>
+        <div class="tp-header-actions">
+          <button
+            class="tp-export-btn"
+            :disabled="transferExporting || !transferPriorityData.length"
+            @click="handleExportTransferPriority"
+          >
+            <span v-if="transferExporting">导出中…</span>
+            <span v-else>导出 Excel</span>
+          </button>
+          <button class="modal-close" @click="transferPriorityVisible = false">×</button>
+        </div>
+      </div>
+
+      <div v-if="transferPriorityLoading" class="tp-loading">
+        <div class="loader-ring"></div>
+        <p>正在计算...</p>
+      </div>
+
+      <div v-else-if="transferPriorityError" class="tp-empty tp-error">
+        <p>{{ transferPriorityError }}</p>
+      </div>
+
+      <div v-else-if="!transferPriorityData.length" class="tp-empty">
+        <p>暂无待转固项目数据</p>
+      </div>
+
+      <template v-else>
+      <!-- 测算输入条 -->
+      <div class="tp-calc-bar">
+        <div class="tp-calc-left">
+          <span class="tp-calc-label">转固率目标测算</span>
+          <div class="tp-calc-input-wrap">
+            <input
+              v-model="targetRate"
+              type="number" min="1" max="100" step="1"
+              placeholder="输入目标 %"
+              class="tp-calc-input"
+              @keyup.enter="$event.target.blur()"
+            />
+            <span class="tp-calc-unit">%</span>
+            <button v-if="targetRate" class="tp-calc-clear" @click="targetRate = ''" title="清除">✕</button>
+          </div>
+        </div>
+        <div class="tp-calc-result">
+          <template v-if="computedTarget">
+            <template v-if="computedTarget.alreadyGlobal">
+              <span class="tp-calc-achieved">当前 {{ formatPercent(computedTarget.globalCurrentRate) }} 已达目标，无需额外转固</span>
+            </template>
+            <template v-else>
+              <span class="tp-calc-from">当前 {{ formatPercent(computedTarget.globalCurrentRate) }}</span>
+              <span class="tp-calc-arrow">→</span>
+              <span class="tp-calc-to">目标 {{ formatPercent(computedTarget.target) }}</span>
+              <span class="tp-calc-divider">|</span>
+              <span class="tp-calc-desc">全局还需减少在建余额</span>
+              <strong class="tp-calc-amount">{{ formatNum(computedTarget.globalRequired) }} 万元</strong>
+            </template>
+          </template>
+          <span v-else class="tp-calc-hint">设定目标后自动测算各管理员任务量</span>
+        </div>
+      </div>
+
+      <div class="tp-body">
+        <div v-for="managerGroup in displayManagers" :key="managerGroup.manager" class="tp-manager-block">
+          <div class="tp-manager-header">
+            <div class="tp-manager-name">{{ managerGroup.manager }}</div>
+            <div class="tp-manager-stats">
+              <span class="tp-stat-item">
+                当前转固率
+                <strong :class="'rate-badge ' + getRateClass(managerGroup.current_rate)">
+                  {{ formatPercent(managerGroup.current_rate) }}
+                </strong>
+              </span>
+              <span class="tp-stat-sep">·</span>
+              <!-- 无目标时：显示待转固余额 & 全部完成后可达 -->
+              <template v-if="!computedTarget">
+                <span class="tp-stat-item">
+                  待转固余额合计
+                  <strong>{{ formatNum(managerGroup.total_balance) }} 万</strong>
+                </span>
+                <span class="tp-stat-sep">·</span>
+                <span class="tp-stat-item">
+                  全部完成后可达
+                  <strong class="tp-target-rate">
+                    {{ managerGroup.projects.length ? formatPercent(managerGroup.projects[managerGroup.projects.length - 1]['累计后转固率']) : formatPercent(managerGroup.current_rate) }}
+                  </strong>
+                </span>
+              </template>
+              <!-- 有目标时：显示任务分配结果 -->
+              <template v-else>
+                <template v-if="managerGroup.alreadyAchieved">
+                  <span class="tp-stat-achieved">已达目标 {{ formatPercent(computedTarget.target) }}，无需额外操作</span>
+                </template>
+                <template v-else>
+                  <span class="tp-stat-item">
+                    需减少余额
+                    <strong class="tp-stat-required">{{ formatNum(managerGroup.managerRequired) }} 万</strong>
+                  </span>
+                  <span class="tp-stat-sep">·</span>
+                  <span class="tp-stat-item" v-if="managerGroup.reachable">
+                    完成前 <strong class="tp-stat-count">{{ managerGroup.neededCount }}</strong> 个项目即可达标
+                  </span>
+                  <span class="tp-stat-item tp-stat-warn" v-else>
+                    全部项目完成仍不足，需加快其他项目转固
+                  </span>
+                </template>
+              </template>
+            </div>
+          </div>
+          <div class="tp-table-wrap">
+            <table class="tp-table">
+              <thead>
+                <tr>
+                  <th class="tp-col-rank">优先</th>
+                  <th class="tp-col-name">工程名称</th>
+                  <th class="tp-col-balance">在建余额(万)</th>
+                  <th class="tp-col-contrib">转固贡献率</th>
+                  <th class="tp-col-urgency">紧迫度</th>
+                  <th class="tp-col-action">完成后转固率</th>
+                  <th class="tp-col-hint">紧迫说明</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template v-for="(proj, idx) in managerGroup.projects" :key="proj['工程名称']">
+                  <!-- 分隔线：从必做切换到可选 -->
+                  <tr v-if="computedTarget && proj.needed === false && idx > 0 && managerGroup.projects[idx-1].needed !== false"
+                      class="tp-divider-row">
+                    <td colspan="7">
+                      <div class="tp-divider-line">
+                        <span>以下为缓冲项目（完成上方任务后已达标）</span>
+                      </div>
+                    </td>
+                  </tr>
+                <tr :class="['tp-row', 'urgency-' + proj['紧迫度'], { 'tp-row-needed': proj.needed === true, 'tp-row-optional': proj.needed === false && computedTarget }]">
+                  <td class="tp-col-rank">
+                    <span class="tp-rank-badge" :class="{ 'tp-rank-top': idx < 3, 'tp-rank-needed': proj.needed === true }">{{ idx + 1 }}</span>
+                  </td>
+                  <td class="tp-col-name" :title="proj['工程名称']">
+                    <span v-if="proj.needed === true" class="tp-needed-mark">必</span>
+                    {{ proj['工程名称'] }}
+                  </td>
+                  <td class="tp-col-balance">{{ formatNum(proj['在建余额']) }}</td>
+                  <td class="tp-col-contrib">
+                    <div class="tp-contrib-bar-wrap">
+                      <div class="tp-contrib-bar" :style="{ width: Math.min(proj['转固贡献率'] * 100 / 0.3, 100) + '%' }"></div>
+                      <span>{{ (proj['转固贡献率'] * 100).toFixed(1) }}%</span>
+                    </div>
+                  </td>
+                  <td class="tp-col-urgency">
+                    <span class="tp-urgency-tag" :class="'urgency-tag-' + proj['紧迫度']">{{ proj['紧迫度'] }}</span>
+                  </td>
+                  <td class="tp-col-action">
+                    <span class="tp-after-rate">{{ formatPercent(proj['累计后转固率']) }}</span>
+                    <span class="tp-rate-arrow">↑{{ ((proj['累计后转固率'] - managerGroup.current_rate) * 100).toFixed(1) }}pct</span>
+                  </td>
+                  <td class="tp-col-hint">
+                    <template v-if="proj.urgency_detail && proj.urgency_detail.length">
+                      <div v-for="(u, ui) in proj.urgency_detail" :key="ui" class="tp-hint-line">
+                        <span class="tp-hint-type">{{ u.type }}</span>
+                        {{ u.daysLabel }}{{ u.deadline ? ' · 截止 ' + u.deadline : '' }}
+                      </div>
+                    </template>
+                    <span v-else class="tp-hint-normal">—</span>
+                  </td>
+                </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          <div class="tp-manager-footer">
+            <!-- 有目标：显示任务分配摘要 -->
+            <template v-if="computedTarget && !managerGroup.alreadyAchieved">
+              <template v-if="managerGroup.reachable">
+                需完成 <strong>{{ managerGroup.neededCount }}</strong> 个项目（转固
+                <strong>{{ formatNum(managerGroup.neededBalance) }} 万元</strong>），
+                转固率可从 {{ formatPercent(managerGroup.current_rate) }} 升至
+                <strong>{{ formatPercent(computedTarget.target) }}</strong>
+              </template>
+              <template v-else>
+                即使完成所有 {{ managerGroup.projects.length }} 个项目（{{ formatNum(managerGroup.total_balance) }} 万元），
+                转固率仍不足 {{ formatPercent(computedTarget.target) }}，需关注在建工程余额以外的工程物资转固
+              </template>
+            </template>
+            <!-- 无目标：原有逻辑 -->
+            <template v-else-if="!computedTarget">
+              完成前 3 项后，转固率可达
+              <strong>{{ formatPercent((managerGroup.projects[Math.min(2, managerGroup.projects.length - 1)] || managerGroup.projects[0])?.['累计后转固率'] ?? managerGroup.current_rate) }}</strong>
+              <span v-if="managerGroup.projects.length > 3">（还有 {{ managerGroup.projects.length - 3 }} 个项目可继续推进）</span>
+            </template>
+            <template v-else>
+              当前转固率已达 {{ formatPercent(computedTarget.target) }} 目标
+            </template>
+          </div>
+        </div>
+      </div>
+      </template>
+    </div>
+  </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
-import { uploadExcel, getCompare, getHistory, getHistorySnapshot, getManagerDetails } from '../api'
+import { uploadExcel, getCompare, getHistory, getHistorySnapshot, getManagerDetails, getTransferPriority, exportTransferPriority, pushNotify } from '../api'
 import * as echarts from 'echarts'
 
 const props = defineProps({
   initialData: {
     type: Object,
+    default: null
+  },
+  initialRecordId: {
+    type: Number,
     default: null
   },
   latestData: {
@@ -621,6 +838,10 @@ const props = defineProps({
   snapshotLabel: {
     type: String,
     default: ''
+  },
+  fourClassWarnings: {
+    type: Object,
+    default: null
   }
 })
 
@@ -668,6 +889,142 @@ const fourClassTypes = [
   { name: '关闭不及时', key: 'guanbi' },
   { name: '长期挂账', key: 'guazhang' },
 ]
+
+// 转固推进清单
+const transferPriorityVisible = ref(false)
+const transferPriorityData = ref([])
+const transferPriorityLoading = ref(false)
+const targetRate = ref('')
+
+const transferPriorityError = ref('')
+
+async function openTransferPriority() {
+  if (!currentRecordId.value) return
+  transferPriorityVisible.value = true
+  if (transferPriorityData.value.length) return  // 已加载，直接展示
+  transferPriorityLoading.value = true
+  transferPriorityError.value = ''
+  try {
+    const result = await getTransferPriority(currentRecordId.value)
+    if (result.success) {
+      transferPriorityData.value = result.data || []
+    } else {
+      transferPriorityError.value = result.message || '获取数据失败'
+    }
+  } catch (e) {
+    console.error('获取转固优先级失败:', e)
+    transferPriorityError.value = e?.response?.data?.message || e?.message || '请求失败，请检查后端服务是否已重启'
+  } finally {
+    transferPriorityLoading.value = false
+  }
+}
+
+watch(currentRecordId, () => {
+  transferPriorityData.value = []
+  transferPriorityError.value = ''
+  targetRate.value = ''
+})
+
+const pushingNotify = ref(false)
+async function handlePushNotify() {
+  if (!currentRecordId.value || pushingNotify.value) return
+  pushingNotify.value = true
+  try {
+    const res = await pushNotify(currentRecordId.value)
+    if (res.success) {
+      alert('推送成功，请在企业微信群查看')
+    } else {
+      alert(res.message || '推送失败')
+    }
+  } catch (e) {
+    const msg = e?.response?.data?.message || e?.message || '推送失败'
+    alert(msg.includes('Webhook') ? msg : `推送失败：${msg}`)
+  } finally {
+    pushingNotify.value = false
+  }
+}
+
+const transferExporting = ref(false)
+async function handleExportTransferPriority() {
+  if (!currentRecordId.value) return
+  transferExporting.value = true
+  try {
+    const rate = targetRate.value ? Number(targetRate.value) : null
+    const blob = await exportTransferPriority(currentRecordId.value, rate)
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const suffix = rate ? `_目标${rate}pct` : ''
+    a.download = `转固推进清单${suffix}.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    console.error('导出失败:', e)
+    alert('导出失败，请重试')
+  } finally {
+    transferExporting.value = false
+  }
+}
+
+// 转固率测算
+const computedTarget = computed(() => {
+  const raw = Number(targetRate.value)
+  if (!targetRate.value || isNaN(raw) || raw <= 0 || raw > 100) return null
+  if (!transferPriorityData.value.length) return null
+  const target = raw / 100
+
+  // 全局加总
+  let globalDenom = 0
+  let globalNumer = 0
+  for (const m of transferPriorityData.value) {
+    globalDenom += m.denominator
+    globalNumer += (1 - m.current_rate) * m.denominator
+  }
+  const globalCurrentRate = globalDenom > 0 ? 1 - globalNumer / globalDenom : 0
+  const globalRequired = Math.max(globalNumer - (1 - target) * globalDenom, 0)
+
+  // 各管理员测算
+  const managers = transferPriorityData.value.map(m => {
+    const alreadyAchieved = m.current_rate >= target
+    const managerRequired = alreadyAchieved ? 0 : (target - m.current_rate) * m.denominator
+
+    // 找到累计后转固率首次 >= target 的项目索引（即最少需完成到第几个）
+    const cutoffIdx = m.projects.findIndex(p => p['累计后转固率'] >= target)
+    // cutoffIdx === -1 说明全做完也达不到目标（余额不够）
+    const reachable = cutoffIdx !== -1
+
+    const projects = m.projects.map((p, idx) => ({
+      ...p,
+      needed: alreadyAchieved ? false : (cutoffIdx === -1 ? true : idx <= cutoffIdx),
+    }))
+
+    const neededCount = alreadyAchieved ? 0 : (cutoffIdx === -1 ? m.projects.length : cutoffIdx + 1)
+    const neededBalance = projects.filter(p => p.needed).reduce((s, p) => s + p['在建余额'], 0)
+
+    return { ...m, projects, alreadyAchieved, reachable, managerRequired: Math.round(managerRequired * 100) / 100, neededCount, neededBalance: Math.round(neededBalance * 100) / 100 }
+  })
+
+  return {
+    target,
+    globalCurrentRate,
+    globalRequired: Math.round(globalRequired * 100) / 100,
+    alreadyGlobal: globalCurrentRate >= target,
+    managers,
+  }
+})
+
+const displayManagers = computed(() => {
+  if (computedTarget.value) return computedTarget.value.managers
+  return transferPriorityData.value.map(m => ({
+    ...m,
+    projects: m.projects.map(p => ({ ...p, needed: null })),
+    alreadyAchieved: false,
+    reachable: true,
+    managerRequired: 0,
+    neededCount: 0,
+    neededBalance: 0,
+  }))
+})
 
 function showFourClassDetail(type) {
   fourClassDetailType.value = type
@@ -729,12 +1086,21 @@ const handleResize = () => {
 watch(() => props.initialData, async (newData) => {
   if (newData) {
     applyDashboardData(newData)
+    // 如果父组件传入了记录 ID（自动加载场景），设置它
+    if (props.initialRecordId) {
+      currentRecordId.value = props.initialRecordId
+    }
     isViewingHistory.value = false
     snapshotDisplayDate.value = null
     // 获取对比数据
     await fetchCompareData()
     nextTick(() => initCharts())
   }
+}, { immediate: true })
+
+watch(() => props.fourClassWarnings, (newWarnings) => {
+  fourClassWarnings.value = newWarnings || null
+  console.log('[DEBUG] props.fourClassWarnings changed:', newWarnings)
 }, { immediate: true })
 
 const displayAnalysisDate = computed(() => snapshotDisplayDate.value || props.analysisDate)
@@ -1000,6 +1366,9 @@ function applyHistorySnapshot(snapshot, previous = null) {
   snapshotDisplayDate.value = snapshot.file_date
     ? formatFileDate(snapshot.file_date)
     : formatHistoryTime(snapshot.uploaded_at)
+  // 加载四类工程预警数据
+  fourClassWarnings.value = snapshot.four_class_warnings || null
+  console.log('[DEBUG] applyHistorySnapshot four_class_warnings:', snapshot.four_class_warnings)
 }
 
 async function handleFileChange(e) {
@@ -1134,6 +1503,7 @@ async function viewHistorySnapshot(recordId) {
   historyLoading.value = true
   try {
     const result = await getHistorySnapshot(recordId)
+    console.log('[DEBUG] viewHistorySnapshot result:', result)
     if (result.success && result.data?.current) {
       applyHistorySnapshot(result.data.current, result.data.previous)
       closeHistoryPanel()
@@ -4337,4 +4707,359 @@ onUnmounted(() => {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* ===== 转固率测算条 ===== */
+.tp-calc-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 11px 20px;
+  background: #f5f7fb;
+  border-bottom: 1px solid #e4e3dc;
+  flex-wrap: wrap;
+}
+.tp-calc-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.tp-calc-label {
+  font-size: 12px;
+  color: #6b6a63;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.tp-calc-input-wrap {
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #d0cfc8;
+  border-radius: 6px;
+  padding: 0 10px 0 8px;
+  transition: border-color 0.15s;
+}
+.tp-calc-input-wrap:focus-within { border-color: #1a56a4; }
+.tp-calc-input {
+  background: none;
+  border: none;
+  outline: none;
+  color: #1c1b18;
+  font-size: 14px;
+  font-weight: 600;
+  width: 58px;
+  padding: 5px 4px;
+  text-align: right;
+}
+.tp-calc-input::placeholder { color: #c0bdb6; font-weight: 400; font-size: 12px; }
+.tp-calc-unit { font-size: 13px; color: #6b6a63; }
+.tp-calc-clear {
+  background: none;
+  border: none;
+  color: #c0bdb6;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 0 0 6px;
+  line-height: 1;
+}
+.tp-calc-clear:hover { color: #1c1b18; }
+.tp-calc-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+.tp-calc-from { color: #6b6a63; }
+.tp-calc-arrow { color: #c0bdb6; }
+.tp-calc-to { color: #1a56a4; font-weight: 600; }
+.tp-calc-divider { color: #d0cfc8; margin: 0 2px; }
+.tp-calc-desc { color: #6b6a63; }
+.tp-calc-amount { color: #b45309; font-size: 14px; font-weight: 700; }
+.tp-calc-achieved { color: #15803d; font-size: 13px; font-weight: 600; }
+.tp-calc-hint { color: #c0bdb6; font-size: 12px; font-style: italic; }
+
+/* 管理员 stats — 目标模式 */
+.tp-stat-required { color: #b45309 !important; font-weight: 600 !important; }
+.tp-stat-count { color: #1a56a4 !important; font-weight: 700 !important; }
+.tp-stat-achieved { font-size: 12px; color: #15803d; font-weight: 500; }
+.tp-stat-warn { color: #b91c1c !important; font-size: 12px; }
+
+/* 必做项目行高亮 */
+.tp-row-needed {
+  background: #fffbeb !important;
+  border-left: 2px solid #f59e0b;
+}
+.tp-row-optional { opacity: 0.5; }
+.tp-needed-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  background: #fef3c7;
+  color: #b45309;
+  font-size: 10px;
+  font-weight: 700;
+  margin-right: 5px;
+  flex-shrink: 0;
+  border: 1px solid #fde68a;
+}
+.tp-rank-needed {
+  background: #fef3c7 !important;
+  color: #b45309 !important;
+  border: 1px solid #fde68a;
+}
+
+/* 分隔线行 */
+.tp-divider-row td { padding: 0; border: none !important; background: transparent; }
+.tp-divider-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px;
+  font-size: 11px;
+  color: #c0bdb6;
+}
+.tp-divider-line::before, .tp-divider-line::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e4e3dc;
+}
+
+/* ===== 转固推进清单按钮 ===== */
+.tp-btn {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.push-btn {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #16a34a !important;
+  border-color: rgba(22, 163, 74, 0.25) !important;
+}
+.push-btn:hover:not(:disabled) {
+  background: rgba(22, 163, 74, 0.07) !important;
+  border-color: rgba(22, 163, 74, 0.45) !important;
+}
+.push-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ===== 转固推进清单弹窗 ===== */
+.tp-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(3px);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 32px 16px;
+  overflow-y: auto;
+}
+.tp-modal {
+  background: #fff;
+  border: 1px solid #e4e3dc;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 1100px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.16);
+  display: flex;
+  flex-direction: column;
+}
+.tp-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 18px 24px 14px;
+  border-bottom: 1px solid #e4e3dc;
+}
+.tp-header-left h3 {
+  margin: 0 0 3px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1c1b18;
+}
+.tp-subtitle {
+  font-size: 12px;
+  color: #8a8680;
+}
+.tp-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.tp-export-btn {
+  padding: 5px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: #2563eb;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.tp-export-btn:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+.tp-export-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.tp-loading, .tp-empty, .tp-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px;
+  color: #8a8680;
+  gap: 12px;
+  font-size: 13px;
+}
+.tp-error { color: #b91c1c; }
+.tp-body {
+  padding: 16px 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Manager block */
+.tp-manager-block {
+  background: #fff;
+  border: 1px solid #e4e3dc;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.tp-manager-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: #f5f7fb;
+  border-bottom: 1px solid #e4e3dc;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tp-manager-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1c1b18;
+}
+.tp-manager-stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #6b6a63;
+  flex-wrap: wrap;
+}
+.tp-stat-item { display: flex; align-items: center; gap: 5px; }
+.tp-stat-sep { color: #d0cfc8; }
+.tp-target-rate { color: #15803d !important; font-weight: 700 !important; }
+
+/* Table */
+.tp-table-wrap { overflow-x: auto; }
+.tp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.tp-table th {
+  padding: 7px 10px;
+  text-align: left;
+  font-weight: 600;
+  color: #6b6a63;
+  background: #f0efe9;
+  white-space: nowrap;
+  border-bottom: 1px solid #e4e3dc;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+.tp-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #f0efe9;
+  vertical-align: middle;
+  color: #1c1b18;
+  font-size: 12px;
+}
+.tp-row:last-child td { border-bottom: none; }
+.tp-row.urgency-已逾期 { background: #fff8f8; }
+.tp-row.urgency-即将到期 { background: #fffbf5; }
+
+.tp-col-rank { width: 42px; text-align: center; }
+.tp-col-name { max-width: 240px; }
+.tp-col-balance, .tp-col-contrib, .tp-col-urgency, .tp-col-action { white-space: nowrap; }
+.tp-col-hint { font-size: 11px; color: #8a8680; min-width: 160px; }
+
+.tp-rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 600;
+  background: #f0efe9;
+  color: #8a8680;
+}
+.tp-rank-badge.tp-rank-top {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+/* Contribution bar */
+.tp-contrib-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.tp-contrib-bar {
+  height: 5px;
+  background: linear-gradient(90deg, #3b82f6, #10b981);
+  border-radius: 3px;
+  min-width: 4px;
+  max-width: 80px;
+  transition: width 0.3s;
+}
+
+/* Urgency tag */
+.tp-urgency-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.urgency-tag-已逾期 { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+.urgency-tag-即将到期 { background: #fff7ed; color: #ea580c; border: 1px solid #fed7aa; }
+.urgency-tag-正常 { background: #f0efe9; color: #8a8680; border: 1px solid #e4e3dc; }
+
+/* After-transfer rate */
+.tp-after-rate { font-weight: 700; color: #15803d; margin-right: 4px; }
+.tp-rate-arrow { font-size: 11px; color: #6b6a63; }
+
+/* Hint */
+.tp-hint-line { margin-bottom: 2px; }
+.tp-hint-type { color: #1d4ed8; margin-right: 3px; font-weight: 500; }
+.tp-hint-normal { color: #d0cfc8; }
+
+/* Manager footer */
+.tp-manager-footer {
+  padding: 8px 16px;
+  font-size: 12px;
+  color: #6b6a63;
+  border-top: 1px solid #f0efe9;
+  background: #fafaf8;
+}
+.tp-manager-footer strong { color: #15803d; margin: 0 3px; }
 </style>

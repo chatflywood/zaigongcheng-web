@@ -55,6 +55,15 @@ class BudgetRecord(Base):
         return f"<BudgetRecord {self.id} - {self.uploaded_at}>"
 
 
+class AppConfig(Base):
+    """应用配置（键值对）"""
+    __tablename__ = "app_config"
+
+    key = Column(String(100), primary_key=True)
+    value = Column(Text)
+    updated_at = Column(DateTime, default=datetime.now)
+
+
 def init_db():
     """初始化数据库表"""
     Base.metadata.create_all(bind=engine)

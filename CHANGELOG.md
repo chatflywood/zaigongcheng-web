@@ -1,5 +1,54 @@
 # 功能更新日志
 
+## v1.17.0 (2026-04-04)
+
+### 转固推进清单 Excel 导出 + 企业微信/飞书消息推送
+
+#### 转固推进清单 Excel 导出
+- 后端新增 `GET /api/zaigong/transfer-priority/{record_id}/export` 接口
+  - 支持可选 `target_rate` 参数，按测算目标标记"需完成"项目
+  - 使用 openpyxl 生成专业 Excel：per-manager 分节、navy 标题行、黄色/红色条件着色
+  - Sheet 2 附说明页，文件名含日期与目标百分比
+- 前端新增 `exportTransferPriority(recordId, targetRate)` API 函数
+- 转固推进清单弹窗标题栏新增蓝色"导出 Excel"按钮，加载中防重复点击
+
+#### 企业微信 / 飞书消息推送
+- **后端新模块**
+  - `models.py` 新增 `AppConfig` 表（键值对，存储 webhook URL 与自动推送开关）
+  - `services/notify.py` 推送服务：根据 URL 自动识别平台（飞书/企业微信）
+    - 飞书：Interactive Card 卡片格式，标题颜色随预警状态变化（红/橙/蓝）
+    - 企业微信：Markdown 格式
+    - 推送内容对应大屏模式四张卡片：立项进度、当期资本性支出、全年资本性支出、综合转固率
+    - 四类预警按类型分组展示，每条目前加「剩余 N 天」标注
+    - 使用 `trust_env=False` 绕过系统 SOCKS 代理
+  - `routers/notify.py` 新路由（`/api/notify`）
+    - `GET /config` — 查询配置（URL 脱敏）
+    - `POST /config` — 保存 webhook URL 与自动推送开关
+    - `POST /config/clear` — 清除配置
+    - `POST /test` — 发送测试消息（无输入时自动使用已保存 URL）
+    - `POST /push/{record_id}` — 手动推送（同时加载最新预算数据）
+  - `main.py` 注册 `/api/notify` 路由
+  - `routers/analysis.py` 上传成功后若开启自动推送则后台触发
+
+- **前端**
+  - `api/index.js` 新增：`getNotifyConfig`、`saveNotifyConfig`、`clearNotifyConfig`、`testNotifyWebhook`、`pushNotify`
+  - 导航栏右侧新增 🔔 通知设置按钮（已配置时显示绿色）
+  - 点击 🔔 弹出设置面板：填写 Webhook URL、自动推送开���、测试消息、保存/清除
+  - 导航栏新增 📤 推送播报按钮（已配置 + 有数据时显示，绿色调）
+    - 推送当前最新加载数据，不依赖历史快照视图状态
+  - `Dashboard.vue` 新增 `initialRecordId` prop，修复自动加载时 currentRecordId 未设置导致推送按钮不显示的问题
+  - `App.vue` 自动加载时保存 `zaigongLatestRecordId`，传入 Dashboard 组件
+
+#### Bug 修复
+- 修复四类预警推送显示"暂无"：存储结构为 `{items: [{type, name, manager, daysLabel, ...}]}` 列表，原代码错误按顶层 key 读取
+- 修复测试消息报错"请先输入 Webhook URL"：已配置时测试接口自动使用保存的 URL
+
+#### 待办清单更新
+- [x] 预警提醒/推送功能 — v1.17.0 已实现（飞书 + 企业微信 Webhook）
+- [x] 转固推进清单导出 Excel — v1.17.0 已实现
+
+---
+
 ## v1.16.0 (2026-04-03)
 
 ### 四类工程预警明细弹窗优化
@@ -431,7 +480,7 @@
 - [x] 数据对比功能（按文件名日期对比） - v1.8.0 已实现
 - [x] 工程明细弹窗（点击管理员查看明细） - v1.9.0 已实现
 - [x] 四类工程预警功能 - v1.15.0 已实现
-- [ ] 预警提醒功能
+- [x] 预警提醒/推送功能（飞书 + 企业微信 Webhook）- v1.17.0 已实现
 
 ---
 
@@ -439,6 +488,7 @@
 
 | 版本号 | 日期 | 主要内容 |
 |---|---|---|
+| v1.17.0 | 2026-04-04 | 转固推进清单 Excel 导出、飞书/企业微信推送（四卡片指标 + 四类预警含剩余天数）、推送按钮移至导航栏 |
 | v1.16.0 | 2026-04-03 | 四类工程预警明细弹窗优化（列宽调整、样式统一、导出按钮位置优化） |
 | v1.15.0 | 2026-03-31 | 四类工程预警模块（四类判断算法、预警卡片、分类明细弹窗、Excel 导出、60 天预警窗口、各工程管理员汇总展开收起） |
 | v1.14.0 | 2026-03-28 | 大屏展示页暗色玻璃拟态改版、AI 模块可视化重构、全屏模式优化、TODO 优化、API Key 安全加固 |
@@ -460,4 +510,4 @@
 
 ---
 
-*最后更新：2026-04-03*
+*最后更新：2026-04-04*

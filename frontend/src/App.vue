@@ -1,9 +1,9 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import Dashboard from './views/Dashboard.vue'
 import Budget from './views/Budget.vue'
 import KeyIndicators from './views/KeyIndicators.vue'
-import { getHistory, getHistorySnapshot, getBudgetHistory, getBudgetHistorySnapshot } from './api'
+import { getHistory, getHistorySnapshot, getBudgetHistory, getBudgetHistorySnapshot, getNotifyConfig, saveNotifyConfig, clearNotifyConfig, testNotifyWebhook, pushNotify } from './api'
 
 const currentView = ref('zaigong')
 const isAnalystMode = computed(() => currentView.value !== 'key-indicators')
@@ -12,6 +12,7 @@ const zaigongLatestData = ref(null)
 const budgetLatestData = ref(null)
 const zaigongData = ref(null)
 const budgetData = ref(null)
+const zaigongLatestRecordId = ref(null)
 const zaigongLatestDate = ref(null)
 const budgetLatestDate = ref(null)
 const zaigongDate = ref(null)
@@ -162,6 +163,9 @@ async function openZaigongSnapshot(recordId) {
     ? formatFileDate(result.data.current.file_date)
     : formatHistoryTime(result.data.current.uploaded_at)
   zaigongSnapshotLabel.value = '当前查看：全局历史快照'
+  // 加载四类工程预警数据
+  zaigongFourClassWarnings.value = result.data.current.four_class_warnings || null
+  console.log('[DEBUG] openZaigongSnapshot four_class_warnings:', result.data.current.four_class_warnings)
   closeHistoryCenter()
 }
 
@@ -298,6 +302,166 @@ async function buildComparison(sectionKey) {
     }
   }
 }
+
+async function loadLatestDataOnMount() {
+  try {
+    const [zaigongResult, budgetResult] = await Promise.all([
+      getHistory(1),
+      getBudgetHistory(1),
+    ])
+
+    if (zaigongResult.success && zaigongResult.data?.length) {
+      const latestRecord = zaigongResult.data[0]
+      const snapshot = await getHistorySnapshot(latestRecord.id)
+      if (snapshot.success && snapshot.data?.current) {
+        const cur = snapshot.data.current
+        zaigongData.value = cur.dashboard
+        zaigongLatestData.value = cur.dashboard
+        zaigongLatestRecordId.value = cur.id
+        zaigongDate.value = cur.file_date
+          ? formatFileDate(cur.file_date)
+          : formatHistoryTime(cur.uploaded_at)
+        zaigongLatestDate.value = zaigongDate.value
+        zaigongFourClassWarnings.value = cur.four_class_warnings || null
+        zaigongLatestFourClassWarnings.value = cur.four_class_warnings || null
+      }
+    }
+
+    if (budgetResult.success && budgetResult.data?.length) {
+      const latestBudget = budgetResult.data[0]
+      const snapshot = await getBudgetHistorySnapshot(latestBudget.id)
+      if (snapshot.success && snapshot.data?.current) {
+        const cur = snapshot.data.current
+        budgetData.value = cur.data
+        budgetLatestData.value = cur.data
+        budgetDate.value = formatHistoryTime(cur.uploaded_at)
+        budgetLatestDate.value = budgetDate.value
+      }
+    }
+  } catch (err) {
+    console.error('自动加载最新数据失败:', err)
+  }
+}
+
+onMounted(loadLatestDataOnMount)
+
+// ── 通知设置 ──────────────────────────────────────────────
+const notifyModalVisible = ref(false)
+const notifyWebhookInput = ref('')
+const notifyAutoPush = ref(false)
+const notifyConfigured = ref(false)
+const notifyMaskedUrl = ref('')
+const notifySaving = ref(false)
+const notifyTesting = ref(false)
+const notifyMsg = ref('')
+const notifyMsgType = ref('') // 'success' | 'error'
+
+async function openNotifyModal() {
+  notifyMsg.value = ''
+  notifyWebhookInput.value = ''
+  notifyModalVisible.value = true
+  try {
+    const res = await getNotifyConfig()
+    if (res.success) {
+      notifyConfigured.value = res.configured
+      notifyMaskedUrl.value = res.masked_url
+      notifyAutoPush.value = res.auto_push
+    }
+  } catch (e) {
+    console.error('获取通知配置失败', e)
+  }
+}
+
+async function saveNotify() {
+  if (!notifyWebhookInput.value.trim() && !notifyConfigured.value) {
+    notifyMsg.value = '请输入 Webhook URL'
+    notifyMsgType.value = 'error'
+    return
+  }
+  notifySaving.value = true
+  notifyMsg.value = ''
+  try {
+    const res = await saveNotifyConfig(notifyWebhookInput.value.trim(), notifyAutoPush.value)
+    if (res.success) {
+      notifyMsg.value = '配置已保存'
+      notifyMsgType.value = 'success'
+      notifyConfigured.value = true
+      const cfg = await getNotifyConfig()
+      if (cfg.success) notifyMaskedUrl.value = cfg.masked_url
+      notifyWebhookInput.value = ''
+    } else {
+      notifyMsg.value = res.message || '保存失败'
+      notifyMsgType.value = 'error'
+    }
+  } catch (e) {
+    notifyMsg.value = e?.response?.data?.message || e?.message || '保存失败'
+    notifyMsgType.value = 'error'
+  } finally {
+    notifySaving.value = false
+  }
+}
+
+async function testNotify() {
+  const url = notifyWebhookInput.value.trim()
+  // 输入框有值则测试新 URL，否则用已保存的配置
+  if (!url && !notifyConfigured.value) {
+    notifyMsg.value = '请先输入 Webhook URL 再测试'
+    notifyMsgType.value = 'error'
+    return
+  }
+  notifyTesting.value = true
+  notifyMsg.value = ''
+  try {
+    const res = await testNotifyWebhook(url)  // url 为空时后端自动用已保存的
+    if (res.success) {
+      notifyMsg.value = '✅ 测试消息已发送，请在群内查看'
+      notifyMsgType.value = 'success'
+    } else {
+      notifyMsg.value = res.message || '发送失败'
+      notifyMsgType.value = 'error'
+    }
+  } catch (e) {
+    notifyMsg.value = e?.response?.data?.message || e?.message || '请求失败'
+    notifyMsgType.value = 'error'
+  } finally {
+    notifyTesting.value = false
+  }
+}
+
+async function clearNotify() {
+  if (!confirm('确认清除 Webhook 配置？')) return
+  try {
+    await clearNotifyConfig()
+    notifyConfigured.value = false
+    notifyMaskedUrl.value = ''
+    notifyWebhookInput.value = ''
+    notifyAutoPush.value = false
+    notifyMsg.value = '已清除'
+    notifyMsgType.value = 'success'
+  } catch (e) {
+    notifyMsg.value = '清除失败'
+    notifyMsgType.value = 'error'
+  }
+}
+
+const navPushing = ref(false)
+async function handleNavPush() {
+  if (!zaigongLatestRecordId.value || navPushing.value) return
+  navPushing.value = true
+  try {
+    const res = await pushNotify(zaigongLatestRecordId.value)
+    if (res.success) {
+      alert('推送成功，请在飞书/企业微信中查看')
+    } else {
+      alert(res.message || '推送失败')
+    }
+  } catch (e) {
+    const msg = e?.response?.data?.message || e?.message || '推送失败'
+    alert(msg)
+  } finally {
+    navPushing.value = false
+  }
+}
 </script>
 
 <template>
@@ -342,6 +506,18 @@ async function buildComparison(sectionKey) {
         <button class="history-nav-button" @click="openHistoryCenter">
           <span class="btn-label">历史记录</span>
         </button>
+        <button
+          v-if="notifyConfigured && zaigongLatestRecordId"
+          class="push-nav-button"
+          :disabled="navPushing"
+          @click="handleNavPush"
+          title="推送最新数据播报"
+        >
+          <span class="btn-label">{{ navPushing ? '推送中…' : '📤 推送播报' }}</span>
+        </button>
+        <button class="notify-nav-button" :class="{ configured: notifyConfigured }" @click="openNotifyModal" title="通知设置">
+          <span class="btn-label">🔔</span>
+        </button>
       </div>
     </header>
 
@@ -370,9 +546,11 @@ async function buildComparison(sectionKey) {
       <Dashboard
         v-if="currentView === 'zaigong'"
         :initial-data="zaigongData"
+        :initial-record-id="zaigongLatestRecordId"
         :analysis-date="zaigongDate"
         :latest-data="zaigongLatestData"
         :snapshot-label="zaigongSnapshotLabel"
+        :four-class-warnings="zaigongFourClassWarnings"
         @data-update="onZaigongDataUpdate"
         @restore-latest="onZaigongRestoreLatest"
         @warnings-update="onZaigongWarningsUpdate"
@@ -553,6 +731,62 @@ async function buildComparison(sectionKey) {
         </div>
       </aside>
     </div>
+
+  <!-- 通知设置弹窗 -->
+  <div v-if="notifyModalVisible" class="notify-overlay" @click.self="notifyModalVisible = false">
+    <div class="notify-modal">
+      <div class="notify-modal-header">
+        <h3>🔔 企业微信通知设置</h3>
+        <button class="modal-close" @click="notifyModalVisible = false">×</button>
+      </div>
+      <div class="notify-modal-body">
+
+        <!-- 当前状态 -->
+        <div class="notify-status-row">
+          <span class="notify-status-label">当前状态：</span>
+          <span v-if="notifyConfigured" class="notify-badge configured">已配置</span>
+          <span v-else class="notify-badge unconfigured">未配置</span>
+          <span v-if="notifyConfigured" class="notify-masked">{{ notifyMaskedUrl }}</span>
+          <button v-if="notifyConfigured" class="notify-clear-btn" @click="clearNotify">清除</button>
+        </div>
+
+        <!-- Webhook URL 输入 -->
+        <div class="notify-field">
+          <label>Webhook URL</label>
+          <input
+            v-model="notifyWebhookInput"
+            type="text"
+            placeholder="飞书：https://open.feishu.cn/open-apis/bot/v2/hook/...  或企业微信 Webhook"
+            class="notify-input"
+          />
+          <p class="notify-hint">飞书：在与自己的对话或群聊 → 添加机器人 → 自定义机器人 → 复制 Webhook<br>企业微信：群聊 → 右上角设置 → 添加群机器人 → 复制 Webhook</p>
+        </div>
+
+        <!-- 自动推送开关 -->
+        <div class="notify-field notify-toggle-row">
+          <label>上传数据后自动推送</label>
+          <label class="toggle-switch">
+            <input type="checkbox" v-model="notifyAutoPush" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <!-- 操作反馈 -->
+        <div v-if="notifyMsg" :class="['notify-msg', notifyMsgType]">{{ notifyMsg }}</div>
+
+        <!-- 操作按钮 -->
+        <div class="notify-actions">
+          <button class="notify-btn-test" :disabled="notifyTesting" @click="testNotify">
+            {{ notifyTesting ? '发送中…' : '发送测试消息' }}
+          </button>
+          <button class="notify-btn-save" :disabled="notifySaving" @click="saveNotify">
+            {{ notifySaving ? '保存中…' : '保存配置' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   </div>
 </template>
 
@@ -758,6 +992,220 @@ body:has(.app-shell.analyst-mode) {
   border-color: rgba(255, 182, 92, 0.32) !important;
   background: rgba(255, 182, 92, 0.14) !important;
 }
+
+.push-nav-button {
+  border-color: rgba(74, 222, 128, 0.22) !important;
+  background: rgba(74, 222, 128, 0.08) !important;
+  color: #86efac !important;
+}
+.push-nav-button:hover:not(:disabled) {
+  border-color: rgba(74, 222, 128, 0.4) !important;
+  background: rgba(74, 222, 128, 0.15) !important;
+}
+.push-nav-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.notify-nav-button {
+  border-color: rgba(120, 200, 120, 0.18) !important;
+  background: rgba(120, 200, 120, 0.08) !important;
+  color: #a8d8a8 !important;
+  font-size: 15px !important;
+  padding: 4px 10px !important;
+}
+.notify-nav-button:hover {
+  border-color: rgba(120, 200, 120, 0.32) !important;
+  background: rgba(120, 200, 120, 0.16) !important;
+}
+.notify-nav-button.configured {
+  border-color: rgba(74, 222, 128, 0.35) !important;
+  background: rgba(74, 222, 128, 0.12) !important;
+  color: #4ade80 !important;
+}
+
+/* ── 通知设置弹窗 ── */
+.notify-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.notify-modal {
+  background: #fff;
+  border-radius: 12px;
+  width: 480px;
+  max-width: 95vw;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+  overflow: hidden;
+}
+.notify-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid #e4e3dc;
+}
+.notify-modal-header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1c1b18;
+}
+.notify-modal-header .modal-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: #888;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+}
+.notify-modal-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.notify-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #555;
+}
+.notify-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+.notify-badge.configured {
+  background: #dcfce7;
+  color: #15803d;
+}
+.notify-badge.unconfigured {
+  background: #f3f4f6;
+  color: #9ca3af;
+}
+.notify-masked {
+  font-size: 12px;
+  color: #9ca3af;
+  font-family: monospace;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.notify-clear-btn {
+  font-size: 12px;
+  padding: 2px 10px;
+  border: 1px solid #fca5a5;
+  border-radius: 4px;
+  background: #fff;
+  color: #dc2626;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.notify-clear-btn:hover { background: #fef2f2; }
+.notify-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.notify-field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+.notify-input {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 13px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  outline: none;
+  box-sizing: border-box;
+  color: #1c1b18;
+}
+.notify-input:focus { border-color: #2563eb; }
+.notify-hint {
+  margin: 0;
+  font-size: 11px;
+  color: #9ca3af;
+  line-height: 1.4;
+}
+.notify-toggle-row {
+  flex-direction: row !important;
+  align-items: center;
+  justify-content: space-between;
+}
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 22px;
+  cursor: pointer;
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: #d1d5db;
+  border-radius: 22px;
+  transition: background 0.2s;
+}
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  left: 3px;
+  top: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+.toggle-switch input:checked + .toggle-slider { background: #2563eb; }
+.toggle-switch input:checked + .toggle-slider::before { transform: translateX(18px); }
+.notify-msg {
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+.notify-msg.success { background: #dcfce7; color: #15803d; }
+.notify-msg.error { background: #fef2f2; color: #dc2626; }
+.notify-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.notify-btn-test {
+  padding: 7px 16px;
+  font-size: 13px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+  font-weight: 500;
+}
+.notify-btn-test:hover:not(:disabled) { background: #f9fafb; }
+.notify-btn-save {
+  padding: 7px 20px;
+  font-size: 13px;
+  border: none;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 600;
+}
+.notify-btn-save:hover:not(:disabled) { background: #1d4ed8; }
+.notify-btn-test:disabled,
+.notify-btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .data-indicator {
   width: 8px;

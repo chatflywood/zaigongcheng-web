@@ -5,8 +5,8 @@ from io import BytesIO
 import math
 import json
 from datetime import datetime
-from services.analysis import analyze
-from models import ZaigongRecord, get_db
+from services.analysis import analyze, build_transfer_priority
+from models import ZaigongRecord, AppConfig, get_db
 
 router = APIRouter()
 
@@ -140,6 +140,27 @@ async def upload_excel(file: UploadFile = File(...), target: float = Query(503.0
             db.commit()
         finally:
             db.close()
+
+        # 自动推送（如果配置了 webhook 且开启了自动推送）
+        try:
+            db2 = get_db()
+            webhook_row = db2.query(AppConfig).filter(AppConfig.key == "wework_webhook_url").first()
+            auto_row = db2.query(AppConfig).filter(AppConfig.key == "wework_auto_push").first()
+            db2.close()
+            if webhook_row and webhook_row.value and auto_row and auto_row.value == "true":
+                import asyncio
+                from services.notify import push_record
+                from models import BudgetRecord
+                db3 = get_db()
+                new_record = db3.query(ZaigongRecord).order_by(ZaigongRecord.id.desc()).first()
+                budget_record = db3.query(BudgetRecord).order_by(BudgetRecord.id.desc()).first()
+                db3.close()
+                if new_record:
+                    snapshot = build_dashboard_snapshot(new_record)
+                    budget_data = json.loads(budget_record.budget_data) if budget_record and budget_record.budget_data else None
+                    asyncio.create_task(push_record(webhook_row.value, snapshot, budget_data))
+        except Exception:
+            pass  # 推送失败不影响上传结果
 
         return {
             "success": True,
@@ -321,6 +342,356 @@ async def get_metrics():
             "year_target": YEARLY_TARGET,
         }
     }
+
+
+@router.get("/transfer-priority/{record_id}")
+async def get_transfer_priority(record_id: int):
+    """
+    计算指定记录的转固推进优先级清单。
+    基于已存储的 summary_data / detail_data / four_class_warnings 实时计算，
+    返回各管理员按优先级排序的待转固项目清单及转固率提升模拟。
+    """
+    db = get_db()
+    try:
+        record = db.query(ZaigongRecord).filter(ZaigongRecord.id == record_id).first()
+        if not record:
+            return JSONResponse(status_code=404, content={"success": False, "message": "记录不存在"})
+
+        summary_data   = json.loads(record.summary_data)   if record.summary_data   else []
+        detail_data    = json.loads(record.detail_data)    if record.detail_data    else []
+        four_class_data = json.loads(record.four_class_warnings) if record.four_class_warnings else {}
+
+        priority_list = build_transfer_priority(summary_data, detail_data, four_class_data)
+        return {"success": True, "data": priority_list}
+    finally:
+        db.close()
+
+
+@router.get("/transfer-priority/{record_id}/export")
+async def export_transfer_priority(record_id: int, target_rate: float = Query(None, ge=0.01, le=1.0)):
+    """
+    导出转固推进清单 Excel。
+    target_rate: 可选，0~1 之间的小数，传入时在表格中标注"需完成"项目。
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    import io
+
+    db = get_db()
+    try:
+        record = db.query(ZaigongRecord).filter(ZaigongRecord.id == record_id).first()
+        if not record:
+            return JSONResponse(status_code=404, content={"success": False, "message": "记录不存在"})
+
+        summary_data    = json.loads(record.summary_data)    if record.summary_data    else []
+        detail_data     = json.loads(record.detail_data)     if record.detail_data     else []
+        four_class_data = json.loads(record.four_class_warnings) if record.four_class_warnings else {}
+
+        priority_list = build_transfer_priority(summary_data, detail_data, four_class_data)
+        if not priority_list:
+            return JSONResponse(status_code=404, content={"success": False, "message": "无待转固项目数据"})
+
+        # ── 若传入目标转固率，计算各项目"是否需完成" ──
+        def compute_needed(manager_group):
+            if target_rate is None:
+                return [None] * len(manager_group["projects"])
+            if manager_group["current_rate"] >= target_rate:
+                return [False] * len(manager_group["projects"])
+            projects = manager_group["projects"]
+            cutoff = next((i for i, p in enumerate(projects) if p["累计后转固率"] >= target_rate), -1)
+            return [True if cutoff == -1 else i <= cutoff for i in range(len(projects))]
+
+        # ── 全局统计 ──
+        total_projects = sum(len(m["projects"]) for m in priority_list)
+        file_date = record.file_date or ""
+
+        # ── 颜色常量 ──
+        C_NAVY    = "1B2A4A"
+        C_BLUE    = "2E5F9E"
+        C_WHITE   = "FFFFFF"
+        C_MGR_BG  = "EEF3FB"   # 管理员组头背景（淡蓝）
+        C_MGR_FG  = "1F3864"   # 管理员组头文字
+        C_HEAD_BG = "F2F2F2"   # 列标题背景
+        C_NEED_BG = "FFFDE7"   # 需完成行背景（淡黄）
+        C_OPT_BG  = "FAFAFA"   # 可选行背景
+        C_OVER    = "C00000"   # 已逾期红
+        C_WARN    = "ED7D31"   # 即将到期橙
+        C_GREEN   = "375623"   # 完成后转固率绿
+
+        thin = Side(style="thin", color="CCCCCC")
+        border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+        def cell_style(ws, row, col, value, *, bold=False, size=9, color="000000",
+                       bg=None, align="left", wrap=False, num_fmt=None):
+            c = ws.cell(row=row, column=col, value=value)
+            c.font = Font(name="微软雅黑", size=size, bold=bold, color=color)
+            if bg:
+                c.fill = PatternFill("solid", fgColor=bg)
+            c.alignment = Alignment(horizontal=align, vertical="center", wrap_text=wrap)
+            c.border = border
+            if num_fmt:
+                c.number_format = num_fmt
+            return c
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "转固推进清单"
+
+        # ── 第1行：总标题 ──
+        COLS = 9
+        ws.merge_cells(f"A1:{get_column_letter(COLS)}1")
+        ws["A1"].value = "中国电信股份有限公司仙桃分公司  在建工程转固推进清单"
+        ws["A1"].font = Font(name="微软雅黑", size=15, bold=True, color=C_WHITE)
+        ws["A1"].fill = PatternFill("solid", fgColor=C_NAVY)
+        ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
+        ws.row_dimensions[1].height = 38
+
+        # ── 第2行：副标题 ──
+        ws.merge_cells(f"A2:{get_column_letter(COLS)}2")
+        sub = f"数据日期：{file_date}  |  共 {len(priority_list)} 位管理员  |  {total_projects} 个项目待转固"
+        if target_rate:
+            sub += f"  |  测算目标转固率：{target_rate * 100:.1f}%"
+        ws["A2"].value = sub
+        ws["A2"].font = Font(name="微软雅黑", size=9, color="D9E8F5")
+        ws["A2"].fill = PatternFill("solid", fgColor=C_BLUE)
+        ws["A2"].alignment = Alignment(horizontal="center", vertical="center")
+        ws.row_dimensions[2].height = 20
+
+        # ── 第3行：图例 ──
+        legend_row = 3
+        ws.merge_cells(f"A{legend_row}:C{legend_row}")
+        ws[f"A{legend_row}"].value = "已逾期：转固相关四类工程已触发"
+        ws[f"A{legend_row}"].font = Font(name="微软雅黑", size=9, bold=True, color="7B0000")
+        ws[f"A{legend_row}"].fill = PatternFill("solid", fgColor="FFD7D7")
+        ws[f"A{legend_row}"].alignment = Alignment(horizontal="center", vertical="center")
+
+        ws.merge_cells(f"D{legend_row}:F{legend_row}")
+        ws[f"D{legend_row}"].value = "即将到期：距截止日期不足60天"
+        ws[f"D{legend_row}"].font = Font(name="微软雅黑", size=9, bold=True, color="7B3F00")
+        ws[f"D{legend_row}"].fill = PatternFill("solid", fgColor="FFF3C8")
+        ws[f"D{legend_row}"].alignment = Alignment(horizontal="center", vertical="center")
+
+        if target_rate:
+            ws.merge_cells(f"G{legend_row}:{get_column_letter(COLS)}{legend_row}")
+            ws[f"G{legend_row}"].value = f"★ 需完成：完成该项目后累计转固率可达目标 {target_rate * 100:.1f}%"
+            ws[f"G{legend_row}"].font = Font(name="微软雅黑", size=9, bold=True, color="7B5200")
+            ws[f"G{legend_row}"].fill = PatternFill("solid", fgColor="FFFDE7")
+            ws[f"G{legend_row}"].alignment = Alignment(horizontal="center", vertical="center")
+        else:
+            ws.merge_cells(f"G{legend_row}:{get_column_letter(COLS)}{legend_row}")
+            ws[f"G{legend_row}"].value = "项目按转固贡献率从高到低排序"
+            ws[f"G{legend_row}"].font = Font(name="微软雅黑", size=9, italic=True, color="595959")
+            ws[f"G{legend_row}"].fill = PatternFill("solid", fgColor="F0F0F0")
+            ws[f"G{legend_row}"].alignment = Alignment(horizontal="center", vertical="center")
+        ws.row_dimensions[legend_row].height = 20
+
+        # ── 列宽 ──
+        col_widths = [5, 46, 14, 12, 10, 14, 16, 14, 36]
+        for i, w in enumerate(col_widths, 1):
+            ws.column_dimensions[get_column_letter(i)].width = w
+
+        # ── 列标题（每个管理员块前复用，此处写一个通用函数）──
+        COL_HEADERS = ["序", "工程名称", "在建余额(万)", "转固贡献率", "紧迫度",
+                       "完成后转固率", "累计提升(pct)", "任务标记" if target_rate else "完成建议", "紧迫说明"]
+
+        current_row = 4
+
+        for mgr in priority_list:
+            needed_flags = compute_needed(mgr)
+            current_rate = mgr["current_rate"]
+            projects     = mgr["projects"]
+
+            # ── 管理员组头 ──
+            ws.merge_cells(f"A{current_row}:{get_column_letter(COLS)}{current_row}")
+            mgr_label = f"▌ {mgr['manager']}    当前转固率：{current_rate * 100:.1f}%    待转固余额：{mgr['total_balance']:,.2f} 万元"
+            if target_rate and current_rate < target_rate:
+                needed_cnt = sum(1 for f in needed_flags if f is True)
+                mgr_label += f"    目标 {target_rate*100:.1f}% → 需完成 {needed_cnt} 个项目"
+            elif target_rate and current_rate >= target_rate:
+                mgr_label += f"    ✓ 已达目标 {target_rate*100:.1f}%"
+            c = ws[f"A{current_row}"]
+            c.value = mgr_label
+            c.font = Font(name="微软雅黑", size=10, bold=True, color=C_MGR_FG)
+            c.fill = PatternFill("solid", fgColor=C_MGR_BG)
+            c.alignment = Alignment(horizontal="left", vertical="center")
+            c.border = border
+            ws.row_dimensions[current_row].height = 22
+            current_row += 1
+
+            # ── 列标题行 ──
+            for col, hdr in enumerate(COL_HEADERS, 1):
+                c = ws.cell(row=current_row, column=col, value=hdr)
+                c.font = Font(name="微软雅黑", size=9, bold=True, color="595959")
+                c.fill = PatternFill("solid", fgColor=C_HEAD_BG)
+                c.alignment = Alignment(horizontal="center", vertical="center")
+                c.border = border
+            ws.row_dimensions[current_row].height = 20
+            current_row += 1
+
+            # ── 项目明细行 ──
+            for idx, (proj, needed) in enumerate(zip(projects, needed_flags), 1):
+                urgency   = proj.get("紧迫度", "正常")
+                after_rate = proj.get("累计后转固率", current_rate)
+                delta_pct  = (after_rate - current_rate) * 100
+
+                # 行背景
+                if needed is True:
+                    row_bg = C_NEED_BG
+                elif urgency == "已逾期":
+                    row_bg = "FFEDED"
+                elif urgency == "即将到期":
+                    row_bg = "FFF9E6"
+                else:
+                    row_bg = C_OPT_BG
+
+                # 任务标记列
+                if needed is True:
+                    task_mark = "★ 需完成"
+                elif needed is False:
+                    task_mark = "可选缓冲"
+                else:
+                    # 无目标时，用紧迫度作为建议
+                    task_mark = {"已逾期": "立即推进", "即将到期": "尽快推进", "正常": "按序推进"}.get(urgency, "")
+
+                # 紧迫说明（取第一条）
+                hint = ""
+                for u in proj.get("urgency_detail", []):
+                    hint = f"{u['type']}·{u['daysLabel']}"
+                    if u.get("deadline"):
+                        hint += f"·截止{u['deadline']}"
+                    break
+
+                row_data = [
+                    idx,
+                    proj.get("工程名称", ""),
+                    proj.get("在建余额", 0),
+                    proj.get("转固贡献率", 0),
+                    urgency,
+                    after_rate,
+                    round(delta_pct, 1),
+                    task_mark,
+                    hint,
+                ]
+
+                for col, val in enumerate(row_data, 1):
+                    c = ws.cell(row=current_row, column=col, value=val)
+                    c.fill = PatternFill("solid", fgColor=row_bg)
+                    c.alignment = Alignment(
+                        horizontal="center" if col not in (2, 9) else "left",
+                        vertical="center", wrap_text=(col == 9)
+                    )
+                    c.border = border
+
+                    # 字体与特殊着色
+                    fg = "000000"
+                    bold = False
+                    num_fmt = None
+
+                    if col == 3:   # 在建余额
+                        num_fmt = '#,##0.00'
+                    elif col == 4: # 转固贡献率
+                        val_pct = val * 100
+                        c.value = val_pct / 100
+                        num_fmt = '0.0%'
+                    elif col == 5: # 紧迫度
+                        if urgency == "已逾期":   fg = C_OVER
+                        elif urgency == "即将到期": fg = C_WARN
+                        else:                    fg = "595959"
+                        bold = True
+                    elif col == 6: # 完成后转固率
+                        c.value = val
+                        num_fmt = '0.0%'
+                        fg = C_GREEN
+                        bold = True
+                    elif col == 7: # 累计提升
+                        num_fmt = '+0.0;-0.0;0.0'
+                        fg = "1A56A4"
+                    elif col == 8: # 任务标记
+                        if needed is True: fg, bold = "7B5200", True
+                        elif needed is False: fg = "AAAAAA"
+
+                    c.font = Font(name="微软雅黑", size=9, bold=bold, color=fg)
+                    if num_fmt:
+                        c.number_format = num_fmt
+
+                ws.row_dimensions[current_row].height = 36
+                current_row += 1
+
+            # ── 管理员小计行 ──
+            total_balance = mgr["total_balance"]
+            ws.merge_cells(f"A{current_row}:B{current_row}")
+            c = ws[f"A{current_row}"]
+            c.value = f"{mgr['manager']} 合计"
+            c.font = Font(name="微软雅黑", size=9, bold=True, color=C_MGR_FG)
+            c.fill = PatternFill("solid", fgColor=C_MGR_BG)
+            c.alignment = Alignment(horizontal="left", vertical="center")
+            c.border = border
+
+            c3 = ws.cell(row=current_row, column=3, value=total_balance)
+            c3.font = Font(name="微软雅黑", size=9, bold=True, color=C_MGR_FG)
+            c3.fill = PatternFill("solid", fgColor=C_MGR_BG)
+            c3.alignment = Alignment(horizontal="center", vertical="center")
+            c3.border = border
+            c3.number_format = '#,##0.00'
+
+            for col in range(4, COLS + 1):
+                c = ws.cell(row=current_row, column=col, value="")
+                c.fill = PatternFill("solid", fgColor=C_MGR_BG)
+                c.border = border
+            ws.row_dimensions[current_row].height = 18
+            current_row += 1
+
+            # 管理员之间空一行
+            current_row += 1
+
+        ws.freeze_panes = "A5"
+
+        # ── Sheet 2: 说明 ──
+        ws2 = wb.create_sheet("说明")
+        ws2.column_dimensions["A"].width = 18
+        ws2.column_dimensions["B"].width = 68
+        ws2.merge_cells("A1:B1")
+        ws2["A1"].value = "转固推进清单说明"
+        ws2["A1"].font = Font(name="微软雅黑", size=13, bold=True, color=C_WHITE)
+        ws2["A1"].fill = PatternFill("solid", fgColor=C_NAVY)
+        ws2["A1"].alignment = Alignment(horizontal="center", vertical="center")
+        ws2.row_dimensions[1].height = 28
+
+        notes = [
+            ("转固率公式",    "转固率 = 1 - (在建工程期末余额 + 工程物资) / (本年累计资本性支出 + 在建工程年初数 + 工程物资年初数)"),
+            ("在建余额",     "在建工程期末余额（万元），减至 0 即代表该项目完成转固。"),
+            ("转固贡献率",   "该项目完成转固后，管理员转固率的直接提升幅度（%）。"),
+            ("完成后转固率", "按优先级依次完成本项目及之前所有项目后，管理员转固率的模拟值。"),
+            ("项目排序规则", "① 四类预警已逾期 → ② 四类预警即将到期 → ③ 在建余额从大到小（余额越大，贡献越高）。"),
+            ("任务标记",     "★需完成：达到目标转固率的最少必做项目。可选缓冲：完成需完成项后额外可推进的项目。"),
+            ("数据来源",     "基于最近一次上传的在建工程明细总表快照，每次上传新数据后自动更新。"),
+        ]
+        for i, (k, v) in enumerate(notes, 2):
+            bg = "EBF3FB" if i % 2 == 0 else "FFFFFF"
+            for col, text in ((1, k), (2, v)):
+                c = ws2.cell(row=i, column=col, value=text)
+                c.font = Font(name="微软雅黑", size=10, bold=(col == 1))
+                c.fill = PatternFill("solid", fgColor=bg)
+                c.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+            ws2.row_dimensions[i].height = 32
+
+        # ── 输出 ──
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        from fastapi.responses import StreamingResponse
+        from urllib.parse import quote
+        suffix = f"_{int(target_rate * 100)}pct目标" if target_rate else ""
+        filename = f"转固推进清单_{file_date}{suffix}.xlsx"
+        return StreamingResponse(
+            io.BytesIO(output.getvalue()),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"}
+        )
+    finally:
+        db.close()
 
 
 @router.get("/four-class-warnings/{record_id}")

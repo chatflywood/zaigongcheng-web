@@ -605,6 +605,112 @@ def build_four_class_warnings(df: pd.DataFrame) -> dict:
     }
 
 
+def build_transfer_priority(summary_records: list, detail_records: list, four_class_data: dict) -> list:
+    """
+    基于已存储的汇总/明细/四类预警数据，计算各管理员的转固推进优先级清单。
+
+    summary_records 中的列单位说明：
+      - 本年累计资本性支出：万元（build_summary 中已 /10000）
+      - 在建工程期末余额、工程物资、在建工程年初数、工程物资年初数：元（未转换）
+
+    detail_records 中：
+      - 在建工程期末余额：万元（build_dashboard_data 中已 /10000）
+
+    返回按当前转固率升序排列的管理员列表，每位管理员包含按优先级排序的项目清单。
+    """
+    # ── 1. 读取各管理员的分母、当前分子、当前转固率 ──
+    manager_info = {}
+    for row in summary_records:
+        manager = row.get('工程管理员') or row.get('manager', '')
+        if not manager or manager == '合计':
+            continue
+        capital_w   = safe_float(row.get('本年累计资本性支出', 0))          # 万元
+        begin_w     = safe_float(row.get('在建工程年初数', 0))     / 10000   # 元→万
+        mat_begin_w = safe_float(row.get('工程物资年初数', 0))     / 10000   # 元→万
+        balance_w   = safe_float(row.get('在建工程期末余额', 0))   / 10000   # 元→万
+        mat_w       = safe_float(row.get('工程物资', 0))           / 10000   # 元→万
+        denom       = capital_w + begin_w + mat_begin_w
+        manager_info[manager] = {
+            'denominator':       denom,
+            'current_numerator': balance_w + mat_w,
+            'current_rate':      safe_float(row.get('转固率', 0)),
+        }
+
+    # ── 2. 从四类预警中提取转固相关紧迫度（仅 预转固不及时 / 关闭不及时）──
+    project_urgency: dict = {}
+    if four_class_data and four_class_data.get('items'):
+        for item in four_class_data['items']:
+            if item.get('type') not in ('预转固不及时', '关闭不及时'):
+                continue
+            name = item.get('name', '')
+            project_urgency.setdefault(name, []).append({
+                'type':       item.get('type', ''),
+                'status':     item.get('status', ''),
+                'daysLabel':  item.get('daysLabel', ''),
+                'deadline':   item.get('deadline', ''),
+                'suggestion': item.get('suggestion', ''),
+            })
+
+    # ── 3. 按管理员归集在建余额 > 0 的工程 ──
+    manager_projects: dict = {}
+    for project in detail_records:
+        manager = project.get('工程管理员', '')
+        if not manager or manager == '合计':
+            continue
+        balance = safe_float(project.get('在建工程期末余额', 0))  # 已经是万元
+        if balance <= 0:
+            continue
+        name          = project.get('工程名称', '')
+        urgency_items = project_urgency.get(name, [])
+
+        urgency_level = 3
+        for u in urgency_items:
+            if u['status'].startswith('已触发'):
+                urgency_level = min(urgency_level, 1)
+            elif u['status'] == '预警':
+                urgency_level = min(urgency_level, 2)
+
+        manager_projects.setdefault(manager, []).append({
+            '工程名称':     name,
+            '在建余额':     round(balance, 2),
+            '_urgency':    urgency_level,
+            'urgency_detail': urgency_items,
+        })
+
+    # ── 4. 排序、计算贡献率与累计模拟转固率 ──
+    result = []
+    for manager, projects in manager_projects.items():
+        info             = manager_info.get(manager, {})
+        denom            = info.get('denominator', 0)
+        current_rate     = info.get('current_rate', 0)
+        running_numerator = info.get('current_numerator', 0)
+
+        # 紧迫度升序，同级按余额降序（余额大 = 对率提升贡献更大）
+        projects.sort(key=lambda p: (p['_urgency'], -p['在建余额']))
+
+        for p in projects:
+            contribution = p['在建余额'] / denom if denom > 0 else 0
+            p['转固贡献率'] = round(contribution, 4)
+            running_numerator = max(running_numerator - p['在建余额'], 0)
+            simulated = 1 - running_numerator / denom if denom > 0 else current_rate
+            p['累计后转固率'] = round(min(simulated, 1.0), 4)
+
+            ul = p.pop('_urgency')
+            p['紧迫度'] = '已逾期' if ul == 1 else '即将到期' if ul == 2 else '正常'
+
+        result.append({
+            'manager':      manager,
+            'current_rate': round(current_rate, 4),
+            'denominator':  round(denom, 2),
+            'total_balance': round(sum(p['在建余额'] for p in projects), 2),
+            'projects':     projects,
+        })
+
+    # 转固率最低的管理员排在前面（最需要推进）
+    result.sort(key=lambda r: r['current_rate'])
+    return result
+
+
 def analyze(df: pd.DataFrame, year_target: float = 503.0, month_label: str = None) -> dict:
     """
     核心分析函数 - 接收 DataFrame，返回分析结果字典
