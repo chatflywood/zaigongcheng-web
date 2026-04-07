@@ -3,6 +3,7 @@
 企业微信通知配置与推送接口
 """
 import json
+from typing import Optional
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from models import AppConfig, ZaigongRecord, BudgetRecord, get_db
@@ -15,7 +16,7 @@ WEBHOOK_KEY = "wework_webhook_url"
 AUTO_PUSH_KEY = "wework_auto_push"
 
 
-def _get_config(db, key: str) -> str | None:
+def _get_config(db, key: str) -> Optional[str]:
     row = db.query(AppConfig).filter(AppConfig.key == key).first()
     return row.value if row else None
 

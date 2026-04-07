@@ -3,11 +3,11 @@
     <!-- 背景光晕层 -->
     <div class="bg-mesh"></div>
 
-    <!-- 大屏专用导航栏 -->
-    <nav class="nav">
+    <!-- 大屏专用导航栏（仅全屏时显示，普通模式由 App top-nav 承担） -->
+    <nav v-if="presentationMode" class="nav">
       <div class="nav-brand">
         <div class="nav-mark">ZT</div>
-        <span class="nav-title">工程建设数据驾舱</span>
+        <span class="nav-title">工程建设数据驾驶舱</span>
       </div>
       <div class="nav-center">
         <div class="nav-date">
@@ -577,6 +577,93 @@ onUnmounted(() => {
 
 .key-indicators.fullscreen-mode .bottom-grid {
   padding: 0 24px 16px;
+}
+
+/* 全屏展示模式 - 字体放大 */
+.key-indicators.fullscreen-mode .kpi-card {
+  padding: 28px 28px 22px;
+}
+
+.key-indicators.fullscreen-mode .kpi-name {
+  font-size: 17px;
+  margin-bottom: 14px;
+}
+
+.key-indicators.fullscreen-mode .kpi-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  font-size: 20px;
+}
+
+.key-indicators.fullscreen-mode .kpi-badge {
+  font-size: 13px;
+  padding: 3px 10px;
+}
+
+.key-indicators.fullscreen-mode .gauge-wrap svg {
+  width: 200px;
+  height: 115px;
+}
+
+.key-indicators.fullscreen-mode .kpi-meta {
+  padding: 10px 13px;
+}
+
+.key-indicators.fullscreen-mode .kpi-meta-label {
+  font-size: 13px;
+  margin-bottom: 5px;
+}
+
+.key-indicators.fullscreen-mode .kpi-meta-val {
+  font-size: 22px;
+}
+
+.key-indicators.fullscreen-mode .kpi-meta-unit {
+  font-size: 13px;
+}
+
+.key-indicators.fullscreen-mode .kpi-date {
+  font-size: 14px;
+  margin-top: 14px;
+}
+
+.key-indicators.fullscreen-mode .section-title {
+  font-size: 20px;
+}
+
+.key-indicators.fullscreen-mode .section-tag {
+  font-size: 12px;
+  padding: 3px 9px;
+}
+
+.key-indicators.fullscreen-mode .todo-card {
+  padding: 24px 26px;
+}
+
+.key-indicators.fullscreen-mode .todo-item {
+  padding: 14px 18px;
+  border-radius: 12px;
+}
+
+.key-indicators.fullscreen-mode .todo-priority {
+  font-size: 13px;
+  padding: 3px 9px;
+}
+
+.key-indicators.fullscreen-mode .todo-owner,
+.key-indicators.fullscreen-mode .todo-due {
+  font-size: 13px;
+}
+
+.key-indicators.fullscreen-mode .todo-title {
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+.key-indicators.fullscreen-mode .todo-add-btn {
+  font-size: 13px;
+  padding: 6px 14px;
 }
 
 /* 背景光晕 */

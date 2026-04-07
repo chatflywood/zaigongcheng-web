@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import analysis, budget, ai, notify
+from routers import analysis, budget, ai, notify, report
 from models import init_db
 
 app = FastAPI(title="在建工程分析系统", version="1.0.0")
@@ -22,6 +22,7 @@ app.include_router(analysis.router, prefix="/api/zaigong", tags=["在建工程"]
 app.include_router(budget.router, prefix="/api/budget", tags=["预算分析"])
 app.include_router(ai.router, prefix="/api/ai", tags=["AI分析"])
 app.include_router(notify.router, prefix="/api/notify", tags=["通知"])
+app.include_router(report.router, prefix="/api/report", tags=["月报"])
 
 @app.get("/")
 async def root():

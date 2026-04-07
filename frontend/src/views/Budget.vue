@@ -135,7 +135,7 @@
         </div>
 
         <div class="header-side">
-          <button class="ghost-action" @click="openHistoryPanel">
+          <button class="ghost-action --history" @click="openHistoryPanel">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M3 12a9 9 0 1 0 3-6.7"/>
               <path d="M3 4v5h5"/>
@@ -143,14 +143,14 @@
             </svg>
             历史记录
           </button>
-          <button v-if="(isViewingHistory || props.snapshotLabel) && (props.latestData || props.initialData)" class="ghost-action" @click="restoreLatestView">
+          <button v-if="(isViewingHistory || props.snapshotLabel) && (props.latestData || props.initialData)" class="ghost-action --restore" @click="restoreLatestView">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
               <path d="M21 3v6h-6"/>
             </svg>
             返回最新
           </button>
-          <button class="ghost-action" @click="clearData">
+          <button class="ghost-action --danger" @click="clearData">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
               <path d="M3 3v5h5"/>
@@ -423,7 +423,7 @@
         </div>
         <div v-else class="history-list">
           <button
-            v-for="record in historyRecords"
+            v-for="(record, index) in historyRecords"
             :key="record.id"
             class="history-item"
             :class="{ active: currentRecordId === record.id }"
@@ -433,8 +433,17 @@
               <strong>{{ record.source_filename }}</strong>
               <span class="history-item-id">#{{ record.id }}</span>
             </div>
+            <div class="history-item-kpis">
+              <span class="history-kpi-capital">{{ formatNum(record.snapshot_data?.occupied_total || 0) }}<em>万元</em></span>
+              <span class="history-kpi-progress">{{ formatBudgetHistoryProgress(record) }}</span>
+              <span
+                v-if="getProgressDelta(record, index) !== null"
+                class="history-kpi-delta"
+                :class="getProgressDelta(record, index) >= 0 ? 'delta-up' : 'delta-down'"
+              >{{ getProgressDelta(record, index) >= 0 ? '↑' : '↓' }} {{ Math.abs(getProgressDelta(record, index)).toFixed(1) }}pct</span>
+            </div>
             <div class="history-item-meta">
-              <span>上传时间：{{ formatHistoryTime(record.uploaded_at) }}</span>
+              <span>{{ formatHistoryTime(record.uploaded_at) }}</span>
             </div>
           </button>
         </div>
@@ -642,6 +651,14 @@ function formatHistoryDateOnly(value) {
   }).replace(/\//g, '-')
 }
 
+function getProgressDelta(record, index) {
+  const prev = historyRecords.value[index + 1]
+  if (!prev) return null
+  const curr = Number(record?.snapshot_data?.approval_progress || 0)
+  const prevProgress = Number(prev?.snapshot_data?.approval_progress || 0)
+  return (curr - prevProgress) * 100
+}
+
 function formatBudgetHistoryProgress(record) {
   const progress = Number(record?.snapshot_data?.approval_progress || 0)
   return `${(progress * 100).toFixed(1)}%`
@@ -775,6 +792,7 @@ async function viewHistorySnapshot(recordId) {
 }
 
 function clearData() {
+  if (!window.confirm('确认重新上传？当前分析数据将被清除。')) return
   hasData.value = false
   data.value = {}
   selectedManager.value = ''
@@ -1735,9 +1753,50 @@ onMounted(() => {
   font-size: 12px;
 }
 
+.history-item-kpis {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.history-kpi-capital {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+
+.history-kpi-capital em {
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.history-kpi-progress {
+  font-size: 12px;
+  color: #a78bfa;
+  background: rgba(167, 139, 250, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.history-kpi-delta {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.history-kpi-delta.delta-up { color: #34d399; }
+.history-kpi-delta.delta-down { color: #f87171; }
+
 .history-item-meta {
-  display: grid;
-  gap: 6px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
   color: var(--text-secondary);
   font-size: 12px;
 }
@@ -1950,6 +2009,22 @@ onMounted(() => {
   color: #6b6a63 !important;
 }
 
+.history-kpi-capital {
+  color: #1c1b18 !important;
+}
+
+.history-kpi-capital em {
+  color: #6b6a63 !important;
+}
+
+.history-kpi-progress {
+  background: #f0eeff !important;
+  color: #5b21b6 !important;
+}
+
+.history-kpi-delta.delta-up { color: #15803d !important; }
+.history-kpi-delta.delta-down { color: #b91c1c !important; }
+
 .file-tag,
 .panel-kicker,
 .upload-hint .link {
@@ -2122,18 +2197,45 @@ onMounted(() => {
 }
 
 .ghost-action {
+  height: 32px !important;
+  padding: 0 14px !important;
+  border-radius: 8px !important;
+  font-weight: 500 !important;
+  font-size: 13px !important;
+}
+
+.ghost-action.--history {
   background: #fff !important;
   border: 1px solid #d8d5cc !important;
   color: #5f5b53 !important;
-  border-radius: 10px !important;
-  height: 44px !important;
-  padding: 0 18px !important;
-  font-weight: 600 !important;
 }
 
-.ghost-action:hover {
+.ghost-action.--history:hover {
   background: #f0efe9 !important;
   color: #1c1b18 !important;
+}
+
+.ghost-action.--restore {
+  background: #eff4ff !important;
+  border: 1px solid #b8cef5 !important;
+  color: #2563eb !important;
+}
+
+.ghost-action.--restore:hover {
+  background: #deeaff !important;
+  border-color: #93b8f0 !important;
+}
+
+.ghost-action.--danger {
+  background: #fff !important;
+  border: 1px solid #f0b8b8 !important;
+  color: #c0392b !important;
+}
+
+.ghost-action.--danger:hover {
+  background: #fff5f5 !important;
+  border-color: #e07070 !important;
+  color: #a02020 !important;
 }
 
 .snapshot-badge {
@@ -2158,17 +2260,6 @@ onMounted(() => {
   font-size: 12px !important;
 }
 
-.header-side .ghost-action:first-child {
-  background: #1f1c17 !important;
-  border-color: #1f1c17 !important;
-  color: #ffffff !important;
-}
-
-.header-side .ghost-action:first-child:hover {
-  background: #2d2923 !important;
-  border-color: #2d2923 !important;
-  color: #ffffff !important;
-}
 
 .progress-overview-card {
   background: #fff;
@@ -2330,16 +2421,19 @@ onMounted(() => {
 }
 
 .collapse-toggle {
-  background: #fff !important;
-  border: 1px solid #d8d5cc !important;
+  background: #f0efe9 !important;
+  border: 1px solid #d0cfc6 !important;
   color: #5f5b53 !important;
-  border-radius: 10px !important;
-  height: 34px !important;
-  padding: 0 12px !important;
+  border-radius: 6px !important;
+  height: 26px !important;
+  padding: 0 10px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
 }
 
 .collapse-toggle:hover {
-  background: #f0efe9 !important;
+  background: #e6e4dd !important;
+  border-color: #b8b6ae !important;
   color: #1c1b18 !important;
 }
 

@@ -210,6 +210,29 @@ async def get_history(limit: int = Query(10, ge=1, le=100)):
         db.close()
 
 
+@router.post("/history/{record_id}/target")
+async def update_target_value(record_id: int, target: float = Query(..., gt=0)):
+    """更新指定记录的目标金额"""
+    db = get_db()
+    try:
+        record = db.query(ZaigongRecord).filter(ZaigongRecord.id == record_id).first()
+        if not record:
+            return JSONResponse(status_code=404, content={"success": False, "error": "记录不存在"})
+        record.target_value = target
+        # 同步更新 metrics_data 中的 yearTarget
+        if record.metrics_data:
+            metrics = json.loads(record.metrics_data)
+            metrics["year_target"] = target
+            record.metrics_data = json.dumps(metrics, ensure_ascii=False)
+        db.commit()
+        return {"success": True, "target_value": target}
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+    finally:
+        db.close()
+
+
 @router.get("/history/{record_id}")
 async def get_history_snapshot(record_id: int):
     """

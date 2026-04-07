@@ -109,6 +109,24 @@ export async function pushNotify(recordId) {
   return response.data
 }
 
+export async function generateBriefImage(zaigongId, budgetId) {
+  const params = { zaigong_id: zaigongId }
+  if (budgetId) params.budget_id = budgetId
+  const response = await axios.get(`${API_BASE}/report/image`, {
+    params,
+    responseType: 'blob',
+  })
+  return response.data
+}
+
+
+export async function updateTargetValue(recordId, target) {
+  const response = await axios.post(`${API_BASE}/zaigong/history/${recordId}/target`, null, {
+    params: { target }
+  })
+  return response.data
+}
+
 export async function exportTransferPriority(recordId, targetRate) {
   const params = targetRate ? { target_rate: targetRate / 100 } : {}
   const response = await axios.get(

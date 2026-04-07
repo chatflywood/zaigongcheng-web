@@ -133,7 +133,7 @@
         </div>
 
         <div class="header-side">
-          <button class="ghost-action" @click="openHistoryPanel">
+          <button class="ghost-action --history" @click="openHistoryPanel">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M3 12a9 9 0 1 0 3-6.7"/>
               <path d="M3 4v5h5"/>
@@ -141,14 +141,14 @@
             </svg>
             历史记录
           </button>
-          <button v-if="(isViewingHistory || props.snapshotLabel) && (props.latestData || props.initialData)" class="ghost-action" @click="restoreLatestView">
+          <button v-if="(isViewingHistory || props.snapshotLabel) && (props.latestData || props.initialData)" class="ghost-action --restore" @click="restoreLatestView">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
               <path d="M21 3v6h-6"/>
             </svg>
             返回最新
           </button>
-          <button class="ghost-action" @click="clearData">
+          <button class="ghost-action --danger" @click="clearData">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
               <path d="M3 3v5h5"/>
@@ -412,7 +412,34 @@
           </div>
         </div>
         <div class="progress-right">
-          <div class="progress-completed">目标 {{ formatNum(targetValue || 0) }} 万元</div>
+          <div class="progress-completed">
+            <template v-if="!editingTarget">
+              目标 {{ formatNum(targetValue || 0) }} 万元
+              <button v-if="currentRecordId && !isViewingHistory" class="target-edit-btn" @click="startEditTarget" title="修改目标金额">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </button>
+            </template>
+            <template v-else>
+              <div class="target-edit-row">
+                <input
+                  ref="targetEditInput"
+                  v-model.number="targetEditValue"
+                  type="number"
+                  class="target-edit-input"
+                  @keyup.enter="confirmEditTarget"
+                  @keyup.escape="cancelEditTarget"
+                />
+                <span class="target-edit-unit">万元</span>
+                <button class="target-edit-save" @click="confirmEditTarget" :disabled="targetSaving">
+                  {{ targetSaving ? '…' : '✓' }}
+                </button>
+                <button class="target-edit-cancel" @click="cancelEditTarget">✕</button>
+              </div>
+            </template>
+          </div>
           <div class="progress-remaining" :class="{ exceeded: Number(dashboard?.metrics?.deficit || 0) < 0 }">
             {{ Number(dashboard?.metrics?.deficit || 0) >= 0 ? '还差' : '已超' }}
             {{ formatNum(Math.abs(dashboard?.metrics?.deficit || 0)) }} 万
@@ -510,7 +537,7 @@
         </div>
         <div v-else class="history-list">
           <button
-            v-for="record in historyRecords"
+            v-for="(record, index) in historyRecords"
             :key="record.id"
             class="history-item"
             :class="{ active: currentRecordId === record.id }"
@@ -520,10 +547,18 @@
               <strong>{{ record.source_filename }}</strong>
               <span class="history-item-id">#{{ record.id }}</span>
             </div>
+            <div class="history-item-kpis">
+              <span class="history-kpi-capital">{{ formatNum(record.dashboard_snapshot?.metrics?.capital || 0) }}<em>万元</em></span>
+              <span class="history-kpi-progress">{{ formatHistoryProgress(record) }}</span>
+              <span
+                v-if="getCapitalDelta(record, index) !== null"
+                class="history-kpi-delta"
+                :class="getCapitalDelta(record, index) >= 0 ? 'delta-up' : 'delta-down'"
+              >{{ getCapitalDelta(record, index) >= 0 ? '↑' : '↓' }} {{ formatNum(Math.abs(getCapitalDelta(record, index))) }}</span>
+            </div>
             <div class="history-item-meta">
-              <span>上传时间：{{ formatHistoryTime(record.uploaded_at) }}</span>
-              <span v-if="record.file_date">文件日期：{{ formatFileDate(record.file_date) }}</span>
-              <span>目标：{{ formatNum(record.target_value) }} 万元</span>
+              <span>{{ formatHistoryTime(record.uploaded_at) }}</span>
+              <span v-if="record.file_date">{{ formatFileDate(record.file_date) }}</span>
             </div>
           </button>
         </div>
@@ -811,7 +846,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
-import { uploadExcel, getCompare, getHistory, getHistorySnapshot, getManagerDetails, getTransferPriority, exportTransferPriority, pushNotify } from '../api'
+import { uploadExcel, getCompare, getHistory, getHistorySnapshot, getManagerDetails, getTransferPriority, exportTransferPriority, pushNotify, updateTargetValue } from '../api'
 import * as echarts from 'echarts'
 
 const props = defineProps({
@@ -1256,6 +1291,14 @@ function formatPercent(value) {
   return (value * 100).toFixed(1) + '%'
 }
 
+function getCapitalDelta(record, index) {
+  const prev = historyRecords.value[index + 1]
+  if (!prev) return null
+  const curr = Number(record?.dashboard_snapshot?.metrics?.capital || 0)
+  const prevCapital = Number(prev?.dashboard_snapshot?.metrics?.capital || 0)
+  return curr - prevCapital
+}
+
 function formatHistoryProgress(record) {
   const capital = Number(record?.dashboard_snapshot?.metrics?.capital || 0)
   const target = Number(record?.target_value || 0)
@@ -1340,6 +1383,42 @@ function confirmTargetValue() {
   }
   uploadMessage.value = `目标金额已设置为 ${Number(targetValue.value).toFixed(2)} 万元`
   uploadMessageType.value = 'info'
+}
+
+// ── 数据页内联编辑目标值 ──────────────────────────────────────
+const editingTarget = ref(false)
+const targetEditValue = ref(null)
+const targetSaving = ref(false)
+const targetEditInput = ref(null)
+
+function startEditTarget() {
+  targetEditValue.value = targetValue.value
+  editingTarget.value = true
+  nextTick(() => targetEditInput.value?.focus())
+}
+
+function cancelEditTarget() {
+  editingTarget.value = false
+  targetEditValue.value = null
+}
+
+async function confirmEditTarget() {
+  const newTarget = Number(targetEditValue.value)
+  if (!newTarget || newTarget <= 0) return
+  if (newTarget === targetValue.value) { cancelEditTarget(); return }
+  targetSaving.value = true
+  try {
+    await updateTargetValue(currentRecordId.value, newTarget)
+    targetValue.value = newTarget
+    if (dashboard.value?.metrics) {
+      dashboard.value.metrics.deficit = (dashboard.value.metrics.capital || 0) - newTarget
+    }
+    editingTarget.value = false
+  } catch (e) {
+    console.error('更新目标失败', e)
+  } finally {
+    targetSaving.value = false
+  }
 }
 
 function applyDashboardData(data) {
@@ -1541,6 +1620,7 @@ async function fetchCompareData() {
 }
 
 function clearData() {
+  if (!window.confirm('确认重新上传？当前分析数据将被清除。')) return
   hasData.value = false
   dashboard.value = null
   summaryRows.value = []
@@ -3270,9 +3350,50 @@ onUnmounted(() => {
   font-size: 12px;
 }
 
+.history-item-kpis {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.history-kpi-capital {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+
+.history-kpi-capital em {
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.history-kpi-progress {
+  font-size: 12px;
+  color: var(--accent-cyan);
+  background: rgba(103, 223, 255, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.history-kpi-delta {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.history-kpi-delta.delta-up { color: #34d399; }
+.history-kpi-delta.delta-down { color: #f87171; }
+
 .history-item-meta {
-  display: grid;
-  gap: 6px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
   color: var(--text-secondary);
   font-size: 12px;
 }
@@ -4089,30 +4210,45 @@ onUnmounted(() => {
 }
 
 .ghost-action {
+  height: 32px !important;
+  padding: 0 14px !important;
+  border-radius: 8px !important;
+  font-weight: 500 !important;
+  font-size: 13px !important;
+}
+
+.ghost-action.--history {
   background: #fff !important;
   border: 1px solid #d8d5cc !important;
   color: #5f5b53 !important;
-  border-radius: 10px !important;
-  height: 44px !important;
-  padding: 0 18px !important;
-  font-weight: 600 !important;
 }
 
-.ghost-action:hover {
+.ghost-action.--history:hover {
   background: #f0efe9 !important;
   color: #1c1b18 !important;
 }
 
-.header-side .ghost-action:last-child {
-  background: #1f1c17 !important;
-  border-color: #1f1c17 !important;
-  color: #ffffff !important;
+.ghost-action.--restore {
+  background: #eff4ff !important;
+  border: 1px solid #b8cef5 !important;
+  color: #2563eb !important;
 }
 
-.header-side .ghost-action:last-child:hover {
-  background: #2d2923 !important;
-  border-color: #2d2923 !important;
-  color: #ffffff !important;
+.ghost-action.--restore:hover {
+  background: #deeaff !important;
+  border-color: #93b8f0 !important;
+}
+
+.ghost-action.--danger {
+  background: #fff !important;
+  border: 1px solid #f0b8b8 !important;
+  color: #c0392b !important;
+}
+
+.ghost-action.--danger:hover {
+  background: #fff5f5 !important;
+  border-color: #e07070 !important;
+  color: #a02020 !important;
 }
 
 .alerts-strip {
@@ -4184,7 +4320,84 @@ onUnmounted(() => {
 .progress-completed {
   font-size: 11px;
   color: #a8a79f;
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
+
+.target-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border: none;
+  background: transparent;
+  color: #c8c6be;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: color 0.15s;
+}
+
+.target-edit-btn:hover { color: #6b6a63; }
+
+.target-edit-btn svg {
+  width: 11px;
+  height: 11px;
+}
+
+.target-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.target-edit-input {
+  width: 72px;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid #b8cef5;
+  border-radius: 4px;
+  background: #eff4ff;
+  color: #1c1b18;
+  font-size: 11px;
+  font-family: 'IBM Plex Mono', monospace;
+  outline: none;
+}
+
+.target-edit-input:focus { border-color: #2563eb; }
+
+.target-edit-unit {
+  font-size: 11px;
+  color: #9b9790;
+}
+
+.target-edit-save,
+.target-edit-cancel {
+  height: 22px;
+  width: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  border: none;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.target-edit-save {
+  background: #2563eb;
+  color: #fff;
+}
+
+.target-edit-save:hover:not(:disabled) { background: #1d4ed8; }
+.target-edit-save:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.target-edit-cancel {
+  background: #e4e3dc;
+  color: #5f5b53;
+}
+
+.target-edit-cancel:hover { background: #d0cfc6; }
 
 .progress-remaining {
   font-size: 12px;
@@ -4365,6 +4578,26 @@ onUnmounted(() => {
   border-color: #d0cfc6 !important;
 }
 
+.history-kpi-capital {
+  color: #1c1b18 !important;
+}
+
+.history-kpi-capital em {
+  color: #6b6a63 !important;
+}
+
+.history-kpi-progress {
+  background: #eef2f8 !important;
+  color: #1a56a4 !important;
+}
+
+.history-kpi-delta.delta-up { color: #15803d !important; }
+.history-kpi-delta.delta-down { color: #b91c1c !important; }
+
+.history-item-meta {
+  color: #9b9790 !important;
+}
+
 @media (max-width: 980px) {
   .main-progress-section {
     grid-template-columns: 1fr !important;
@@ -4426,18 +4659,24 @@ onUnmounted(() => {
   border-radius: 8px;
   padding: 12px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, outline-color 0.18s ease;
+  outline: 1.5px solid transparent;
 }
 
 .four-class-mini-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.1);
 }
 
 .four-class-mini-card.type-liezhang { border-left: 3px solid #1F497D; }
 .four-class-mini-card.type-yuzhuang { border-left: 3px solid #7B3F00; }
 .four-class-mini-card.type-guanbi { border-left: 3px solid #843C0C; }
 .four-class-mini-card.type-guazhang { border-left: 3px solid #244062; }
+
+.four-class-mini-card.type-liezhang:hover { outline-color: rgba(31, 73, 125, 0.45); }
+.four-class-mini-card.type-yuzhuang:hover { outline-color: rgba(123, 63, 0, 0.45); }
+.four-class-mini-card.type-guanbi:hover { outline-color: rgba(132, 60, 12, 0.45); }
+.four-class-mini-card.type-guazhang:hover { outline-color: rgba(36, 64, 98, 0.45); }
 
 .mini-card-label {
   font-size: 11px;

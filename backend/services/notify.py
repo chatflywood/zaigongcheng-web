@@ -5,6 +5,7 @@
 """
 import httpx
 from datetime import datetime
+from typing import Optional
 
 
 def _detect_platform(url: str) -> str:
@@ -13,7 +14,7 @@ def _detect_platform(url: str) -> str:
     return "wework"
 
 
-def _extract(record_data: dict, budget_data: dict | None):
+def _extract(record_data: dict, budget_data: Optional[dict]):
     """提取两份数据的关键指标，统一到一个字典"""
     metrics = record_data.get("metrics", {})
     four_class = record_data.get("four_class_warnings", {})
@@ -83,7 +84,7 @@ def _extract(record_data: dict, budget_data: dict | None):
 
 # ── 飞书卡片 ──────────────────────────────────────────────
 
-def _feishu_payload(record_data: dict, budget_data: dict | None) -> dict:
+def _feishu_payload(record_data: dict, budget_data: Optional[dict]) -> dict:
     m = _extract(record_data, budget_data)
 
     # 标题颜色：有预警红，转固率低橙，其余蓝
@@ -177,7 +178,7 @@ def _feishu_payload(record_data: dict, budget_data: dict | None) -> dict:
 
 # ── 企业微信 Markdown ─────────────────────────────────────
 
-def _wework_text(record_data: dict, budget_data: dict | None) -> str:
+def _wework_text(record_data: dict, budget_data: Optional[dict]) -> str:
     m = _extract(record_data, budget_data)
 
     def pct_icon(v): return "🟢" if v >= 100 else ("🟡" if v >= 60 else "🔴")
@@ -238,7 +239,7 @@ async def _post(url: str, payload: dict) -> dict:
 
 # ── 对外统一接口 ──────────────────────────────────────────
 
-async def push_record(webhook_url: str, record_data: dict, budget_data: dict | None = None) -> dict:
+async def push_record(webhook_url: str, record_data: dict, budget_data: Optional[dict] = None) -> dict:
     """格式化并推送数据播报，自动识别平台"""
     platform = _detect_platform(webhook_url)
     if platform == "feishu":

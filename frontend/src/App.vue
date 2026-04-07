@@ -1,9 +1,9 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import Dashboard from './views/Dashboard.vue'
 import Budget from './views/Budget.vue'
 import KeyIndicators from './views/KeyIndicators.vue'
-import { getHistory, getHistorySnapshot, getBudgetHistory, getBudgetHistorySnapshot, getNotifyConfig, saveNotifyConfig, clearNotifyConfig, testNotifyWebhook, pushNotify } from './api'
+import { getHistory, getHistorySnapshot, getBudgetHistory, getBudgetHistorySnapshot, getNotifyConfig, saveNotifyConfig, clearNotifyConfig, testNotifyWebhook, pushNotify, generateBriefImage } from './api'
 
 const currentView = ref('zaigong')
 const isAnalystMode = computed(() => currentView.value !== 'key-indicators')
@@ -13,6 +13,7 @@ const budgetLatestData = ref(null)
 const zaigongData = ref(null)
 const budgetData = ref(null)
 const zaigongLatestRecordId = ref(null)
+const budgetLatestRecordId = ref(null)
 const zaigongLatestDate = ref(null)
 const budgetLatestDate = ref(null)
 const zaigongDate = ref(null)
@@ -56,6 +57,29 @@ function switchView(view) {
 
 function onPresentationChange(active) {
   presentationMode.value = Boolean(active)
+}
+
+const currentDate = computed(() => {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+})
+
+async function togglePresentationMode() {
+  try {
+    if (!document.fullscreenElement) {
+      await document.documentElement.requestFullscreen()
+      presentationMode.value = true
+    } else {
+      await document.exitFullscreen()
+      presentationMode.value = false
+    }
+  } catch (error) {
+    console.error('切换展示模式失败:', error)
+  }
+}
+
+function handleAppFullscreenChange() {
+  presentationMode.value = Boolean(document.fullscreenElement)
 }
 
 function formatUploadDate(dateLike = new Date()) {
@@ -119,6 +143,59 @@ function onBudgetDataUpdate(data) {
     budgetLatestDate.value = null
   }
 }
+
+// ── 趋势图数据计算 ─────────────────────────────────────────────
+const trendPoints = computed(() => {
+  const records = [...zaigongHistory.value]
+    .filter(r => r.metrics && (r.target_value > 0 || r.metrics.year_target > 0))
+    .reverse() // 最旧在左
+
+  if (records.length < 2) return null
+
+  const L = 48, T = 15, W = 497, H = 200, YMAX = 130
+  const n = records.length
+  const xStep = W / (n - 1)
+
+  const px = i => L + i * xStep
+  const py = v => T + H - Math.min(Math.max(v, 0), YMAX) / YMAX * H
+
+  const fmtLabel = r => {
+    if (r.file_date) {
+      const fd = String(r.file_date)
+      if (fd.length === 4) return `${fd.slice(0, 2)}-${fd.slice(2)}`
+      if (fd.length === 8) return `${fd.slice(4, 6)}-${fd.slice(6)}`
+    }
+    const d = new Date(r.uploaded_at)
+    return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+
+  const progressPoints = records.map((r, i) => {
+    const capital = r.metrics.total_current ?? r.metrics.capital ?? 0
+    const target = r.target_value || r.metrics.year_target || 1
+    const v = (capital / target) * 100
+    return { x: px(i), y: py(v), v: v.toFixed(1) }
+  })
+
+  const ratePoints = records.map((r, i) => {
+    const v = (r.metrics.total_rate ?? r.metrics.rate ?? 0) * 100
+    return { x: px(i), y: py(v), v: v.toFixed(1) }
+  })
+
+  const labels = records.map((r, i) => ({ x: px(i), text: fmtLabel(r) }))
+
+  const yTicks = [0, 30, 60, 90, 120].map(v => ({ y: py(v), label: `${v}%` }))
+
+  return {
+    progressPolyline: progressPoints.map(p => `${p.x},${p.y}`).join(' '),
+    ratePolyline: ratePoints.map(p => `${p.x},${p.y}`).join(' '),
+    progressPoints,
+    ratePoints,
+    labels,
+    yTicks,
+    refY60: py(60),
+    showLabels: n <= 8,
+  }
+})
 
 const historySections = computed(() => {
   const sections = []
@@ -334,6 +411,7 @@ async function loadLatestDataOnMount() {
         const cur = snapshot.data.current
         budgetData.value = cur.data
         budgetLatestData.value = cur.data
+        budgetLatestRecordId.value = cur.id
         budgetDate.value = formatHistoryTime(cur.uploaded_at)
         budgetLatestDate.value = budgetDate.value
       }
@@ -343,7 +421,14 @@ async function loadLatestDataOnMount() {
   }
 }
 
-onMounted(loadLatestDataOnMount)
+onMounted(() => {
+  loadLatestDataOnMount()
+  document.addEventListener('fullscreenchange', handleAppFullscreenChange)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('fullscreenchange', handleAppFullscreenChange)
+})
 
 // ── 通知设置 ──────────────────────────────────────────────
 const notifyModalVisible = ref(false)
@@ -444,6 +529,32 @@ async function clearNotify() {
   }
 }
 
+const briefGenerating = ref(false)
+async function handleGenerateBrief() {
+  if (!zaigongLatestRecordId.value || briefGenerating.value) return
+  briefGenerating.value = true
+  try {
+    const blob = await generateBriefImage(
+      zaigongLatestRecordId.value,
+      budgetLatestRecordId.value || null
+    )
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `在建工程简报.png`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    const msg = e?.response?.data?.message || e?.message || '简报生成失败'
+    alert(msg)
+  } finally {
+    briefGenerating.value = false
+  }
+}
+
+
 const navPushing = ref(false)
 async function handleNavPush() {
   if (!zaigongLatestRecordId.value || navPushing.value) return
@@ -465,7 +576,7 @@ async function handleNavPush() {
 </script>
 
 <template>
-  <div class="app-shell" :class="{ 'analyst-mode': isAnalystMode, 'presentation-mode': presentationMode }">
+  <div class="app-shell" :class="{ 'analyst-mode': isAnalystMode, 'big-screen-mode': !isAnalystMode && !presentationMode, 'presentation-mode': presentationMode }">
     <div class="backdrop backdrop-grid"></div>
     <div class="backdrop backdrop-glow glow-a"></div>
     <div class="backdrop backdrop-glow glow-b"></div>
@@ -502,22 +613,65 @@ async function handleNavPush() {
           <span v-if="canShowKeyIndicators" class="data-indicator success"></span>
         </button>
       </div>
+      <div v-if="currentView === 'key-indicators'" class="nav-live-info">
+        <span class="nav-live-dot"></span>
+        实时数据 · {{ currentDate }} · 仙桃分公司 云网发展部
+      </div>
+
       <div class="nav-links nav-end-links">
-        <button class="history-nav-button" @click="openHistoryCenter">
-          <span class="btn-label">历史记录</span>
-        </button>
         <button
-          v-if="notifyConfigured && zaigongLatestRecordId"
-          class="push-nav-button"
-          :disabled="navPushing"
-          @click="handleNavPush"
-          title="推送最新数据播报"
+          v-if="currentView === 'key-indicators'"
+          class="presentation-toggle-btn"
+          @click="togglePresentationMode"
         >
-          <span class="btn-label">{{ navPushing ? '推送中…' : '📤 推送播报' }}</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="3" width="20" height="14" rx="2"/>
+            <path d="M8 21h8M12 17v4"/>
+          </svg>
+          <span class="btn-label">进入展示模式</span>
         </button>
-        <button class="notify-nav-button" :class="{ configured: notifyConfigured }" @click="openNotifyModal" title="通知设置">
-          <span class="btn-label">🔔</span>
-        </button>
+        <template v-if="isAnalystMode">
+          <button class="history-nav-button" @click="openHistoryCenter">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 12a9 9 0 1 0 3-6.7"/>
+              <path d="M3 4v5h5"/>
+              <path d="M12 7v5l3 3"/>
+            </svg>
+            <span class="btn-label">历史记录</span>
+          </button>
+          <button
+            v-if="zaigongLatestRecordId"
+            class="brief-nav-button"
+            :disabled="briefGenerating"
+            @click="handleGenerateBrief"
+            title="生成适合手机查看的 HTML 简报"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="5" y="2" width="14" height="20" rx="2"/>
+              <path d="M12 18h.01"/>
+            </svg>
+            <span class="btn-label">{{ briefGenerating ? '生成中…' : '手机简报' }}</span>
+          </button>
+          <button
+            v-if="notifyConfigured && zaigongLatestRecordId"
+            class="push-nav-button"
+            :disabled="navPushing"
+            @click="handleNavPush"
+            title="推送最新数据播报"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 2L11 13"/>
+              <path d="M22 2L15 22 11 13 2 9l20-7z"/>
+            </svg>
+            <span class="btn-label">{{ navPushing ? '推送中…' : '推送播报' }}</span>
+          </button>
+          <button class="notify-nav-button" :class="{ configured: notifyConfigured }" @click="openNotifyModal" title="通知设置">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+          </button>
+        </template>
       </div>
     </header>
 
@@ -578,32 +732,112 @@ async function handleNavPush() {
     <div v-if="historyCenterVisible" class="global-history-overlay" @click.self="closeHistoryCenter">
       <aside class="global-history-panel">
         <div class="global-history-header">
-          <div>
-            <span class="brand-kicker">Unified History Center</span>
-            <h3>全局历史记录</h3>
-            <p>统一查看在建工程和预算立项的上传版本，并一键跳转到对应页面。</p>
+          <div class="ghh-title-row">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ghh-icon"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <h3>历史记录中心</h3>
+            <span class="ghh-count-badge">{{ (zaigongHistory.length + budgetHistory.length) }} 条</span>
           </div>
-          <button class="close-btn" @click="closeHistoryCenter">×</button>
+          <button class="close-btn" @click="closeHistoryCenter">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
 
-        <div class="history-tabs">
-          <button :class="{ active: historyTab === 'all' }" @click="historyTab = 'all'">全部</button>
-          <button :class="{ active: historyTab === 'zaigong' }" @click="historyTab = 'zaigong'">在建工程</button>
-          <button :class="{ active: historyTab === 'budget' }" @click="historyTab = 'budget'">预算立项</button>
+        <div class="history-tab-rail">
+          <div class="history-tabs">
+            <button :class="{ active: historyTab === 'all' }" @click="historyTab = 'all'">全部</button>
+            <button :class="{ active: historyTab === 'zaigong' }" @click="historyTab = 'zaigong'">在建工程</button>
+            <button :class="{ active: historyTab === 'budget' }" @click="historyTab = 'budget'">预算立项</button>
+            <button :class="{ active: historyTab === 'trend' }" @click="historyTab = 'trend'">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              趋势图
+            </button>
+          </div>
         </div>
 
         <div v-if="historyCenterLoading" class="history-center-empty">
           <p>正在读取历史记录...</p>
         </div>
+
+        <!-- 趋势图面板 -->
+        <div v-else-if="historyTab === 'trend'" class="trend-panel">
+          <div v-if="!trendPoints" class="trend-empty">
+            在建工程数据不足，上传至少 2 次后可查看趋势图。
+          </div>
+          <template v-else>
+            <div class="trend-head">
+              <h4>在建工程指标趋势</h4>
+              <div class="trend-legend">
+                <span class="tl-item"><span class="tl-dot" style="background:#22D3EE"></span>支出进度</span>
+                <span class="tl-item"><span class="tl-dot" style="background:#FBBF24"></span>转固率</span>
+                <span class="tl-ref">— 60% 转固目标线</span>
+              </div>
+            </div>
+            <svg class="trend-svg" viewBox="0 0 560 270" preserveAspectRatio="xMidYMid meet">
+              <!-- 水平网格线 + Y轴标签 -->
+              <g v-for="tick in trendPoints.yTicks" :key="tick.label">
+                <line :x1="48" :y1="tick.y" :x2="545" :y2="tick.y"
+                  stroke="currentColor" stroke-opacity="0.1" stroke-width="1"/>
+                <text :x="42" :y="tick.y + 4" text-anchor="end"
+                  font-size="10" fill="currentColor" opacity="0.45">{{ tick.label }}</text>
+              </g>
+
+              <!-- 60% 转固目标参考线 -->
+              <line :x1="48" :y1="trendPoints.refY60" :x2="545" :y2="trendPoints.refY60"
+                stroke="#FBBF24" stroke-opacity="0.35" stroke-width="1" stroke-dasharray="5 4"/>
+
+              <!-- X轴基线 -->
+              <line x1="48" y1="215" x2="545" y2="215"
+                stroke="currentColor" stroke-opacity="0.15" stroke-width="1"/>
+
+              <!-- 支出进度折线 -->
+              <polyline :points="trendPoints.progressPolyline"
+                fill="none" stroke="#22D3EE" stroke-width="2.5"
+                stroke-linejoin="round" stroke-linecap="round"/>
+              <!-- 转固率折线 -->
+              <polyline :points="trendPoints.ratePolyline"
+                fill="none" stroke="#FBBF24" stroke-width="2.5"
+                stroke-linejoin="round" stroke-linecap="round"/>
+
+              <!-- 支出进度数据点 -->
+              <g v-for="(p, i) in trendPoints.progressPoints" :key="'cp'+i" class="trend-dot-g">
+                <title>{{ trendPoints.labels[i].text }}｜支出进度 {{ p.v }}%</title>
+                <circle :cx="p.x" :cy="p.y" r="5" fill="#22D3EE" stroke="rgba(0,0,0,0.2)" stroke-width="1"/>
+                <text v-if="trendPoints.showLabels"
+                  :x="p.x" :y="p.y - 9" text-anchor="middle"
+                  font-size="9" fill="#22D3EE" opacity="0.85">{{ p.v }}%</text>
+              </g>
+
+              <!-- 转固率数据点 -->
+              <g v-for="(p, i) in trendPoints.ratePoints" :key="'rp'+i" class="trend-dot-g">
+                <title>{{ trendPoints.labels[i].text }}｜转固率 {{ p.v }}%</title>
+                <circle :cx="p.x" :cy="p.y" r="5" fill="#FBBF24" stroke="rgba(0,0,0,0.2)" stroke-width="1"/>
+                <text v-if="trendPoints.showLabels"
+                  :x="p.x" :y="p.y - 9" text-anchor="middle"
+                  font-size="9" fill="#FBBF24" opacity="0.85">{{ p.v }}%</text>
+              </g>
+
+              <!-- X轴日期标签（旋转-35°防重叠） -->
+              <text v-for="label in trendPoints.labels" :key="'xl'+label.x"
+                :x="label.x" y="220" text-anchor="end"
+                :transform="`rotate(-35, ${label.x}, 220)`"
+                font-size="10" fill="currentColor" opacity="0.55">{{ label.text }}</text>
+            </svg>
+          </template>
+        </div>
+
         <div v-else class="history-sections">
           <section v-for="section in historySections" :key="section.key" class="history-group">
             <div class="history-group-head">
-              <h4>{{ section.title }}</h4>
+              <div class="hgh-left">
+                <h4>{{ section.title }}</h4>
+                <span class="hgh-count">{{ section.records.length }}</span>
+              </div>
               <button
                 v-if="(section.key === 'zaigong' && zaigongSnapshotLabel) || (section.key === 'budget' && budgetSnapshotLabel)"
                 class="restore-link"
                 @click="switchView(section.key === 'zaigong' ? 'zaigong' : 'budget'); restoreCurrentModuleLatest()"
               >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
                 返回最新
               </button>
             </div>
@@ -617,32 +851,47 @@ async function handleNavPush() {
                 v-for="record in section.records"
                 :key="`${section.key}-${record.id}`"
                 class="history-card"
+                :class="section.key"
                 @click="section.key === 'zaigong' ? openZaigongSnapshot(record.id) : openBudgetSnapshot(record.id)"
               >
                 <div class="history-card-top">
-                  <strong>{{ record.source_filename }}</strong>
-                  <span>#{{ record.id }}</span>
+                  <strong class="hc-filename">{{ record.source_filename }}</strong>
+                  <span class="hc-id">{{ record.id }}</span>
                 </div>
-                <div class="history-card-meta">
-                  <span>上传时间：{{ formatHistoryTime(record.uploaded_at) }}</span>
-                  <span v-if="section.key === 'zaigong' && record.file_date">文件日期：{{ formatFileDate(record.file_date) }}</span>
-                  <span v-if="section.key === 'zaigong'">目标：{{ record.target_value ?? '—' }} 万元</span>
+                <div class="hc-chips">
+                  <span class="hc-chip">{{ formatHistoryTime(record.uploaded_at) }}</span>
+                  <span v-if="section.key === 'zaigong' && record.file_date" class="hc-chip hc-chip--date">{{ formatFileDate(record.file_date) }}</span>
+                  <span v-if="section.key === 'zaigong' && record.target_value" class="hc-chip hc-chip--target">目标 {{ record.target_value }} 万</span>
+                </div>
+                <div v-if="section.key === 'zaigong' && record.metrics && record.metrics.progress_pct != null" class="hc-kpi-row">
+                  <span class="hc-kpi">
+                    <em>支出进度</em>
+                    <b>{{ (record.metrics.progress_pct || 0).toFixed(1) }}%</b>
+                  </span>
+                  <span class="hc-kpi-sep"></span>
+                  <span class="hc-kpi">
+                    <em>转固率</em>
+                    <b>{{ ((record.metrics.total_rate || 0) * 100).toFixed(1) }}%</b>
+                  </span>
+                  <span class="hc-kpi-sep"></span>
+                  <span class="hc-kpi">
+                    <em>资本支出</em>
+                    <b>{{ (record.metrics.total_current || 0).toFixed(0) }} 万</b>
+                  </span>
                 </div>
                 <div class="history-card-actions">
                   <button
                     class="compare-slot"
                     :class="{ active: isSelectedForCompare(section.key, 'left', record.id) }"
                     @click.stop="selectCompareRecord(section.key, 'left', record)"
-                  >
-                    设为 A
-                  </button>
+                    title="设为对比 A"
+                  >A</button>
                   <button
                     class="compare-slot"
                     :class="{ active: isSelectedForCompare(section.key, 'right', record.id) }"
                     @click.stop="selectCompareRecord(section.key, 'right', record)"
-                  >
-                    设为 B
-                  </button>
+                    title="设为对比 B"
+                  >B</button>
                 </div>
               </button>
             </div>
@@ -993,6 +1242,20 @@ body:has(.app-shell.analyst-mode) {
   background: rgba(255, 182, 92, 0.14) !important;
 }
 
+.brief-nav-button {
+  border-color: rgba(251, 191, 36, 0.22) !important;
+  background: rgba(251, 191, 36, 0.08) !important;
+  color: #fcd34d !important;
+}
+.brief-nav-button:hover:not(:disabled) {
+  border-color: rgba(251, 191, 36, 0.4) !important;
+  background: rgba(251, 191, 36, 0.15) !important;
+}
+.brief-nav-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .push-nav-button {
   border-color: rgba(74, 222, 128, 0.22) !important;
   background: rgba(74, 222, 128, 0.08) !important;
@@ -1309,57 +1572,105 @@ body:has(.app-shell.analyst-mode) {
 
 .global-history-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  margin-bottom: 20px;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  margin-bottom: 16px;
+}
+
+.ghh-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ghh-icon {
+  color: var(--accent-cyan);
+  opacity: 0.8;
+  flex-shrink: 0;
 }
 
 .global-history-header h3 {
-  margin: 8px 0 10px;
-  font-size: 26px;
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
-.global-history-header p {
-  color: var(--text-secondary);
-  line-height: 1.7;
-  font-size: 14px;
+.ghh-count-badge {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(103, 223, 255, 0.12);
+  color: var(--accent-cyan);
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
 }
 
 .close-btn {
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.05);
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: 22px;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: 0.18s ease;
+}
+
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.history-tab-rail {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+  padding: 4px;
+  margin-bottom: 20px;
 }
 
 .history-tabs {
   display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
+  gap: 2px;
 }
 
 .history-tabs button {
-  height: 38px;
+  height: 34px;
   padding: 0 14px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  border: none;
+  background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
   font: inherit;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: 0.18s ease;
+  flex: 1;
+  justify-content: center;
+}
+
+.history-tabs button:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
 }
 
 .history-tabs button.active {
   color: #04111d;
   background: linear-gradient(135deg, var(--accent-cyan), rgba(140, 240, 201, 0.92));
-  border-color: rgba(103, 223, 255, 0.4);
+  box-shadow: 0 2px 8px rgba(103, 223, 255, 0.25);
 }
 
 .history-sections {
@@ -1367,11 +1678,84 @@ body:has(.app-shell.analyst-mode) {
   gap: 22px;
 }
 
+/* ===== 趋势图 ===== */
+.trend-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.trend-empty {
+  padding: 48px 0;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.trend-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.trend-head h4 {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.trend-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+
+.tl-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.tl-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tl-ref {
+  color: rgba(251, 191, 36, 0.7);
+  font-size: 11px;
+}
+
+.trend-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.trend-dot-g {
+  cursor: default;
+}
+
+.trend-dot-g circle {
+  transition: r 0.15s ease;
+}
+
+.trend-dot-g:hover circle {
+  r: 7;
+}
+
 .history-group {
-  padding: 18px;
-  border-radius: 24px;
+  padding: 16px;
+  border-radius: 20px;
   background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .history-group-head {
@@ -1379,85 +1763,211 @@ body:has(.app-shell.analyst-mode) {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
+}
+
+.hgh-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .history-group-head h4 {
-  font-size: 16px;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.hgh-count {
+  height: 18px;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .restore-link {
-  border: none;
-  background: transparent;
+  border: 1px solid rgba(103, 223, 255, 0.2);
+  background: rgba(103, 223, 255, 0.06);
   color: var(--accent-cyan);
   cursor: pointer;
   font: inherit;
+  font-size: 12px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: 0.18s ease;
+}
+
+.restore-link:hover {
+  background: rgba(103, 223, 255, 0.14);
 }
 
 .history-card-list {
   display: grid;
-  gap: 12px;
+  gap: 8px;
 }
 
 .history-card {
   width: 100%;
-  padding: 16px;
-  border-radius: 18px;
-  border: 1px solid rgba(103, 223, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
+  padding: 14px 14px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-left: 3px solid transparent;
+  background: rgba(255, 255, 255, 0.02);
   color: var(--text-primary);
   text-align: left;
   cursor: pointer;
-  transition: 0.22s ease;
+  transition: 0.2s ease;
+}
+
+.history-card.zaigong {
+  border-left-color: rgba(103, 223, 255, 0.35);
+}
+
+.history-card.budget {
+  border-left-color: rgba(251, 191, 36, 0.35);
 }
 
 .history-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(103, 223, 255, 0.22);
-  background: rgba(103, 223, 255, 0.07);
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.12);
+  border-left-color: inherit;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
+
+.history-card.zaigong:hover { border-left-color: rgba(103, 223, 255, 0.6); }
+.history-card.budget:hover  { border-left-color: rgba(251, 191, 36, 0.6); }
 
 .history-card-top {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  margin-bottom: 8px;
+}
+
+.hc-filename {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+.hc-id {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 2px 6px;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+.hc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
   margin-bottom: 10px;
 }
 
-.history-card-top strong {
-  flex: 1;
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.history-card-top span {
-  color: var(--text-muted);
-  font-size: 12px;
-}
-
-.history-card-meta {
-  display: grid;
-  gap: 6px;
+.hc-chip {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+}
+
+.hc-chip--date {
+  background: rgba(103, 223, 255, 0.08);
+  color: rgba(103, 223, 255, 0.8);
+}
+
+.hc-chip--target {
+  background: rgba(251, 191, 36, 0.08);
+  color: rgba(251, 191, 36, 0.8);
+}
+
+.hc-kpi-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(103, 223, 255, 0.04);
+  border: 1px solid rgba(103, 223, 255, 0.08);
+}
+
+.hc-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  text-align: center;
+}
+
+.hc-kpi em {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.hc-kpi b {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-cyan);
+}
+
+.hc-kpi-sep {
+  width: 1px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.07);
+  flex-shrink: 0;
 }
 
 .history-card-actions {
   display: flex;
-  gap: 10px;
-  margin-top: 14px;
+  gap: 6px;
+  justify-content: flex-end;
 }
 
 .compare-slot {
-  height: 32px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  width: 30px;
+  height: 26px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.04);
-  color: var(--text-secondary);
+  color: var(--text-muted);
   cursor: pointer;
-  font: inherit;
+  font: 600 12px/1 inherit;
+  letter-spacing: 0.02em;
+  transition: 0.18s ease;
+}
+
+.compare-slot:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-secondary);
 }
 
 .compare-slot.active {
@@ -1706,6 +2216,15 @@ body:has(.app-shell.analyst-mode) {
   padding: 0 12px;
   font-size: 13px;
   font-weight: 400;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.app-shell.analyst-mode .nav-links button svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 
 .app-shell.analyst-mode .nav-links button:hover:not(.disabled) {
@@ -1761,55 +2280,72 @@ body:has(.app-shell.analyst-mode) {
   box-shadow: -12px 0 30px rgba(28, 27, 24, 0.15);
 }
 
-.app-shell.analyst-mode .global-history-header h3,
-.app-shell.analyst-mode .history-group-head h4,
-.app-shell.analyst-mode .history-compare-head h5 {
+.app-shell.analyst-mode .trend-head h4 {
   color: #1c1b18;
 }
 
-.app-shell.analyst-mode .global-history-header p,
-.app-shell.analyst-mode .history-card-meta,
-.app-shell.analyst-mode .history-compare-head span {
+.app-shell.analyst-mode .trend-legend {
   color: #6b6a63;
 }
 
-.app-shell.analyst-mode .brand-kicker,
-.app-shell.analyst-mode .history-center-empty p,
-.app-shell.analyst-mode .history-card-top span,
-.app-shell.analyst-mode .restore-link,
-.app-shell.analyst-mode .compare-result-card em,
-.app-shell.analyst-mode .compare-mini-table th {
-  color: #6b6a63;
+.app-shell.analyst-mode .trend-empty {
+  color: #9b9790;
 }
 
-.app-shell.analyst-mode .global-history-header .brand-kicker,
-.app-shell.analyst-mode .history-group-head h4,
-.app-shell.analyst-mode .history-card-top strong,
-.app-shell.analyst-mode .compare-mini-head {
-  color: #1c1b18;
+.app-shell.analyst-mode .history-tab-rail {
+  background: #f0efe9;
+  border-color: #d8d7d0;
 }
 
-.app-shell.analyst-mode .close-btn,
-.app-shell.analyst-mode .history-tabs button,
-.app-shell.analyst-mode .compare-slot {
-  background: #fff;
-  border: 1px solid #d0cfc6;
-  color: #6b6a63;
+.app-shell.analyst-mode .history-tabs button {
+  color: #9b9790;
 }
 
-.app-shell.analyst-mode .history-tabs button.active,
-.app-shell.analyst-mode .compare-slot.active {
-  background: #1c1b18;
-  border-color: #1c1b18;
+.app-shell.analyst-mode .history-tabs button:hover:not(.active) {
+  background: rgba(0,0,0,0.04);
+  color: #3d3c37;
+}
+
+.app-shell.analyst-mode .history-tabs button.active {
   color: #fff;
+  background: #1c1b18;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
 }
 
-.app-shell.analyst-mode .history-group,
-.app-shell.analyst-mode .history-card,
-.app-shell.analyst-mode .compare-result-card,
-.app-shell.analyst-mode .compare-mini-table {
-  background: #fff;
-  border: 1px solid #e4e3dc;
+.app-shell.analyst-mode .global-history-header {
+  border-bottom-color: #e4e3dc;
+}
+
+.app-shell.analyst-mode .global-history-header h3 {
+  color: #1c1b18;
+}
+
+.app-shell.analyst-mode .ghh-count-badge {
+  background: rgba(0,0,0,0.07);
+  color: #6b6a63;
+}
+
+.app-shell.analyst-mode .ghh-icon {
+  color: #6b6a63;
+}
+
+.app-shell.analyst-mode .history-group-head h4 {
+  color: #9b9790;
+}
+
+.app-shell.analyst-mode .hgh-count {
+  background: rgba(0,0,0,0.06);
+  color: #9b9790;
+}
+
+.app-shell.analyst-mode .restore-link {
+  border-color: rgba(0,0,0,0.1);
+  background: rgba(0,0,0,0.04);
+  color: #3d3c37;
+}
+
+.app-shell.analyst-mode .restore-link:hover {
+  background: rgba(0,0,0,0.08);
 }
 
 .app-shell.analyst-mode .compare-result-card span,
@@ -1818,9 +2354,230 @@ body:has(.app-shell.analyst-mode) {
   color: #a8a79f;
 }
 
+.app-shell.analyst-mode .history-center-empty p {
+  color: #9b9790;
+}
+
+.app-shell.analyst-mode .close-btn {
+  background: #f0efe9;
+  border-color: #d0cfc6;
+  color: #6b6a63;
+}
+
+.app-shell.analyst-mode .close-btn:hover {
+  background: #e4e3dc;
+  color: #1c1b18;
+}
+
+.app-shell.analyst-mode .compare-slot {
+  background: #f5f4f0;
+  border-color: #d0cfc6;
+  color: #9b9790;
+}
+
+.app-shell.analyst-mode .compare-slot:hover {
+  background: #eae9e4;
+  color: #3d3c37;
+}
+
+.app-shell.analyst-mode .compare-slot.active {
+  background: #1c1b18;
+  border-color: #1c1b18;
+  color: #fff;
+}
+
+.app-shell.analyst-mode .history-group {
+  background: #f8f7f4;
+  border-color: #e4e3dc;
+}
+
+.app-shell.analyst-mode .history-card {
+  background: #fff;
+  border-color: #e4e3dc;
+  border-left-color: transparent;
+}
+
+.app-shell.analyst-mode .history-card.zaigong {
+  border-left-color: rgba(14, 165, 200, 0.35);
+}
+
+.app-shell.analyst-mode .history-card.budget {
+  border-left-color: rgba(200, 148, 10, 0.35);
+}
+
+.app-shell.analyst-mode .history-card:hover {
+  box-shadow: 0 3px 12px rgba(0,0,0,0.08);
+  background: #fff;
+  border-color: #c8c7be;
+}
+
+.app-shell.analyst-mode .history-card.zaigong:hover { border-left-color: rgba(14,165,200,0.6); }
+.app-shell.analyst-mode .history-card.budget:hover  { border-left-color: rgba(200,148,10,0.6); }
+
+.app-shell.analyst-mode .hc-filename {
+  color: #1c1b18;
+}
+
+.app-shell.analyst-mode .hc-id {
+  background: #f0efe9;
+  color: #9b9790;
+}
+
+.app-shell.analyst-mode .hc-chip {
+  background: #f0efe9;
+  color: #6b6a63;
+}
+
+.app-shell.analyst-mode .hc-chip--date {
+  background: rgba(14,165,200,0.08);
+  color: rgba(14,165,200,0.9);
+}
+
+.app-shell.analyst-mode .hc-chip--target {
+  background: rgba(200,148,10,0.08);
+  color: rgba(200,148,10,0.9);
+}
+
+.app-shell.analyst-mode .hc-kpi-row {
+  background: rgba(14,165,200,0.04);
+  border-color: rgba(14,165,200,0.1);
+}
+
+.app-shell.analyst-mode .hc-kpi em {
+  color: #a8a79f;
+}
+
+.app-shell.analyst-mode .hc-kpi b {
+  color: #0e87b4;
+}
+
+.app-shell.analyst-mode .hc-kpi-sep {
+  background: #e4e3dc;
+}
+
+.app-shell.analyst-mode .compare-result-card,
+.app-shell.analyst-mode .compare-mini-table {
+  background: #fff;
+  border: 1px solid #e4e3dc;
+}
+
 .app-shell.analyst-mode .compare-result-card strong,
 .app-shell.analyst-mode .compare-result-card p,
 .app-shell.analyst-mode .compare-mini-table td {
   color: #1c1b18;
+}
+
+.app-shell.analyst-mode .history-compare-head h5 {
+  color: #1c1b18;
+}
+
+.app-shell.analyst-mode .history-compare-head span {
+  color: #6b6a63;
+}
+
+.app-shell.analyst-mode .compare-result-card em {
+  color: #6b6a63;
+}
+
+/* ===== Big Screen Mode - compact nav to match analyst mode size ===== */
+.app-shell.big-screen-mode .top-nav {
+  height: 62px;
+  padding: 0 24px;
+  gap: 0;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+}
+
+.app-shell.big-screen-mode .nav-brand {
+  gap: 10px;
+  margin-right: 28px;
+}
+
+.app-shell.big-screen-mode .brand-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  font-size: 10px;
+}
+
+.app-shell.big-screen-mode .brand-text {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.app-shell.big-screen-mode .nav-links {
+  gap: 2px;
+}
+
+.app-shell.big-screen-mode .nav-main-links {
+  margin-left: 12px;
+  justify-content: flex-start;
+}
+
+.app-shell.big-screen-mode .nav-end-links {
+  margin-left: auto;
+  justify-content: flex-end;
+}
+
+.app-shell.big-screen-mode .nav-links button {
+  min-height: 30px;
+  height: 30px;
+  border-radius: 5px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.nav-live-info {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+  font-family: 'DM Mono', monospace;
+  white-space: nowrap;
+  flex: 1;
+  justify-content: center;
+}
+
+.nav-live-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 6px #34d399;
+  flex-shrink: 0;
+}
+
+.presentation-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  height: 30px;
+  padding: 0 13px;
+  border-radius: 5px;
+  border: 1px solid rgba(96, 165, 250, 0.35);
+  background: rgba(96, 165, 250, 0.1);
+  color: #93c5fd;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+  transition: 0.2s ease;
+}
+
+.presentation-toggle-btn svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+.presentation-toggle-btn:hover {
+  background: rgba(96, 165, 250, 0.18);
+  border-color: rgba(96, 165, 250, 0.55);
+  color: #bfdbfe;
 }
 </style>
