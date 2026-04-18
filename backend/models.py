@@ -71,8 +71,4 @@ def init_db():
 
 def get_db():
     """获取数据库会话"""
-    db = SessionLocal()
-    try:
-        return db
-    finally:
-        pass
+    return SessionLocal()

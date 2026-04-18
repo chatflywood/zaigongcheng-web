@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from services.trend import compute_trend_signals
+from models import ZaigongRecord, get_db
 
 try:
     from dotenv import load_dotenv
@@ -416,6 +417,41 @@ def build_prompt(
 }}"""
 
 
+def _fetch_history_from_db(limit: int = 6) -> list[dict]:
+    """从数据库查询历史记录，格式化为 compute_trend_signals 所需结构。
+    跳过最新一条（当前数据已通过请求指标体现），取之前的 limit 条。
+    """
+    db = get_db()
+    try:
+        records = (
+            db.query(ZaigongRecord)
+            .order_by(ZaigongRecord.uploaded_at.desc())
+            .limit(limit + 1)
+            .all()
+        )
+        history = []
+        for r in records[1:]:  # 跳过最新记录，避免与当前指标重复
+            if not r.metrics_data:
+                continue
+            metrics = json.loads(r.metrics_data)
+            month = r.uploaded_at.strftime("%Y-%m")
+            fd = r.file_date or ""
+            if len(fd) >= 6:
+                try:
+                    month = f"{fd[:4]}-{fd[4:6]}"
+                except Exception:
+                    pass
+            history.append({
+                "month": month,
+                "total_capital": float(metrics.get("total_current", 0) or 0),
+                "pending": float(metrics.get("total_pending", 0) or 0),
+                "rate": float(metrics.get("total_rate", 0) or 0),
+            })
+        return history
+    finally:
+        db.close()
+
+
 def build_fallback_analysis(
     metrics: MetricsInput,
     summary: list[ManagerSummary],
@@ -801,7 +837,7 @@ async def call_minimax(prompt: str) -> str:
         payload = {
             "model": "MiniMax-M2.5",
             "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": 1024,
+            "max_tokens": 2048,
             "temperature": 0.4,
         }
 
@@ -855,8 +891,8 @@ async def analyze(request: AnalyzeRequest):
         four_class,
     )
 
-    # 计算趋势信号
-    history_records = request.history_records or []
+    # 趋势信号：优先从数据库查询历史，保证数据一致性；仅在 DB 无历史时才回退到请求体中的数据
+    history_records = _fetch_history_from_db() or request.history_records or []
     trend_signals = compute_trend_signals(
         {
             "total_current": request.metrics.total_current,

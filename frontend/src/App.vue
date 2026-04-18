@@ -421,13 +421,19 @@ async function loadLatestDataOnMount() {
   }
 }
 
+function handleDocClick(e) {
+  if (!e.target.closest('.more-menu-wrap')) closeMoreMenu()
+}
+
 onMounted(() => {
   loadLatestDataOnMount()
   document.addEventListener('fullscreenchange', handleAppFullscreenChange)
+  document.addEventListener('click', handleDocClick)
 })
 
 onUnmounted(() => {
   document.removeEventListener('fullscreenchange', handleAppFullscreenChange)
+  document.removeEventListener('click', handleDocClick)
 })
 
 // ── 通知设置 ──────────────────────────────────────────────
@@ -528,6 +534,10 @@ async function clearNotify() {
     notifyMsgType.value = 'error'
   }
 }
+
+const moreMenuOpen = ref(false)
+function toggleMoreMenu() { moreMenuOpen.value = !moreMenuOpen.value }
+function closeMoreMenu() { moreMenuOpen.value = false }
 
 const briefGenerating = ref(false)
 async function handleGenerateBrief() {
@@ -639,32 +649,49 @@ async function handleNavPush() {
             </svg>
             <span class="btn-label">历史记录</span>
           </button>
-          <button
+          <div
             v-if="zaigongLatestRecordId"
-            class="brief-nav-button"
-            :disabled="briefGenerating"
-            @click="handleGenerateBrief"
-            title="生成适合手机查看的 HTML 简报"
+            class="more-menu-wrap"
+            @click.stop
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="5" y="2" width="14" height="20" rx="2"/>
-              <path d="M12 18h.01"/>
-            </svg>
-            <span class="btn-label">{{ briefGenerating ? '生成中…' : '手机简报' }}</span>
-          </button>
-          <button
-            v-if="notifyConfigured && zaigongLatestRecordId"
-            class="push-nav-button"
-            :disabled="navPushing"
-            @click="handleNavPush"
-            title="推送最新数据播报"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 2L11 13"/>
-              <path d="M22 2L15 22 11 13 2 9l20-7z"/>
-            </svg>
-            <span class="btn-label">{{ navPushing ? '推送中…' : '推送播报' }}</span>
-          </button>
+            <button
+              class="more-nav-button"
+              :class="{ open: moreMenuOpen }"
+              @click="toggleMoreMenu"
+              title="更多操作"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="5"  r="1.2" fill="currentColor"/>
+                <circle cx="12" cy="12" r="1.2" fill="currentColor"/>
+                <circle cx="12" cy="19" r="1.2" fill="currentColor"/>
+              </svg>
+            </button>
+            <div v-if="moreMenuOpen" class="more-menu-dropdown">
+              <button
+                class="more-menu-item"
+                :disabled="briefGenerating"
+                @click="handleGenerateBrief(); closeMoreMenu()"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="5" y="2" width="14" height="20" rx="2"/>
+                  <path d="M12 18h.01"/>
+                </svg>
+                {{ briefGenerating ? '生成中…' : '手机简报' }}
+              </button>
+              <button
+                v-if="notifyConfigured"
+                class="more-menu-item"
+                :disabled="navPushing"
+                @click="handleNavPush(); closeMoreMenu()"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 2L11 13"/>
+                  <path d="M22 2L15 22 11 13 2 9l20-7z"/>
+                </svg>
+                {{ navPushing ? '推送中…' : '推送播报' }}
+              </button>
+            </div>
+          </div>
           <button class="notify-nav-button" :class="{ configured: notifyConfigured }" @click="openNotifyModal" title="通知设置">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
@@ -1284,6 +1311,83 @@ body:has(.app-shell.analyst-mode) {
   border-color: rgba(74, 222, 128, 0.35) !important;
   background: rgba(74, 222, 128, 0.12) !important;
   color: #4ade80 !important;
+}
+
+/* ── 更多操作下拉 ── */
+.more-menu-wrap {
+  position: relative;
+}
+.more-nav-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  width: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: 0.2s ease;
+  font-family: inherit;
+}
+.more-nav-button:hover,
+.more-nav-button.open {
+  color: var(--text-primary);
+  border-color: rgba(103, 223, 255, 0.2);
+  background: rgba(103, 223, 255, 0.07);
+}
+.more-nav-button svg {
+  width: 18px;
+  height: 18px;
+}
+.more-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: #fff;
+  border: 1px solid #e4e1d9;
+  border-radius: 12px;
+  padding: 5px;
+  min-width: 148px;
+  box-shadow: 0 4px 20px rgba(0,0,0,.10), 0 1px 4px rgba(0,0,0,.06);
+  z-index: 200;
+  animation: dropdownIn .16s ease both;
+}
+@keyframes dropdownIn {
+  from { opacity: 0; transform: translateY(-5px) scale(.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.more-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 7px;
+  border: none;
+  background: none;
+  color: #5f5b53;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: .12s;
+  white-space: nowrap;
+}
+.more-menu-item:hover:not(:disabled) {
+  background: #f0efe9;
+  color: #1c1b18;
+}
+.more-menu-item:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+.more-menu-item svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  opacity: .7;
 }
 
 /* ── 通知设置弹窗 ── */

@@ -1,10 +1,21 @@
 <template>
   <div class="dashboard">
-    <div v-if="!hasData" class="upload-section">
+    <div v-if="!hasData || showUpload" class="upload-section">
       <div class="upload-shell">
         <div class="upload-page-header">
-          <h1>在建工程</h1>
-          <p>设置当期目标，上传明细后自动生成支出进度与管理员排名</p>
+          <div class="upload-page-header-row">
+            <div>
+              <h1>在建工程</h1>
+              <p>设置当期目标，上传明细后自动生成支出进度与管理员排名</p>
+            </div>
+            <button v-if="hasData && showUpload" class="back-to-dashboard-btn" @click="showUpload = false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                <polyline points="9 22 9 12 15 12 15 22"/>
+              </svg>
+              返回看板
+            </button>
+          </div>
         </div>
         <div class="upload-container">
           <div class="upload-copy">
@@ -148,7 +159,7 @@
             </svg>
             返回最新
           </button>
-          <button class="ghost-action --danger" @click="clearData">
+          <button class="ghost-action --danger" @click="showUpload = true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
               <path d="M3 3v5h5"/>
@@ -162,7 +173,7 @@
         <div class="metric-card" v-for="(metric, index) in metrics" :key="metric.label" :style="{ animationDelay: index * 0.08 + 's' }">
           <div class="metric-label">{{ metric.label }}</div>
           <div class="metric-value-row">
-            <div class="metric-value" :class="metric.class">{{ metric.value }}</div>
+            <div class="metric-value" :class="metric.class">{{ animatedValues[index] ?? metric.value }}</div>
             <div v-if="metric.unit" class="metric-value-unit">{{ metric.unit }}</div>
           </div>
           <div class="metric-meta-row">
@@ -880,13 +891,14 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['dataUpdate', 'restoreLatest'])
+const emit = defineEmits(['dataUpdate', 'restoreLatest', 'warningsUpdate'])
 
 const fileInput = ref(null)
 const loading = ref(false)
 const uploadMessage = ref('')
 const uploadMessageType = ref('info')
 const hasData = ref(false)
+const showUpload = ref(false)
 const dashboard = ref(null)
 const summaryRows = ref([])
 const maxCapital = ref(0)
@@ -1246,6 +1258,40 @@ const metrics = computed(() => {
   ]
 })
 
+// KPI count-up 动画
+const animatedValues = ref([])
+
+function runCountUp(newMetrics) {
+  if (!newMetrics?.length) { animatedValues.value = []; return }
+  const m = dashboard.value?.metrics
+  if (!m) return
+  // 与 metrics computed 同序：capital / pending / monthSpend / rate
+  const targets = [
+    m.capital   || 0,
+    m.pending   || 0,
+    m.monthSpend || 0,
+    (m.rate || 0) * 100,
+  ]
+  const formatters = [
+    v => v.toFixed(2),
+    v => v.toFixed(2),
+    v => v.toFixed(2),
+    v => (v.toFixed(1) + '%'),
+  ]
+  const duration = 900
+  const startTs = performance.now()
+  function tick(ts) {
+    const t = Math.min((ts - startTs) / duration, 1)
+    const eased = 1 - Math.pow(1 - t, 3)
+    animatedValues.value = targets.map((target, i) => formatters[i](target * eased))
+    if (t < 1) requestAnimationFrame(tick)
+    else animatedValues.value = targets.map((target, i) => formatters[i](target))
+  }
+  requestAnimationFrame(tick)
+}
+
+watch(metrics, runCountUp, { immediate: true })
+
 const progressPercent = computed(() => {
   if (!targetValue.value || targetValue.value <= 0) return '0.0'
   const capital = dashboard.value?.metrics?.capital || 0
@@ -1511,6 +1557,7 @@ async function processFile(file) {
       fourClassExpanded.value = false
       isViewingHistory.value = false
       snapshotDisplayDate.value = null
+      showUpload.value = false
       clearSelectedFile()
       emit('dataUpdate', data)
       await nextTick()
@@ -1622,6 +1669,7 @@ async function fetchCompareData() {
 function clearData() {
   if (!window.confirm('确认重新上传？当前分析数据将被清除。')) return
   hasData.value = false
+  showUpload.value = false
   dashboard.value = null
   summaryRows.value = []
   previousData.value = null
@@ -3575,6 +3623,39 @@ onUnmounted(() => {
   text-align: left !important;
 }
 
+.upload-page-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.back-to-dashboard-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid #d8d5cc;
+  background: #fff;
+  color: #5f5b53;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: 0.15s;
+  font-family: inherit;
+  flex-shrink: 0;
+}
+.back-to-dashboard-btn:hover {
+  background: #f0efe9;
+  color: #1c1b18;
+}
+.back-to-dashboard-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
 .upload-page-header h1 {
   font-size: 18px;
   font-weight: 500;
@@ -5074,6 +5155,13 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 5px;
+  background: #fff !important;
+  border: 1px solid #d8d5cc !important;
+  color: #5f5b53 !important;
+}
+.tp-btn:hover {
+  background: #f0efe9 !important;
+  color: #1c1b18 !important;
 }
 .push-btn {
   font-size: 12px;
