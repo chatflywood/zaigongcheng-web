@@ -116,138 +116,155 @@
       </div>
     </div>
 
-    <div v-else class="data-section">
-      <div class="section-header section-header-rich">
-        <div class="header-main">
-          <div class="page-title page-title-rich">
-            <h2>预算下达及立项进度</h2>
-          </div>
-          <span v-if="viewingSnapshotLabel" class="snapshot-badge">{{ viewingSnapshotLabel }}</span>
-          <span class="date-badge" v-if="displayAnalysisDate">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-              <line x1="16" y1="2" x2="16" y2="6"/>
-              <line x1="8" y1="2" x2="8" y2="6"/>
-              <line x1="3" y1="10" x2="21" y2="10"/>
-            </svg>
-            {{ displayAnalysisDate }}
-          </span>
-        </div>
+    <div v-else class="page">
 
-        <div class="header-side">
-          <button class="ghost-action --history" @click="openHistoryPanel">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 12a9 9 0 1 0 3-6.7"/>
-              <path d="M3 4v5h5"/>
-              <path d="M12 7v5l3 3"/>
-            </svg>
+      <!-- ── Page Header ── -->
+      <header class="page-head">
+        <div class="page-head-l">
+          <span class="eyebrow">预算立项 / Budget Allocation</span>
+          <h1 class="page-title-h1">2026 年度预算执行</h1>
+          <div class="page-meta">
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="none" style="color:var(--ink-3)"><rect x="1" y="1" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1"/><path d="M3 4h5M3 6h3" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
+            <span>预算立项分析.xlsx</span>
+            <span class="ph-sep"></span>
+            <span>{{ data.categories?.length || 0 }} 个专业 · {{ data.projects?.length || 0 }} 个立项</span>
+            <span class="ph-sep"></span>
+            <span>预算合计 {{ data.budget_total?.toFixed(2) || '0.00' }} 万</span>
+          </div>
+        </div>
+        <div class="page-actions">
+          <button class="btn ghost" @click="openHistoryPanel">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 5h12v9H2V5zM2 5V3h12v2M5 2v3M11 2v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
             历史记录
           </button>
-          <button v-if="(isViewingHistory || props.snapshotLabel) && (props.latestData || props.initialData)" class="ghost-action --restore" @click="restoreLatestView">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
-              <path d="M21 3v6h-6"/>
-            </svg>
+          <button v-if="viewingSnapshotLabel" class="btn ghost" @click="restoreLatestView">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 4l1 3 3-1M14 12l-1-3-3 1M3 7a5 5 0 019-1M13 9a5 5 0 01-9 1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
             返回最新
           </button>
-          <button class="ghost-action --danger" @click="clearData">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-              <path d="M3 3v5h5"/>
-            </svg>
+          <button class="btn ghost" @click="clearData">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 11V3M8 3l-3 3M8 3l3 3M3 12v1.5h10V12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
             重新上传
+          </button>
+          <button class="btn">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 12v1.5h10V12M5 8l3 3 3-3M8 3v8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            导出
+          </button>
+        </div>
+      </header>
+
+      <!-- ── Upload Strip ── -->
+      <div class="ds-upload-strip">
+        <div class="up-icon">
+          <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M4 2h6l2 2v10H4V2zM10 2v2h2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="up-meta">
+          <div class="up-title">
+            预算立项分析.xlsx
+            <span class="up-badge">已加载</span>
+            <span v-if="viewingSnapshotLabel" class="snapshot-badge-sm">{{ viewingSnapshotLabel }}</span>
+          </div>
+          <div class="up-sub">
+            <template v-if="displayAnalysisDate"><span>数据日期 {{ displayAnalysisDate }}</span> · </template>
+            <span>{{ data.categories?.length || 0 }} 个专业</span>
+          </div>
+        </div>
+        <div class="up-meter">
+          <b>{{ data.projects?.length || 0 }}</b>
+          <span>ITEMS</span>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn ghost" @click="openHistoryPanel">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 5h12v9H2V5zM2 5V3h12v2M5 2v3M11 2v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            历史记录
+          </button>
+          <button class="btn" @click="clearData">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 11V3M8 3l-3 3M8 3l3 3M3 12v1.5h10V12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            替换源文件
           </button>
         </div>
       </div>
 
-      <div class="metrics-row">
-        <div class="metric-card" v-for="(metric, index) in metrics" :key="metric.label" :style="{ animationDelay: index * 0.1 + 's' }">
-          <div class="metric-label">{{ metric.label }}</div>
-          <div class="metric-value-row">
-            <div class="metric-value" :class="metric.class">{{ metric.value }}</div>
-            <div v-if="metric.unit" class="metric-value-unit">{{ metric.unit }}</div>
+      <!-- ── Hero KPI + Stacked bar ── -->
+      <div class="section" style="margin-bottom:48px">
+        <div class="ds-card" style="padding:32px 36px">
+          <div class="budget-hero-kpis">
+            <div>
+              <div class="bk-label">年度预算</div>
+              <div class="bk-value mono">{{ data.budget_total?.toFixed(2) || '0.00' }}<span class="bk-unit">万</span></div>
+              <div class="bk-sub">预算入账总额</div>
+            </div>
+            <div>
+              <div class="bk-label">已占用</div>
+              <div class="bk-value mono accent">{{ data.occupied_total?.toFixed(2) || '0.00' }}</div>
+              <div class="bk-sub">占预算 <span class="mono" style="color:var(--ink)">{{ data.budget_total > 0 ? ((data.occupied_total || 0) / data.budget_total * 100).toFixed(1) : '0.0' }}%</span></div>
+            </div>
+            <div>
+              <div class="bk-label">全年支出</div>
+              <div class="bk-value mono" style="color:var(--ink-2)">{{ data.annual_spend_total?.toFixed(2) || '0.00' }}</div>
+              <div class="bk-sub">
+                占预算 <span class="mono">{{ data.budget_total > 0 ? ((data.annual_spend_total || 0) / data.budget_total * 100).toFixed(1) : '0.0' }}%</span>
+                <span v-if="data.budget_total > 0 && (data.annual_spend_total || 0) / data.budget_total > 1" style="color:var(--bad)"> ⚠</span>
+              </div>
+            </div>
+            <div>
+              <div class="bk-label">剩余可调度</div>
+              <div class="bk-value mono">{{ data.budget_total > 0 ? (data.budget_total - (data.occupied_total || 0) - (data.preoccupied_total || 0)).toFixed(2) : '0.00' }}</div>
+              <div class="bk-sub">
+                {{ data.budget_total > 0 ? Math.max(0, 100 - ((data.occupied_total || 0) + (data.preoccupied_total || 0)) / data.budget_total * 100).toFixed(1) : '0.0' }}% 未分配
+              </div>
+            </div>
           </div>
-          <div class="metric-meta-row">
-            <div v-if="metric.inlineNote" class="metric-inline-note">{{ metric.inlineNote }}</div>
-            <div v-if="metric.badgeText" class="metric-badge" :class="metric.badgeClass">{{ metric.badgeText }}</div>
+          <div>
+            <div class="budget-bar-track">
+              <div :style="{ width: (data.budget_total > 0 ? Math.min((data.occupied_total || 0) / data.budget_total * 100, 100) : 0) + '%', background: 'var(--accent)' }"></div>
+              <div :style="{ width: (data.budget_total > 0 ? Math.min((data.preoccupied_total || 0) / data.budget_total * 100, 100) : 0) + '%', background: 'var(--accent-soft)' }"></div>
+            </div>
+            <div class="budget-bar-legend">
+              <div class="bbl-item">
+                <span class="bbl-dot" style="background:var(--accent)"></span>
+                已占用 <span class="mono" style="color:var(--ink)">{{ data.budget_total > 0 ? ((data.occupied_total || 0) / data.budget_total * 100).toFixed(1) : '0.0' }}%</span>
+              </div>
+              <div class="bbl-item">
+                <span class="bbl-dot" style="background:var(--accent-soft);border:1px solid #e0b08a"></span>
+                预占用 <span class="mono" style="color:var(--ink)">{{ data.budget_total > 0 ? ((data.preoccupied_total || 0) / data.budget_total * 100).toFixed(1) : '0.0' }}%</span>
+              </div>
+              <div class="bbl-item">
+                <span class="bbl-dot" style="background:var(--paper-2);border:1px solid var(--line)"></span>
+                剩余 <span class="mono" style="color:var(--ink)">{{ data.budget_total > 0 ? Math.max(0, 100 - ((data.occupied_total || 0) + (data.preoccupied_total || 0)) / data.budget_total * 100).toFixed(1) : '0.0' }}%</span>
+              </div>
+            </div>
           </div>
-          <div class="metric-glow" :class="metric.class"></div>
         </div>
       </div>
 
-      <div class="progress-overview-card">
-        <div class="progress-row-inner">
-          <div class="progress-label">年度立项进度</div>
-          <div class="progress-track-wrap">
-            <div class="progress-nums-row">
-              <span>小计 {{ formatNum(data.total_used) }} 万元</span>
-              <span class="pct">{{ formatPercent(data.approval_progress) }}</span>
-            </div>
-            <div class="progress-track">
-              <div class="progress-fill" :style="{ width: formatPercent(data.approval_progress) }"></div>
-            </div>
-          </div>
-          <div class="progress-right">
-            <div class="progress-completed">年度预算 {{ formatNum(data.budget_total) }} 万元</div>
-          </div>
+      <!-- ── History comparison (when available) ── -->
+      <div v-if="compareOverview" class="section">
+        <div class="section-head">
+          <h2>历史对比</h2>
+          <span class="sub">当前版本与上一版相比</span>
         </div>
-        <div class="progress-inner-divider"></div>
-        <div class="progress-row-inner">
-          <div class="progress-label">年度支出进度</div>
-          <div class="progress-track-wrap">
-            <div class="progress-nums-row">
-              <span>年度支出 {{ formatNum(data.annual_spend_total) }} 万元</span>
-              <span class="pct spend">{{ formatPercent(data.spend_progress) }}</span>
+        <div class="ds-card" style="padding:20px">
+          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px">
+            <div class="compare-chip">
+              <span class="compare-chip-label">年度预算</span>
+              <strong>{{ formatNum(compareOverview.budget.current) }} 万元</strong>
+              <span class="compare-chip-detail">较上版 {{ formatDelta(compareOverview.budget.diff, '万元') }}</span>
             </div>
-            <div class="progress-track">
-              <div class="progress-fill spend" :style="{ width: formatPercent(data.spend_progress) }"></div>
+            <div class="compare-chip">
+              <span class="compare-chip-label">立项进度</span>
+              <strong>{{ formatPercent(compareOverview.progress.current) }}</strong>
+              <span class="compare-chip-detail">较上版 {{ formatDelta(compareOverview.progress.diff, 'pct') }}</span>
             </div>
           </div>
-          <div class="progress-right">
-            <div class="progress-completed">年度预算 {{ formatNum(data.budget_total) }} 万元</div>
-          </div>
-        </div>
-      </div>
-
-      <div v-if="compareOverview" class="compare-section">
-        <div class="card-header compare-header">
-          <h3>历史对比概览</h3>
-          <span class="compare-caption">当前版本与上一版相比</span>
-        </div>
-        <div class="compare-cards">
-          <div class="compare-card">
-            <span class="compare-label">年度预算</span>
-            <strong>{{ formatNum(compareOverview.budget.current) }} 万元</strong>
-            <span class="compare-detail">较上版 {{ formatDelta(compareOverview.budget.diff, '万元') }}</span>
-          </div>
-          <div class="compare-card">
-            <span class="compare-label">立项进度</span>
-            <strong>{{ formatPercent(compareOverview.progress.current) }}</strong>
-            <span class="compare-detail">较上版 {{ formatDelta(compareOverview.progress.diff, 'pct') }}</span>
-          </div>
-        </div>
-        <div class="compare-table-shell">
-          <div class="card-header compare-subheader">
-            <h4>专业推进 Top 5</h4>
-            <span class="compare-caption">{{ categoryProgressTop5.length }} 个专业</span>
-          </div>
-          <div class="table-wrapper">
-            <table class="data-table compare-table">
-              <thead>
-                <tr>
-                  <th>一级专业</th>
-                  <th>当前立项进度</th>
-                  <th>较上版变化</th>
-                </tr>
-              </thead>
+          <div v-if="categoryProgressTop5.length">
+            <div style="font-size:13px;font-weight:500;color:var(--ink);margin-bottom:10px">专业推进 Top 5</div>
+            <table class="ds-tbl" style="font-size:12.5px">
+              <thead><tr><th>一级专业</th><th class="num">当前立项进度</th><th class="num">较上版变化</th></tr></thead>
               <tbody>
                 <tr v-for="item in categoryProgressTop5" :key="item.name">
                   <td>{{ item.name }}</td>
-                  <td>{{ formatPercent(item.currentProgress) }}</td>
-                  <td :class="item.progressDiff >= 0 ? 'delta-up' : 'delta-down'">{{ formatDelta(item.progressDiff, 'pct') }}</td>
-                </tr>
-                <tr v-if="categoryProgressTop5.length === 0">
-                  <td colspan="3" class="compare-empty">暂无可对比的专业推进变化</td>
+                  <td class="num mono">{{ formatPercent(item.currentProgress) }}</td>
+                  <td class="num"><span :style="{ color: item.progressDiff >= 0 ? 'var(--ok)' : 'var(--bad)' }">{{ formatDelta(item.progressDiff, 'pct') }}</span></td>
                 </tr>
               </tbody>
             </table>
@@ -255,148 +272,106 @@
         </div>
       </div>
 
-      <div class="table-card">
-        <div class="card-header">
-          <div class="card-header-main">
-            <h3>各专业预算立项进度</h3>
-            <span class="card-badge" :class="progressBadgeClass">{{ progressText }}</span>
+      <!-- ── 按专业拆分 ── -->
+      <div class="section">
+        <div class="section-head">
+          <div>
+            <h2>按专业拆分</h2>
+            <span class="sub">共 <strong>{{ data.categories?.length || 0 }}</strong> 个专业 · 其中有预算或支出的</span>
           </div>
-          <button class="collapse-toggle" @click="categoryTableCollapsed = !categoryTableCollapsed">
-            <span>{{ categoryTableCollapsed ? '展开' : '收起' }}</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="{ collapsed: categoryTableCollapsed }">
-              <polyline points="6 9 12 15 18 9"/>
-            </svg>
-          </button>
         </div>
-        <div class="table-wrapper">
-          <table class="data-table">
+        <div class="ds-card">
+          <table class="ds-tbl">
             <thead>
               <tr>
-                <th>一级专业</th>
-                <th>年度预算</th>
-                <th>年度支出</th>
-                <th>已占用</th>
-                <th>预占用</th>
-                <th>小计</th>
-                <th>立项进度</th>
-                <th>支出进度</th>
+                <th style="width:24px"></th>
+                <th>专业</th>
+                <th class="num">预算</th>
+                <th class="num">已占用</th>
+                <th class="num">全年支出</th>
+                <th>占用结构</th>
+                <th class="num">执行率</th>
               </tr>
             </thead>
             <tbody>
-              <tr class="total-row">
-                <td>合计</td>
-                <td>{{ formatNum(data.budget_total) }}</td>
-                <td>{{ formatNum(data.annual_spend_total) }}</td>
-                <td>{{ formatNum(data.occupied_total) }}</td>
-                <td>{{ formatNum(data.preoccupied_total) }}</td>
-                <td class="total-value">{{ formatNum(data.total_used) }}</td>
-                <td>
-                  <div class="progress-cell">
-                    <div class="progress-bar">
-                      <div class="progress-fill complete" :style="{ width: formatPercent(data.approval_progress) }"></div>
+              <tr v-for="(cat, i) in (data.categories || [])" :key="cat.name"
+                :style="{ opacity: cat.budget === 0 && cat.annual_spend === 0 ? 0.45 : 1 }">
+                <td><span :style="{ display:'block', width:'8px', height:'8px', borderRadius:'2px', background: `oklch(${72 - i*2.5}% 0.10 ${40 + i*22})` }"></span></td>
+                <td class="col-name">{{ cat.name }}</td>
+                <td class="num mono">{{ cat.budget > 0 ? formatNum(cat.budget) : '—' }}</td>
+                <td class="num mono" :style="{ fontWeight: cat.occupied > 0 ? 500 : 400 }">{{ cat.occupied > 0 ? formatNum(cat.occupied) : '—' }}</td>
+                <td class="num mono" :style="{ color: cat.spend_progress > 1 ? 'var(--bad)' : 'var(--ink-2)' }">{{ cat.annual_spend > 0 ? formatNum(cat.annual_spend) : '—' }}</td>
+                <td style="min-width:200px">
+                  <div v-if="cat.budget > 0" style="display:flex;align-items:center;gap:12px">
+                    <div style="flex:1;display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--paper-2)">
+                      <div :style="{ width: Math.min((cat.occupied || 0) / cat.budget * 100, 100) + '%', background: (cat.occupied || 0) / cat.budget > 1 ? 'var(--bad)' : 'var(--accent)' }"></div>
+                      <div :style="{ width: Math.min((cat.preoccupied || 0) / cat.budget * 100, 100) + '%', background: 'var(--accent-soft)' }"></div>
                     </div>
-                    <span class="progress-text">{{ formatPercent(data.approval_progress) }}</span>
+                    <span class="mono" style="font-size:11.5px;color:var(--ink-2);width:56px;text-align:right">{{ (((cat.occupied || 0) + (cat.preoccupied || 0)) / cat.budget * 100).toFixed(1) }}%</span>
                   </div>
+                  <span v-else class="muted" style="font-size:11px">无预算</span>
                 </td>
-                <td>
-                  <div class="progress-cell">
-                    <div class="progress-bar">
-                      <div class="progress-fill spend complete" :style="{ width: formatPercent(data.spend_progress) }"></div>
-                    </div>
-                    <span class="progress-text">{{ formatPercent(data.spend_progress) }}</span>
-                  </div>
+                <td class="num mono" :style="{ color: cat.spend_progress > 1 ? 'var(--bad)' : cat.spend_progress > 0.8 ? 'var(--warn)' : 'var(--ink-2)' }">
+                  {{ cat.budget > 0 ? (cat.spend_progress * 100).toFixed(1) + '%' : '—' }}
                 </td>
               </tr>
-              <template v-if="!categoryTableCollapsed">
-                <tr v-for="cat in data.categories" :key="cat.name">
-                  <td class="category-name">{{ cat.name }}</td>
-                  <td>{{ formatNum(cat.budget) }}</td>
-                  <td :class="{ 'value-highlight': cat.annual_spend > 0 }">{{ cat.annual_spend > 0 ? formatNum(cat.annual_spend) : '—' }}</td>
-                  <td :class="{ 'value-highlight': cat.occupied > 0 }">{{ cat.occupied > 0 ? formatNum(cat.occupied) : '—' }}</td>
-                  <td :class="{ 'value-warning': cat.preoccupied > 0 }">{{ cat.preoccupied > 0 ? formatNum(cat.preoccupied) : '—' }}</td>
-                  <td class="subtotal">{{ formatNum(cat.subtotal) }}</td>
-                  <td>
-                    <div class="progress-cell">
-                      <div class="progress-bar">
-                        <div class="progress-fill" :style="{ width: formatPercent(cat.progress) }"></div>
-                      </div>
-                      <span class="progress-text">{{ formatPercent(cat.progress) }}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="progress-cell">
-                      <div class="progress-bar">
-                        <div class="progress-fill spend" :style="{ width: formatPercent(cat.spend_progress) }"></div>
-                      </div>
-                      <span class="progress-text">{{ formatPercent(cat.spend_progress) }}</span>
-                    </div>
-                  </td>
-                </tr>
-              </template>
             </tbody>
           </table>
         </div>
-        <div v-show="!categoryTableCollapsed" class="table-footnote">
-          <span>合计：年度预算 {{ formatNum(data.budget_total) }} 万 · 年度支出 {{ formatNum(data.annual_spend_total) }} 万 · 小计 {{ formatNum(data.total_used) }} 万</span>
-          <span>数据日期：{{ displayAnalysisDate || '-' }}</span>
-        </div>
       </div>
 
-      <div class="table-card">
-        <div class="card-header">
-          <div class="card-header-main">
-            <h3>2026年新建项目明细</h3>
-            <span class="record-count">{{ filteredProjects.length }} 个项目</span>
+      <!-- ── 立项清单 ── -->
+      <div class="section" v-if="data.projects?.length">
+        <div class="section-head">
+          <div>
+            <h2>2026 年立项清单</h2>
+            <span class="sub">共 <strong>{{ filteredProjects.length }}</strong> 个立项项目 · 来源：立项表</span>
           </div>
-          <div class="header-tools header-tools-collapsible">
-            <div class="filters-row">
-              <select v-model="selectedManager" class="filter-select">
-                <option value="">全部管理员</option>
-                <option v-for="manager in managerOptions" :key="manager" :value="manager">{{ manager }}</option>
-              </select>
-              <select v-model="selectedCategory" class="filter-select">
-                <option value="">全部专业</option>
-                <option v-for="category in categoryOptions" :key="category" :value="category">{{ category }}</option>
-              </select>
-            </div>
-            <button class="collapse-toggle" @click="projectTableCollapsed = !projectTableCollapsed">
-              <span>{{ projectTableCollapsed ? '展开' : '收起' }}</span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="{ collapsed: projectTableCollapsed }">
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
-            </button>
+          <div class="section-actions">
+            <select v-model="selectedManager" class="filter-sel">
+              <option value="">全部管理员</option>
+              <option v-for="manager in managerOptions" :key="manager" :value="manager">{{ manager }}</option>
+            </select>
+            <select v-model="selectedCategory" class="filter-sel">
+              <option value="">全部专业</option>
+              <option v-for="category in categoryOptions" :key="category" :value="category">{{ category }}</option>
+            </select>
           </div>
         </div>
-        <div v-show="!projectTableCollapsed" class="table-wrapper">
-          <table class="data-table">
+        <div class="ds-card">
+          <table class="ds-tbl">
             <thead>
               <tr>
-                <th>项目编码</th>
+                <th>立项编号</th>
                 <th>项目名称</th>
-                <th>工程管理员</th>
-                <th>一级专业</th>
-                <th>占用规模</th>
-                <th>预占规模</th>
+                <th>专业</th>
+                <th>负责人</th>
+                <th class="num">占用预算</th>
+                <th class="num">预占用</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="proj in filteredProjects" :key="proj.code">
-                <td class="code">{{ proj.code }}</td>
-                <td class="project-name" :title="proj.name">{{ proj.name }}</td>
+                <td class="mono muted" style="font-size:12px">{{ proj.code }}</td>
+                <td class="col-name" :title="proj.name">{{ proj.name }}</td>
+                <td class="muted">{{ proj.category }}</td>
                 <td>{{ proj.manager || '—' }}</td>
-                <td>{{ proj.category }}</td>
-                <td :class="{ 'value-highlight': proj.occupied > 0 }">
+                <td class="num mono" :style="{ fontWeight: proj.occupied > 0 ? 500 : 400, color: proj.occupied > 0 ? 'var(--ink)' : 'var(--ink-4)' }">
                   {{ proj.occupied > 0 ? formatNum(proj.occupied) : '—' }}
                 </td>
-                <td :class="{ 'value-warning': proj.preoccupied > 0 }">
-                  {{ proj.preoccupied > 0 ? formatNum(proj.preoccupied) : '—' }}
-                </td>
+                <td class="num mono muted">{{ proj.preoccupied > 0 ? formatNum(proj.preoccupied) : '—' }}</td>
+              </tr>
+              <tr v-if="filteredProjects.length === 0">
+                <td colspan="6" style="text-align:center;color:var(--ink-3);padding:32px">无匹配项目</td>
               </tr>
             </tbody>
           </table>
         </div>
       </div>
+
     </div>
+
+
 
     <div v-if="historyVisible" class="history-overlay" @click.self="closeHistoryPanel">
       <aside class="history-panel">
@@ -3029,4 +3004,75 @@ onMounted(() => {
     width: 100% !important;
   }
 }
+
+/* ── New handoff-style data section ─────────────────── */
+
+/* Buttons (for data section) */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; border-radius: var(--r-md);
+  font-size: 12.5px; color: var(--ink-2);
+  background: var(--surface); border: 1px solid var(--line-2);
+  transition: all 120ms; white-space: nowrap; cursor: pointer; font-family: inherit;
+}
+.btn:hover { background: var(--paper-2); color: var(--ink); border-color: var(--ink-4); }
+.btn.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.btn.primary:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
+.btn.ghost:hover { background: var(--paper-2); }
+.btn svg { width: 12px; height: 12px; opacity: 0.7; }
+
+/* Budget hero KPI grid */
+.budget-hero-kpis {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 32px; margin-bottom: 28px;
+}
+.bk-label {
+  font-size: 11.5px; color: var(--ink-3);
+  text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px;
+}
+.bk-value {
+  font-size: 36px; font-weight: 500; color: var(--ink);
+  letter-spacing: -0.025em; line-height: 1;
+  font-family: var(--font-mono);
+}
+.bk-value.accent { color: var(--accent); }
+.bk-unit { font-size: 14px; color: var(--ink-3); margin-left: 6px; font-family: var(--font-sans); font-weight: 400; }
+.bk-sub { font-size: 12px; color: var(--ink-3); margin-top: 8px; }
+
+/* Budget bar */
+.budget-bar-track {
+  display: flex; height: 12px; border-radius: 6px;
+  overflow: hidden; background: var(--paper-2);
+}
+.budget-bar-legend {
+  display: flex; gap: 24px; margin-top: 12px;
+  font-size: 12px; color: var(--ink-2);
+}
+.bbl-item { display: flex; align-items: center; gap: 6px; }
+.bbl-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
+/* Snapshot badge */
+.snapshot-badge-sm {
+  font-size: 10px; padding: 2px 7px; border-radius: 10px;
+  background: var(--warn-soft); color: var(--warn); font-weight: 500;
+  font-family: var(--font-mono);
+}
+
+/* Compare chips */
+.compare-chip {
+  display: grid; gap: 6px; padding: 14px;
+  border-radius: var(--r-md); background: var(--paper); border: 1px solid var(--line);
+}
+.compare-chip-label { color: var(--ink-4); font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; }
+.compare-chip strong { font-size: 20px; color: var(--ink); font-weight: 500; font-family: var(--font-mono); }
+.compare-chip-detail { color: var(--ink-3); font-size: 12px; }
+
+/* Filter select */
+.filter-sel {
+  height: 32px; padding: 0 10px; border-radius: var(--r-md);
+  border: 1px solid var(--line-2); background: var(--surface);
+  color: var(--ink-2); font-size: 12px; cursor: pointer; font-family: inherit;
+}
+.filter-sel:hover { border-color: var(--ink-4); }
 </style>

@@ -43,10 +43,25 @@ const readinessText = computed(() => {
 })
 
 const activeViewLabel = computed(() => {
+  if (currentView.value === 'overview') return '设计说明'
   if (currentView.value === 'budget') return '预算立项'
-  if (currentView.value === 'key-indicators') return '大屏模式'
+  if (currentView.value === 'key-indicators') return '关键指标'
   return '在建工程'
 })
+
+const currentMonthLabel = computed(() => {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const q = Math.ceil((now.getMonth() + 1) / 3)
+  return `${y}.${m} · 第 ${q} 季度`
+})
+
+const overviewPages = [
+  { id: 'zaigong', t: '在建工程', d: '资本性支出进度、管理员排名、四类工程预警、转固推进', count: '2026.03 数据' },
+  { id: 'budget', t: '预算立项', d: '总预算 vs 已占用/预占用，按专业拆分，新建项目流水', count: '7 个专业' },
+  { id: 'key-indicators', t: '关键指标', d: '4 个核心 KPI 仪表盘 + 重点工作清单（替代旧大屏）', count: '可投屏' },
+]
 
 function switchView(view) {
   currentView.value = view
@@ -585,145 +600,157 @@ async function handleNavPush() {
 }
 </script>
 
-<template>
-  <div class="app-shell" :class="{ 'analyst-mode': isAnalystMode, 'big-screen-mode': !isAnalystMode && !presentationMode, 'presentation-mode': presentationMode }">
-    <div class="backdrop backdrop-grid"></div>
-    <div class="backdrop backdrop-glow glow-a"></div>
-    <div class="backdrop backdrop-glow glow-b"></div>
 
-    <header v-if="!presentationMode" class="top-nav" :class="{ 'analyst-nav': isAnalystMode }">
-      <div class="nav-brand">
-        <div class="brand-mark">ZT</div>
-        <div class="brand-copy">
-          <span class="brand-text">工程建设数据驾驶舱</span>
+<template>
+  <div class="app-shell" :class="{ 'presentation-mode': presentationMode }">
+
+    <!-- ── Sidebar ───────────────────────────────────────── -->
+    <aside class="app-sidebar" v-if="!presentationMode">
+      <div class="sidebar-brand">
+        <div class="brand-mark">CTC</div>
+        <div>
+          <div class="brand-name">工程数据分析</div>
+          <span class="brand-sub">仙桃 · 云网发展部</span>
         </div>
       </div>
 
-      <div class="nav-links nav-main-links">
-        <button
-          :class="{ active: currentView === 'zaigong' }"
-          @click="switchView('zaigong')"
-        >
-          <span class="btn-label">在建工程</span>
-          <span v-if="zaigongData" class="data-indicator"></span>
-        </button>
-        <button
-          :class="{ active: currentView === 'budget' }"
-          @click="switchView('budget')"
-        >
-          <span class="btn-label">预算立项</span>
-          <span v-if="budgetData" class="data-indicator warning"></span>
-        </button>
-        <button
-          :class="{ active: currentView === 'key-indicators', disabled: !canShowKeyIndicators }"
-          @click="switchView('key-indicators')"
-          :title="canShowKeyIndicators ? '查看大屏模式' : '请先上传两个分析数据'"
-        >
-          <span class="btn-label">大屏模式</span>
-          <span v-if="canShowKeyIndicators" class="data-indicator success"></span>
-        </button>
-      </div>
-      <div v-if="currentView === 'key-indicators'" class="nav-live-info">
-        <span class="nav-live-dot"></span>
-        实时数据 · {{ currentDate }} · 仙桃分公司 云网发展部
-      </div>
-
-      <div class="nav-links nav-end-links">
-        <button
-          v-if="currentView === 'key-indicators'"
-          class="presentation-toggle-btn"
-          @click="togglePresentationMode"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="2" y="3" width="20" height="14" rx="2"/>
-            <path d="M8 21h8M12 17v4"/>
-          </svg>
-          <span class="btn-label">进入展示模式</span>
-        </button>
-        <template v-if="isAnalystMode">
-          <button class="history-nav-button" @click="openHistoryCenter">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 12a9 9 0 1 0 3-6.7"/>
-              <path d="M3 4v5h5"/>
-              <path d="M12 7v5l3 3"/>
-            </svg>
-            <span class="btn-label">历史记录</span>
-          </button>
-          <div
-            v-if="zaigongLatestRecordId"
-            class="more-menu-wrap"
-            @click.stop
+      <nav class="sidebar-nav">
+        <div class="side-section">
+          <div class="side-label">分析</div>
+          <div class="side-link" :class="{ active: currentView === 'overview' }" @click="switchView('overview')">
+            <svg class="side-icn" viewBox="0 0 16 16" fill="none"><path d="M8 2l1.5 4.5L14 8l-4.5 1.5L8 14l-1.5-4.5L2 8l4.5-1.5L8 2z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+            <span>设计说明</span>
+          </div>
+          <div class="side-link" :class="{ active: currentView === 'zaigong' }" @click="switchView('zaigong')">
+            <svg class="side-icn" viewBox="0 0 16 16" fill="none"><path d="M8 2l6 3-6 3-6-3 6-3zM2 8l6 3 6-3M2 11l6 3 6-3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+            <span>在建工程</span>
+            <span v-if="zaigongData" class="side-badge">24</span>
+          </div>
+          <div class="side-link" :class="{ active: currentView === 'budget' }" @click="switchView('budget')">
+            <svg class="side-icn" viewBox="0 0 16 16" fill="none"><path d="M2 13h12M4 10v3M7 6v7M10 8v5M13 4v9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            <span>预算立项</span>
+          </div>
+          <div class="side-link"
+            :class="{ active: currentView === 'key-indicators', disabled: !canShowKeyIndicators }"
+            @click="canShowKeyIndicators && switchView('key-indicators')"
           >
-            <button
-              class="more-nav-button"
-              :class="{ open: moreMenuOpen }"
-              @click="toggleMoreMenu"
-              title="更多操作"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="5"  r="1.2" fill="currentColor"/>
-                <circle cx="12" cy="12" r="1.2" fill="currentColor"/>
-                <circle cx="12" cy="19" r="1.2" fill="currentColor"/>
-              </svg>
+            <svg class="side-icn" viewBox="0 0 16 16" fill="none"><path d="M3 11a5 5 0 0110 0M8 11l3-3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            <span>关键指标</span>
+          </div>
+        </div>
+        <div class="side-section">
+          <div class="side-label">工具</div>
+          <div class="side-link disabled">
+            <svg class="side-icn" viewBox="0 0 16 16" fill="none"><path d="M5 5h6v6H5zM5 5V3a2 2 0 00-2 2h2zM11 5V3a2 2 0 012 2h-2zM5 11v2a2 2 0 01-2-2h2zM11 11v2a2 2 0 002-2h-2z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+            <span>预警规则</span>
+            <span class="side-wip">WIP</span>
+          </div>
+          <div class="side-link disabled">
+            <svg class="side-icn" viewBox="0 0 16 16" fill="none"><path d="M8 3v8M5 8l3 3 3-3M3 13h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>导出与分享</span>
+            <span class="side-wip">WIP</span>
+          </div>
+          <div class="side-link" @click="openHistoryCenter">
+            <svg class="side-icn" viewBox="0 0 16 16" fill="none"><path d="M2 5h12v9H2V5zM2 5V3h12v2M5 2v3M11 2v3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>上传历史</span>
+          </div>
+          <div class="side-link" @click="openNotifyModal">
+            <svg class="side-icn" viewBox="0 0 16 16" fill="none"><path d="M12 5a4 4 0 0 0-8 0c0 5-2 6-2 6h12s-2-1-2-6M9 13.5a1 1 0 0 1-2 0" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            <span>通知设置</span>
+            <span v-if="notifyConfigured" class="side-dot ok"></span>
+          </div>
+        </div>
+      </nav>
+
+      <div class="sidebar-foot">
+        <strong>当月窗口</strong>
+        <span>{{ currentMonthLabel }}</span>
+        <span class="side-version">v0.4 · 内部预览</span>
+        <div v-if="zaigongLatestRecordId" class="sidebar-actions">
+          <div class="more-menu-wrap" @click.stop>
+            <button class="side-more-btn" :class="{ open: moreMenuOpen }" @click="toggleMoreMenu">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><circle cx="12" cy="5" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="19" r="1.2" fill="currentColor"/></svg>
+              更多操作
             </button>
             <div v-if="moreMenuOpen" class="more-menu-dropdown">
-              <button
-                class="more-menu-item"
-                :disabled="briefGenerating"
-                @click="handleGenerateBrief(); closeMoreMenu()"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="5" y="2" width="14" height="20" rx="2"/>
-                  <path d="M12 18h.01"/>
-                </svg>
+              <button class="more-menu-item" :disabled="briefGenerating" @click="handleGenerateBrief(); closeMoreMenu()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg>
                 {{ briefGenerating ? '生成中…' : '手机简报' }}
               </button>
-              <button
-                v-if="notifyConfigured"
-                class="more-menu-item"
-                :disabled="navPushing"
-                @click="handleNavPush(); closeMoreMenu()"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 2L11 13"/>
-                  <path d="M22 2L15 22 11 13 2 9l20-7z"/>
-                </svg>
+              <button v-if="notifyConfigured" class="more-menu-item" :disabled="navPushing" @click="handleNavPush(); closeMoreMenu()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/></svg>
                 {{ navPushing ? '推送中…' : '推送播报' }}
               </button>
             </div>
           </div>
-          <button class="notify-nav-button" :class="{ configured: notifyConfigured }" @click="openNotifyModal" title="通知设置">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-            </svg>
+          <button v-if="currentView === 'key-indicators'" class="side-more-btn" @click="togglePresentationMode">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            展示模式
           </button>
-        </template>
-      </div>
-    </header>
-
-    <section v-if="currentView !== 'key-indicators' && !presentationMode" class="hero-strip">
-      <div class="hero-status">
-        <div class="status-card">
-          <span class="status-label">当前视图</span>
-          <strong>{{ activeViewLabel }}</strong>
-        </div>
-        <div class="status-card">
-          <span class="status-label">数据准备度</span>
-          <strong>{{ readinessText }}</strong>
-        </div>
-        <div class="status-card compact">
-          <span class="status-label">在建工程</span>
-          <strong>{{ zaigongLatestDate || '待上传' }}</strong>
-        </div>
-        <div class="status-card compact">
-          <span class="status-label">预算立项</span>
-          <strong>{{ budgetLatestDate || '待上传' }}</strong>
         </div>
       </div>
-    </section>
+    </aside>
 
-    <main class="main-content">
+    <!-- ── Canvas ─────────────────────────────────────────── -->
+    <main class="app-canvas">
+      <div v-if="currentView === 'overview'" class="page">
+        <header class="page-head">
+          <div class="page-head-l">
+            <span class="eyebrow">重设计提案 · v0.4</span>
+            <h1 class="page-title">给「工程数据分析」一次安静的呼吸</h1>
+            <div class="page-meta">
+              <span>提案人 · Claude</span>
+              <span class="sep"></span>
+              <span>基于 dashboard.html / budget.html / key-indicators.html</span>
+            </div>
+          </div>
+        </header>
+        <div class="section">
+          <div class="section-head"><h2>四个原则</h2></div>
+          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r-lg)">
+            <div style="background:var(--surface);padding:24px 26px">
+              <div style="font-family:var(--font-mono);font-size:11px;color:var(--accent);letter-spacing:0.08em;margin-bottom:10px">P · 01</div>
+              <div style="font-size:16px;font-weight:500;color:var(--ink);margin-bottom:6px">克制压倒装饰</div>
+              <div style="font-size:13px;color:var(--ink-2);line-height:1.6">纸感背景、单一强调色、高对比层级。装饰只在必要处出现。</div>
+            </div>
+            <div style="background:var(--surface);padding:24px 26px">
+              <div style="font-family:var(--font-mono);font-size:11px;color:var(--accent);letter-spacing:0.08em;margin-bottom:10px">P · 02</div>
+              <div style="font-size:16px;font-weight:500;color:var(--ink);margin-bottom:6px">空间是数据的呼吸</div>
+              <div style="font-size:13px;color:var(--ink-2);line-height:1.6">KPI 之间留 1px 分隔线，section 之间 56px，卡片之间 24px。</div>
+            </div>
+            <div style="background:var(--surface);padding:24px 26px">
+              <div style="font-family:var(--font-mono);font-size:11px;color:var(--accent);letter-spacing:0.08em;margin-bottom:10px">P · 03</div>
+              <div style="font-size:16px;font-weight:500;color:var(--ink);margin-bottom:6px">数字优先于图表</div>
+              <div style="font-size:13px;color:var(--ink-2);line-height:1.6">所有数字 tabular-nums，右对齐。图表只在解释趋势时出现。</div>
+            </div>
+            <div style="background:var(--surface);padding:24px 26px">
+              <div style="font-family:var(--font-mono);font-size:11px;color:var(--accent);letter-spacing:0.08em;margin-bottom:10px">P · 04</div>
+              <div style="font-size:16px;font-weight:500;color:var(--ink);margin-bottom:6px">可截图汇报</div>
+              <div style="font-size:13px;color:var(--ink-2);line-height:1.6">每个区块独立成稿，配色和留白考虑截图贴入周报 PPT 的场景。</div>
+            </div>
+          </div>
+        </div>
+        <div class="section">
+          <div class="section-head"><h2>三个页面</h2><span class="sub">点击进入</span></div>
+          <div style="display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;background:var(--surface)">
+            <div v-for="(s, i) in overviewPages" :key="s.id"
+              style="padding:20px 24px;display:flex;align-items:center;gap:24px;cursor:pointer;transition:background 0.12s"
+              :style="{ borderBottom: i < overviewPages.length - 1 ? '1px solid var(--line)' : 'none' }"
+              @click="switchView(s.id)"
+              @mouseenter="$event.currentTarget.style.background='var(--surface-2)'"
+              @mouseleave="$event.currentTarget.style.background='var(--surface)'"
+            >
+              <div style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3);width:24px">0{{i+1}}</div>
+              <div style="flex:1">
+                <div style="font-size:15px;font-weight:500;color:var(--ink)">{{ s.t }}</div>
+                <div style="font-size:12.5px;color:var(--ink-3);margin-top:3px">{{ s.d }}</div>
+              </div>
+              <div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono)">{{ s.count }}</div>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="opacity:0.4"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
       <Dashboard
         v-if="currentView === 'zaigong'"
         :initial-data="zaigongData"
@@ -756,207 +783,135 @@ async function handleNavPush() {
       />
     </main>
 
-    <div v-if="historyCenterVisible" class="global-history-overlay" @click.self="closeHistoryCenter">
-      <aside class="global-history-panel">
-        <div class="global-history-header">
-          <div class="ghh-title-row">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ghh-icon"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    <!-- ── 历史记录中心 ──────────────────────────────────── -->
+    <div v-if="historyCenterVisible" class="gh-overlay" @click.self="closeHistoryCenter">
+      <aside class="gh-panel">
+        <div class="gh-head">
+          <div class="gh-head-left">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             <h3>历史记录中心</h3>
-            <span class="ghh-count-badge">{{ (zaigongHistory.length + budgetHistory.length) }} 条</span>
+            <span class="gh-badge">{{ zaigongHistory.length + budgetHistory.length }}</span>
           </div>
-          <button class="close-btn" @click="closeHistoryCenter">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          <button class="gh-close" @click="closeHistoryCenter">×</button>
+        </div>
+
+        <div class="gh-tabs">
+          <button :class="{ active: historyTab === 'all' }" @click="historyTab = 'all'">全部</button>
+          <button :class="{ active: historyTab === 'zaigong' }" @click="historyTab = 'zaigong'">在建工程</button>
+          <button :class="{ active: historyTab === 'budget' }" @click="historyTab = 'budget'">预算立项</button>
+          <button :class="{ active: historyTab === 'trend' }" @click="historyTab = 'trend'">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            趋势图
           </button>
         </div>
 
-        <div class="history-tab-rail">
-          <div class="history-tabs">
-            <button :class="{ active: historyTab === 'all' }" @click="historyTab = 'all'">全部</button>
-            <button :class="{ active: historyTab === 'zaigong' }" @click="historyTab = 'zaigong'">在建工程</button>
-            <button :class="{ active: historyTab === 'budget' }" @click="historyTab = 'budget'">预算立项</button>
-            <button :class="{ active: historyTab === 'trend' }" @click="historyTab = 'trend'">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-              趋势图
-            </button>
-          </div>
-        </div>
+        <div v-if="historyCenterLoading" class="gh-empty"><p>正在读取历史记录…</p></div>
 
-        <div v-if="historyCenterLoading" class="history-center-empty">
-          <p>正在读取历史记录...</p>
-        </div>
-
-        <!-- 趋势图面板 -->
-        <div v-else-if="historyTab === 'trend'" class="trend-panel">
-          <div v-if="!trendPoints" class="trend-empty">
-            在建工程数据不足，上传至少 2 次后可查看趋势图。
-          </div>
+        <div v-else-if="historyTab === 'trend'" class="gh-trend">
+          <div v-if="!trendPoints" class="gh-empty">在建工程数据不足，上传至少 2 次后可查看趋势图。</div>
           <template v-else>
-            <div class="trend-head">
+            <div class="gh-trend-head">
               <h4>在建工程指标趋势</h4>
-              <div class="trend-legend">
-                <span class="tl-item"><span class="tl-dot" style="background:#22D3EE"></span>支出进度</span>
-                <span class="tl-item"><span class="tl-dot" style="background:#FBBF24"></span>转固率</span>
-                <span class="tl-ref">— 60% 转固目标线</span>
+              <div class="gh-legend">
+                <span><span class="gh-dot" style="background:var(--accent)"></span>支出进度</span>
+                <span><span class="gh-dot" style="background:var(--warn)"></span>转固率</span>
+                <span style="font-size:11px;color:var(--ink-4)">— 60% 参考线</span>
               </div>
             </div>
-            <svg class="trend-svg" viewBox="0 0 560 270" preserveAspectRatio="xMidYMid meet">
-              <!-- 水平网格线 + Y轴标签 -->
+            <svg class="gh-svg" viewBox="0 0 560 270" preserveAspectRatio="xMidYMid meet">
               <g v-for="tick in trendPoints.yTicks" :key="tick.label">
-                <line :x1="48" :y1="tick.y" :x2="545" :y2="tick.y"
-                  stroke="currentColor" stroke-opacity="0.1" stroke-width="1"/>
-                <text :x="42" :y="tick.y + 4" text-anchor="end"
-                  font-size="10" fill="currentColor" opacity="0.45">{{ tick.label }}</text>
+                <line :x1="48" :y1="tick.y" :x2="545" :y2="tick.y" stroke="#807A6C" stroke-opacity="0.15" stroke-width="1"/>
+                <text :x="42" :y="tick.y + 4" text-anchor="end" font-size="10" fill="#807A6C" opacity="0.7">{{ tick.label }}</text>
               </g>
-
-              <!-- 60% 转固目标参考线 -->
-              <line :x1="48" :y1="trendPoints.refY60" :x2="545" :y2="trendPoints.refY60"
-                stroke="#FBBF24" stroke-opacity="0.35" stroke-width="1" stroke-dasharray="5 4"/>
-
-              <!-- X轴基线 -->
-              <line x1="48" y1="215" x2="545" y2="215"
-                stroke="currentColor" stroke-opacity="0.15" stroke-width="1"/>
-
-              <!-- 支出进度折线 -->
-              <polyline :points="trendPoints.progressPolyline"
-                fill="none" stroke="#22D3EE" stroke-width="2.5"
-                stroke-linejoin="round" stroke-linecap="round"/>
-              <!-- 转固率折线 -->
-              <polyline :points="trendPoints.ratePolyline"
-                fill="none" stroke="#FBBF24" stroke-width="2.5"
-                stroke-linejoin="round" stroke-linecap="round"/>
-
-              <!-- 支出进度数据点 -->
-              <g v-for="(p, i) in trendPoints.progressPoints" :key="'cp'+i" class="trend-dot-g">
+              <line :x1="48" :y1="trendPoints.refY60" :x2="545" :y2="trendPoints.refY60" stroke="#B8842C" stroke-opacity="0.4" stroke-width="1" stroke-dasharray="5 4"/>
+              <line x1="48" y1="215" x2="545" y2="215" stroke="#807A6C" stroke-opacity="0.2" stroke-width="1"/>
+              <polyline :points="trendPoints.progressPolyline" fill="none" stroke="#C96442" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+              <polyline :points="trendPoints.ratePolyline" fill="none" stroke="#B8842C" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+              <g v-for="(p, i) in trendPoints.progressPoints" :key="'cp'+i">
                 <title>{{ trendPoints.labels[i].text }}｜支出进度 {{ p.v }}%</title>
-                <circle :cx="p.x" :cy="p.y" r="5" fill="#22D3EE" stroke="rgba(0,0,0,0.2)" stroke-width="1"/>
-                <text v-if="trendPoints.showLabels"
-                  :x="p.x" :y="p.y - 9" text-anchor="middle"
-                  font-size="9" fill="#22D3EE" opacity="0.85">{{ p.v }}%</text>
+                <circle :cx="p.x" :cy="p.y" r="4.5" fill="#C96442" stroke="#fff" stroke-width="1.5"/>
+                <text v-if="trendPoints.showLabels" :x="p.x" :y="p.y - 9" text-anchor="middle" font-size="9" fill="#C96442">{{ p.v }}%</text>
               </g>
-
-              <!-- 转固率数据点 -->
-              <g v-for="(p, i) in trendPoints.ratePoints" :key="'rp'+i" class="trend-dot-g">
+              <g v-for="(p, i) in trendPoints.ratePoints" :key="'rp'+i">
                 <title>{{ trendPoints.labels[i].text }}｜转固率 {{ p.v }}%</title>
-                <circle :cx="p.x" :cy="p.y" r="5" fill="#FBBF24" stroke="rgba(0,0,0,0.2)" stroke-width="1"/>
-                <text v-if="trendPoints.showLabels"
-                  :x="p.x" :y="p.y - 9" text-anchor="middle"
-                  font-size="9" fill="#FBBF24" opacity="0.85">{{ p.v }}%</text>
+                <circle :cx="p.x" :cy="p.y" r="4.5" fill="#B8842C" stroke="#fff" stroke-width="1.5"/>
+                <text v-if="trendPoints.showLabels" :x="p.x" :y="p.y - 9" text-anchor="middle" font-size="9" fill="#B8842C">{{ p.v }}%</text>
               </g>
-
-              <!-- X轴日期标签（旋转-35°防重叠） -->
-              <text v-for="label in trendPoints.labels" :key="'xl'+label.x"
-                :x="label.x" y="220" text-anchor="end"
-                :transform="`rotate(-35, ${label.x}, 220)`"
-                font-size="10" fill="currentColor" opacity="0.55">{{ label.text }}</text>
+              <text v-for="label in trendPoints.labels" :key="'xl'+label.x" :x="label.x" y="220" text-anchor="end" :transform="`rotate(-35, ${label.x}, 220)`" font-size="10" fill="#807A6C">{{ label.text }}</text>
             </svg>
           </template>
         </div>
 
-        <div v-else class="history-sections">
-          <section v-for="section in historySections" :key="section.key" class="history-group">
-            <div class="history-group-head">
-              <div class="hgh-left">
+        <div v-else class="gh-body">
+          <section v-for="section in historySections" :key="section.key" class="gh-section">
+            <div class="gh-section-head">
+              <div class="gh-sec-left">
                 <h4>{{ section.title }}</h4>
-                <span class="hgh-count">{{ section.records.length }}</span>
+                <span class="gh-count">{{ section.records.length }}</span>
               </div>
               <button
                 v-if="(section.key === 'zaigong' && zaigongSnapshotLabel) || (section.key === 'budget' && budgetSnapshotLabel)"
-                class="restore-link"
+                class="gh-restore"
                 @click="switchView(section.key === 'zaigong' ? 'zaigong' : 'budget'); restoreCurrentModuleLatest()"
-              >
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
-                返回最新
-              </button>
+              >↩ 返回最新</button>
             </div>
 
-            <div v-if="section.records.length === 0" class="history-center-empty compact">
-              <p>暂无记录</p>
-            </div>
+            <div v-if="section.records.length === 0" class="gh-empty compact"><p>暂无记录</p></div>
 
-            <div v-else class="history-card-list">
+            <div v-else class="gh-card-list">
               <button
                 v-for="record in section.records"
                 :key="`${section.key}-${record.id}`"
-                class="history-card"
-                :class="section.key"
+                class="gh-card"
                 @click="section.key === 'zaigong' ? openZaigongSnapshot(record.id) : openBudgetSnapshot(record.id)"
               >
-                <div class="history-card-top">
-                  <strong class="hc-filename">{{ record.source_filename }}</strong>
-                  <span class="hc-id">{{ record.id }}</span>
+                <div class="ghc-top">
+                  <strong class="ghc-name">{{ record.source_filename }}</strong>
+                  <span class="ghc-id">#{{ record.id }}</span>
                 </div>
-                <div class="hc-chips">
-                  <span class="hc-chip">{{ formatHistoryTime(record.uploaded_at) }}</span>
-                  <span v-if="section.key === 'zaigong' && record.file_date" class="hc-chip hc-chip--date">{{ formatFileDate(record.file_date) }}</span>
-                  <span v-if="section.key === 'zaigong' && record.target_value" class="hc-chip hc-chip--target">目标 {{ record.target_value }} 万</span>
+                <div class="ghc-chips">
+                  <span class="ghc-chip">{{ formatHistoryTime(record.uploaded_at) }}</span>
+                  <span v-if="section.key === 'zaigong' && record.file_date" class="ghc-chip">{{ formatFileDate(record.file_date) }}</span>
+                  <span v-if="section.key === 'zaigong' && record.target_value" class="ghc-chip">目标 {{ record.target_value }} 万</span>
                 </div>
-                <div v-if="section.key === 'zaigong' && record.metrics && record.metrics.progress_pct != null" class="hc-kpi-row">
-                  <span class="hc-kpi">
-                    <em>支出进度</em>
-                    <b>{{ (record.metrics.progress_pct || 0).toFixed(1) }}%</b>
-                  </span>
-                  <span class="hc-kpi-sep"></span>
-                  <span class="hc-kpi">
-                    <em>转固率</em>
-                    <b>{{ ((record.metrics.total_rate || 0) * 100).toFixed(1) }}%</b>
-                  </span>
-                  <span class="hc-kpi-sep"></span>
-                  <span class="hc-kpi">
-                    <em>资本支出</em>
-                    <b>{{ (record.metrics.total_current || 0).toFixed(0) }} 万</b>
-                  </span>
+                <div v-if="section.key === 'zaigong' && record.metrics && record.metrics.progress_pct != null" class="ghc-kpis">
+                  <span class="ghc-kpi"><em>支出进度</em><b>{{ (record.metrics.progress_pct || 0).toFixed(1) }}%</b></span>
+                  <span class="ghc-sep"></span>
+                  <span class="ghc-kpi"><em>转固率</em><b>{{ ((record.metrics.total_rate || 0) * 100).toFixed(1) }}%</b></span>
+                  <span class="ghc-sep"></span>
+                  <span class="ghc-kpi"><em>资本支出</em><b>{{ (record.metrics.total_current || 0).toFixed(0) }} 万</b></span>
                 </div>
-                <div class="history-card-actions">
-                  <button
-                    class="compare-slot"
-                    :class="{ active: isSelectedForCompare(section.key, 'left', record.id) }"
-                    @click.stop="selectCompareRecord(section.key, 'left', record)"
-                    title="设为对比 A"
-                  >A</button>
-                  <button
-                    class="compare-slot"
-                    :class="{ active: isSelectedForCompare(section.key, 'right', record.id) }"
-                    @click.stop="selectCompareRecord(section.key, 'right', record)"
-                    title="设为对比 B"
-                  >B</button>
+                <div class="ghc-actions" @click.stop>
+                  <button class="ghc-slot" :class="{ active: isSelectedForCompare(section.key, 'left', record.id) }" @click.stop="selectCompareRecord(section.key, 'left', record)">A</button>
+                  <button class="ghc-slot" :class="{ active: isSelectedForCompare(section.key, 'right', record.id) }" @click.stop="selectCompareRecord(section.key, 'right', record)">B</button>
                 </div>
               </button>
             </div>
 
-            <div v-if="section.key === 'zaigong'" class="history-compare-panel">
-              <div class="history-compare-head">
+            <div v-if="section.key === 'zaigong'" class="gh-compare">
+              <div class="ghcmp-head">
                 <h5>历史对比</h5>
-                <span>对比日期：{{ getRecordDateLabel('zaigong', zaigongCompareSelection.left) }} vs {{ getRecordDateLabel('zaigong', zaigongCompareSelection.right) }}</span>
+                <span>{{ getRecordDateLabel('zaigong', zaigongCompareSelection.left) }} vs {{ getRecordDateLabel('zaigong', zaigongCompareSelection.right) }}</span>
               </div>
-              <div v-if="zaigongCompareResult" class="compare-result-grid">
-                <div class="compare-result-card">
-                  <span>资本性支出进度</span>
-                  <strong>{{ zaigongCompareResult.rightLabel }}</strong>
-                  <em>{{ zaigongCompareResult.leftLabel }} -> {{ zaigongCompareResult.rightLabel }}</em>
-                  <p>{{ zaigongCompareResult.capitalCurrent.toFixed(2) }} 万元，变化 {{ zaigongCompareResult.capitalDiff >= 0 ? '+' : '' }}{{ zaigongCompareResult.capitalDiff.toFixed(2) }} 万元</p>
-                  <p>完成率变化 {{ zaigongCompareResult.progressDiff >= 0 ? '+' : '' }}{{ zaigongCompareResult.progressDiff.toFixed(1) }} pct</p>
+              <div v-if="zaigongCompareResult" class="ghcmp-grid">
+                <div class="ghcmp-card">
+                  <span>资本性支出</span>
+                  <strong>{{ zaigongCompareResult.capitalCurrent.toFixed(2) }} 万</strong>
+                  <p>{{ zaigongCompareResult.capitalDiff >= 0 ? '+' : '' }}{{ zaigongCompareResult.capitalDiff.toFixed(2) }} 万，完成率 {{ zaigongCompareResult.progressDiff >= 0 ? '+' : '' }}{{ zaigongCompareResult.progressDiff.toFixed(1) }} pct</p>
                 </div>
-                <div class="compare-result-card">
+                <div class="ghcmp-card">
                   <span>转固率</span>
                   <strong>{{ (zaigongCompareResult.rateCurrent * 100).toFixed(1) }}%</strong>
-                  <em>{{ zaigongCompareResult.leftLabel }} -> {{ zaigongCompareResult.rightLabel }}</em>
                   <p>变化 {{ zaigongCompareResult.rateDiff >= 0 ? '+' : '' }}{{ zaigongCompareResult.rateDiff.toFixed(1) }} pct</p>
                 </div>
               </div>
-              <div v-if="zaigongCompareResult" class="compare-mini-table">
-                <div class="compare-mini-head">管理员推进 Top 5</div>
+              <div v-if="zaigongCompareResult" class="ghcmp-table">
+                <div class="ghcmp-table-head">管理员推进 Top 5</div>
                 <table>
-                  <thead>
-                    <tr>
-                      <th>工程管理员</th>
-                      <th>{{ zaigongCompareResult.rightLabel }}</th>
-                      <th>变化</th>
-                    </tr>
-                  </thead>
+                  <thead><tr><th>管理员</th><th>当前</th><th>变化</th></tr></thead>
                   <tbody>
                     <tr v-for="item in zaigongCompareResult.top5" :key="item.name">
-                      <td>{{ item.name }}</td>
-                      <td>{{ item.current.toFixed(2) }}</td>
+                      <td>{{ item.name }}</td><td>{{ item.current.toFixed(2) }}</td>
                       <td :class="item.diff >= 0 ? 'delta-up' : 'delta-down'">{{ item.diff >= 0 ? '+' : '' }}{{ item.diff.toFixed(2) }}</td>
                     </tr>
                   </tbody>
@@ -964,39 +919,30 @@ async function handleNavPush() {
               </div>
             </div>
 
-            <div v-if="section.key === 'budget'" class="history-compare-panel">
-              <div class="history-compare-head">
+            <div v-if="section.key === 'budget'" class="gh-compare">
+              <div class="ghcmp-head">
                 <h5>历史对比</h5>
-                <span>对比日期：{{ getRecordDateLabel('budget', budgetCompareSelection.left) }} vs {{ getRecordDateLabel('budget', budgetCompareSelection.right) }}</span>
+                <span>{{ getRecordDateLabel('budget', budgetCompareSelection.left) }} vs {{ getRecordDateLabel('budget', budgetCompareSelection.right) }}</span>
               </div>
-              <div v-if="budgetCompareResult" class="compare-result-grid">
-                <div class="compare-result-card">
+              <div v-if="budgetCompareResult" class="ghcmp-grid">
+                <div class="ghcmp-card">
                   <span>年度预算</span>
-                  <strong>{{ budgetCompareResult.budgetCurrent.toFixed(2) }} 万元</strong>
-                  <em>{{ budgetCompareResult.leftLabel }} -> {{ budgetCompareResult.rightLabel }}</em>
-                  <p>变化 {{ budgetCompareResult.budgetDiff >= 0 ? '+' : '' }}{{ budgetCompareResult.budgetDiff.toFixed(2) }} 万元</p>
+                  <strong>{{ budgetCompareResult.budgetCurrent.toFixed(2) }} 万</strong>
+                  <p>变化 {{ budgetCompareResult.budgetDiff >= 0 ? '+' : '' }}{{ budgetCompareResult.budgetDiff.toFixed(2) }} 万</p>
                 </div>
-                <div class="compare-result-card">
+                <div class="ghcmp-card">
                   <span>立项进度</span>
                   <strong>{{ (budgetCompareResult.progressCurrent * 100).toFixed(1) }}%</strong>
-                  <em>{{ budgetCompareResult.leftLabel }} -> {{ budgetCompareResult.rightLabel }}</em>
                   <p>变化 {{ budgetCompareResult.progressDiff >= 0 ? '+' : '' }}{{ budgetCompareResult.progressDiff.toFixed(1) }} pct</p>
                 </div>
               </div>
-              <div v-if="budgetCompareResult" class="compare-mini-table">
-                <div class="compare-mini-head">专业推进 Top 5</div>
+              <div v-if="budgetCompareResult" class="ghcmp-table">
+                <div class="ghcmp-table-head">专业推进 Top 5</div>
                 <table>
-                  <thead>
-                    <tr>
-                      <th>一级专业</th>
-                      <th>{{ budgetCompareResult.rightLabel }}</th>
-                      <th>变化</th>
-                    </tr>
-                  </thead>
+                  <thead><tr><th>专业</th><th>当前</th><th>变化</th></tr></thead>
                   <tbody>
                     <tr v-for="item in budgetCompareResult.top5" :key="item.name">
-                      <td>{{ item.name }}</td>
-                      <td>{{ (item.currentProgress * 100).toFixed(1) }}%</td>
+                      <td>{{ item.name }}</td><td>{{ (item.currentProgress * 100).toFixed(1) }}%</td>
                       <td :class="item.diff >= 0 ? 'delta-up' : 'delta-down'">{{ item.diff >= 0 ? '+' : '' }}{{ item.diff.toFixed(1) }} pct</td>
                     </tr>
                   </tbody>
@@ -1008,1680 +954,881 @@ async function handleNavPush() {
       </aside>
     </div>
 
-  <!-- 通知设置弹窗 -->
-  <div v-if="notifyModalVisible" class="notify-overlay" @click.self="notifyModalVisible = false">
-    <div class="notify-modal">
-      <div class="notify-modal-header">
-        <h3>🔔 企业微信通知设置</h3>
-        <button class="modal-close" @click="notifyModalVisible = false">×</button>
-      </div>
-      <div class="notify-modal-body">
-
-        <!-- 当前状态 -->
-        <div class="notify-status-row">
-          <span class="notify-status-label">当前状态：</span>
-          <span v-if="notifyConfigured" class="notify-badge configured">已配置</span>
-          <span v-else class="notify-badge unconfigured">未配置</span>
-          <span v-if="notifyConfigured" class="notify-masked">{{ notifyMaskedUrl }}</span>
-          <button v-if="notifyConfigured" class="notify-clear-btn" @click="clearNotify">清除</button>
+    <!-- ── 通知设置弹窗 ──────────────────────────────────── -->
+    <div v-if="notifyModalVisible" class="notify-overlay" @click.self="notifyModalVisible = false">
+      <div class="notify-modal">
+        <div class="notify-modal-header">
+          <h3>通知设置</h3>
+          <button class="modal-close" @click="notifyModalVisible = false">×</button>
         </div>
-
-        <!-- Webhook URL 输入 -->
-        <div class="notify-field">
-          <label>Webhook URL</label>
-          <input
-            v-model="notifyWebhookInput"
-            type="text"
-            placeholder="飞书：https://open.feishu.cn/open-apis/bot/v2/hook/...  或企业微信 Webhook"
-            class="notify-input"
-          />
-          <p class="notify-hint">飞书：在与自己的对话或群聊 → 添加机器人 → 自定义机器人 → 复制 Webhook<br>企业微信：群聊 → 右上角设置 → 添加群机器人 → 复制 Webhook</p>
-        </div>
-
-        <!-- 自动推送开关 -->
-        <div class="notify-field notify-toggle-row">
-          <label>上传数据后自动推送</label>
-          <label class="toggle-switch">
-            <input type="checkbox" v-model="notifyAutoPush" />
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-
-        <!-- 操作反馈 -->
-        <div v-if="notifyMsg" :class="['notify-msg', notifyMsgType]">{{ notifyMsg }}</div>
-
-        <!-- 操作按钮 -->
-        <div class="notify-actions">
-          <button class="notify-btn-test" :disabled="notifyTesting" @click="testNotify">
-            {{ notifyTesting ? '发送中…' : '发送测试消息' }}
-          </button>
-          <button class="notify-btn-save" :disabled="notifySaving" @click="saveNotify">
-            {{ notifySaving ? '保存中…' : '保存配置' }}
-          </button>
+        <div class="notify-modal-body">
+          <div class="notify-status-row">
+            <span class="notify-status-label">当前状态：</span>
+            <span v-if="notifyConfigured" class="notify-badge configured">已配置</span>
+            <span v-else class="notify-badge unconfigured">未配置</span>
+            <span v-if="notifyConfigured" class="notify-masked">{{ notifyMaskedUrl }}</span>
+            <button v-if="notifyConfigured" class="notify-clear-btn" @click="clearNotify">清除</button>
+          </div>
+          <div class="notify-field">
+            <label>Webhook URL</label>
+            <input v-model="notifyWebhookInput" type="text" placeholder="飞书或企业微信 Webhook URL" class="notify-input" />
+            <p class="notify-hint">飞书：添加自定义机器人 → 复制 Webhook<br>企业微信：群聊 → 添加群机器人 → 复制 Webhook</p>
+          </div>
+          <div class="notify-field notify-toggle-row">
+            <label>上传后自动推送</label>
+            <label class="toggle-switch">
+              <input type="checkbox" v-model="notifyAutoPush" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div v-if="notifyMsg" :class="['notify-msg', notifyMsgType]">{{ notifyMsg }}</div>
+          <div class="notify-actions">
+            <button class="notify-btn-test" :disabled="notifyTesting" @click="testNotify">{{ notifyTesting ? '发送中…' : '发送测试消息' }}</button>
+            <button class="notify-btn-save" :disabled="notifySaving" @click="saveNotify">{{ notifySaving ? '保存中…' : '保存配置' }}</button>
+          </div>
         </div>
       </div>
     </div>
-  </div>
 
   </div>
 </template>
 
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=Orbitron:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-:root {
-  --bg-primary: #07111f;
-  --bg-secondary: #0d1a2d;
-  --bg-panel: rgba(10, 20, 37, 0.82);
-  --bg-panel-strong: rgba(8, 17, 32, 0.94);
-  --surface-muted: rgba(133, 189, 255, 0.08);
-  --accent-cyan: #67dfff;
-  --accent-teal: #8cf0c9;
-  --accent-amber: #ffb65c;
-  --accent-coral: #ff7e70;
-  --text-primary: #edf5ff;
-  --text-secondary: #98adc4;
-  --text-muted: #5f748d;
-  --border-soft: rgba(138, 178, 221, 0.16);
-  --border-strong: rgba(103, 223, 255, 0.28);
-  --shadow-panel: 0 30px 80px rgba(0, 0, 0, 0.28);
-}
-
-html,
-body,
+/* ── App shell: sidebar + canvas ── */
 #app {
-  min-height: 100%;
-}
-
-body {
-  font-family: 'IBM Plex Sans', 'Noto Sans SC', sans-serif;
-  -webkit-font-smoothing: antialiased;
-  background:
-    radial-gradient(circle at top left, rgba(103, 223, 255, 0.1), transparent 30%),
-    radial-gradient(circle at 85% 10%, rgba(140, 240, 201, 0.08), transparent 22%),
-    linear-gradient(180deg, #06101c 0%, #091525 40%, #07111f 100%);
-  color: var(--text-primary);
-}
-
-body:has(.app-shell.analyst-mode) {
-  background: #f6f5f2;
-  color: #1c1b18;
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 232px 1fr;
 }
 
 .app-shell {
-  position: relative;
-  min-height: 100vh;
-  overflow: hidden;
-  padding: 24px;
+  display: contents;
 }
 
 .app-shell.presentation-mode {
-  padding: 18px;
+  display: block;
 }
 
-.backdrop {
-  position: absolute;
-  pointer-events: none;
+.app-shell.presentation-mode .app-canvas {
+  padding: 0;
+  min-height: 100vh;
+  background: #07111f;
 }
 
-.backdrop-grid {
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
-  background-size: 64px 64px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.6), transparent 90%);
+/* ── Sidebar ── */
+.app-sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper-2);
+  border-right: 1px solid var(--line);
+  padding: 24px 18px;
+  overflow-y: auto;
+  z-index: 10;
 }
 
-.backdrop-glow {
-  width: 38rem;
-  height: 38rem;
-  border-radius: 50%;
-  filter: blur(70px);
-  opacity: 0.25;
-}
-
-.glow-a {
-  top: -8rem;
-  left: -8rem;
-  background: rgba(103, 223, 255, 0.28);
-}
-
-.glow-b {
-  right: -10rem;
-  top: 8rem;
-  background: rgba(140, 240, 201, 0.18);
-}
-
-.top-nav,
-.hero-strip,
-.main-content {
-  position: relative;
-  z-index: 1;
-  max-width: 1520px;
-  margin: 0 auto;
-}
-
-.top-nav {
+.sidebar-brand {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 18px 24px;
-  background: linear-gradient(180deg, rgba(9, 18, 33, 0.88), rgba(9, 18, 33, 0.72));
-  border: 1px solid var(--border-soft);
-  border-radius: 28px;
-  backdrop-filter: blur(24px);
-  box-shadow: var(--shadow-panel);
-}
-
-.nav-brand {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  min-width: 0;
+  gap: 10px;
+  padding: 0 6px;
+  margin-bottom: 20px;
 }
 
 .brand-mark {
-  width: 52px;
-  height: 52px;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: var(--accent);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
   display: grid;
   place-items: center;
-  border-radius: 16px;
-  background: linear-gradient(135deg, rgba(103, 223, 255, 0.22), rgba(140, 240, 201, 0.1));
-  border: 1px solid rgba(103, 223, 255, 0.28);
-  color: var(--accent-cyan);
-  font-family: 'Orbitron', sans-serif;
-  font-size: 16px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
+  flex-shrink: 0;
 }
 
-.brand-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.brand-text {
-  font-size: 28px;
-  font-weight: 800;
-  color: var(--text-primary);
-  letter-spacing: 0.02em;
-}
-
-.nav-links {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.nav-links button {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  padding: 0 18px;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: 0.25s ease;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.nav-links button:hover:not(.disabled) {
-  color: var(--text-primary);
-  border-color: rgba(103, 223, 255, 0.2);
-  background: rgba(103, 223, 255, 0.07);
-}
-
-.nav-links button.active {
-  color: #04111d;
-  border-color: rgba(103, 223, 255, 0.5);
-  background: linear-gradient(135deg, var(--accent-cyan), rgba(140, 240, 201, 0.92));
-  box-shadow: 0 10px 30px rgba(103, 223, 255, 0.2);
-}
-
-.nav-links button.disabled {
-  opacity: 0.42;
-  cursor: not-allowed;
-}
-
-.history-nav-button {
-  border-color: rgba(255, 182, 92, 0.18) !important;
-  background: rgba(255, 182, 92, 0.08) !important;
-  color: #ffd7a0 !important;
-}
-
-.history-nav-button:hover {
-  border-color: rgba(255, 182, 92, 0.32) !important;
-  background: rgba(255, 182, 92, 0.14) !important;
-}
-
-.brief-nav-button {
-  border-color: rgba(251, 191, 36, 0.22) !important;
-  background: rgba(251, 191, 36, 0.08) !important;
-  color: #fcd34d !important;
-}
-.brief-nav-button:hover:not(:disabled) {
-  border-color: rgba(251, 191, 36, 0.4) !important;
-  background: rgba(251, 191, 36, 0.15) !important;
-}
-.brief-nav-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.push-nav-button {
-  border-color: rgba(74, 222, 128, 0.22) !important;
-  background: rgba(74, 222, 128, 0.08) !important;
-  color: #86efac !important;
-}
-.push-nav-button:hover:not(:disabled) {
-  border-color: rgba(74, 222, 128, 0.4) !important;
-  background: rgba(74, 222, 128, 0.15) !important;
-}
-.push-nav-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.notify-nav-button {
-  border-color: rgba(120, 200, 120, 0.18) !important;
-  background: rgba(120, 200, 120, 0.08) !important;
-  color: #a8d8a8 !important;
-  font-size: 15px !important;
-  padding: 4px 10px !important;
-}
-.notify-nav-button:hover {
-  border-color: rgba(120, 200, 120, 0.32) !important;
-  background: rgba(120, 200, 120, 0.16) !important;
-}
-.notify-nav-button.configured {
-  border-color: rgba(74, 222, 128, 0.35) !important;
-  background: rgba(74, 222, 128, 0.12) !important;
-  color: #4ade80 !important;
-}
-
-/* ── 更多操作下拉 ── */
-.more-menu-wrap {
-  position: relative;
-}
-.more-nav-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  width: 44px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: 0.2s ease;
-  font-family: inherit;
-}
-.more-nav-button:hover,
-.more-nav-button.open {
-  color: var(--text-primary);
-  border-color: rgba(103, 223, 255, 0.2);
-  background: rgba(103, 223, 255, 0.07);
-}
-.more-nav-button svg {
-  width: 18px;
-  height: 18px;
-}
-.more-menu-dropdown {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  background: #fff;
-  border: 1px solid #e4e1d9;
-  border-radius: 12px;
-  padding: 5px;
-  min-width: 148px;
-  box-shadow: 0 4px 20px rgba(0,0,0,.10), 0 1px 4px rgba(0,0,0,.06);
-  z-index: 200;
-  animation: dropdownIn .16s ease both;
-}
-@keyframes dropdownIn {
-  from { opacity: 0; transform: translateY(-5px) scale(.98); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
-}
-.more-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  padding: 9px 12px;
-  border-radius: 7px;
-  border: none;
-  background: none;
-  color: #5f5b53;
-  font-family: inherit;
+.brand-name {
   font-size: 13px;
   font-weight: 500;
+  color: var(--ink);
+  letter-spacing: -0.005em;
+  line-height: 1.2;
+}
+
+.brand-sub {
+  display: block;
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-top: 2px;
+  font-weight: 400;
+}
+
+/* Nav */
+.sidebar-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.side-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.side-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  padding: 0 8px 6px;
+}
+
+.side-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: var(--r-md);
+  font-size: 13px;
+  color: var(--ink-2);
   cursor: pointer;
-  transition: .12s;
-  white-space: nowrap;
+  user-select: none;
+  transition: background 0.12s, color 0.12s;
 }
-.more-menu-item:hover:not(:disabled) {
-  background: #f0efe9;
-  color: #1c1b18;
+
+.side-link:hover:not(.disabled) {
+  background: rgba(31,29,24,0.04);
+  color: var(--ink);
 }
-.more-menu-item:disabled {
-  opacity: .4;
-  cursor: not-allowed;
+
+.side-link.active {
+  background: rgba(31,29,24,0.06);
+  color: var(--ink);
+  font-weight: 500;
 }
-.more-menu-item svg {
+
+.side-link.disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.side-icn {
   width: 14px;
   height: 14px;
   flex-shrink: 0;
-  opacity: .7;
+  opacity: 0.7;
 }
 
-/* ── 通知设置弹窗 ── */
-.notify-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.45);
-  z-index: 2000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.side-link.active .side-icn { opacity: 1; }
+
+.side-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-left: auto;
+  flex-shrink: 0;
 }
-.notify-modal {
-  background: #fff;
-  border-radius: 12px;
-  width: 480px;
-  max-width: 95vw;
-  box-shadow: 0 8px 40px rgba(0,0,0,0.18);
-  overflow: hidden;
+
+.side-dot.ok { background: var(--ok); }
+
+.side-badge {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-3);
+  padding: 1px 5px;
+  background: var(--paper);
+  border-radius: 3px;
 }
-.notify-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px 12px;
-  border-bottom: 1px solid #e4e3dc;
+
+.side-wip {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--ink-4);
+  font-weight: 500;
 }
-.notify-modal-header h3 {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 700;
-  color: #1c1b18;
-}
-.notify-modal-header .modal-close {
-  background: none;
-  border: none;
-  font-size: 20px;
-  color: #888;
-  cursor: pointer;
-  line-height: 1;
-  padding: 0 4px;
-}
-.notify-modal-body {
-  padding: 20px;
+
+/* Sidebar footer */
+.sidebar-foot {
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--ink-3);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 4px;
 }
-.notify-status-row {
+
+.sidebar-foot > strong {
+  font-size: 12px;
+  color: var(--ink-2);
+  font-weight: 500;
+}
+
+.side-version {
+  color: var(--ink-4);
+  margin-bottom: 4px;
+}
+
+.sidebar-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ss-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+.ss-row strong {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.sidebar-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.side-more-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-3);
+  font-size: 12px;
+  cursor: pointer;
+  transition: 0.12s;
+}
+
+.side-more-btn:hover,
+.side-more-btn.open {
+  background: var(--paper);
+  color: var(--ink);
+  border-color: var(--line-2);
+}
+
+/* More dropdown */
+.more-menu-wrap { position: relative; }
+
+.more-menu-dropdown {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 4px;
+  box-shadow: var(--shadow-pop);
+  z-index: 200;
+  animation: fadeUp .14s ease both;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.more-menu-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
-  color: #555;
-}
-.notify-badge {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 20px;
-}
-.notify-badge.configured {
-  background: #dcfce7;
-  color: #15803d;
-}
-.notify-badge.unconfigured {
-  background: #f3f4f6;
-  color: #9ca3af;
-}
-.notify-masked {
-  font-size: 12px;
-  color: #9ca3af;
-  font-family: monospace;
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.notify-clear-btn {
-  font-size: 12px;
-  padding: 2px 10px;
-  border: 1px solid #fca5a5;
-  border-radius: 4px;
-  background: #fff;
-  color: #dc2626;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.notify-clear-btn:hover { background: #fef2f2; }
-.notify-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.notify-field label {
-  font-size: 13px;
-  font-weight: 600;
-  color: #374151;
-}
-.notify-input {
   width: 100%;
-  padding: 8px 10px;
-  font-size: 13px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  outline: none;
-  box-sizing: border-box;
-  color: #1c1b18;
-}
-.notify-input:focus { border-color: #2563eb; }
-.notify-hint {
-  margin: 0;
-  font-size: 11px;
-  color: #9ca3af;
-  line-height: 1.4;
-}
-.notify-toggle-row {
-  flex-direction: row !important;
-  align-items: center;
-  justify-content: space-between;
-}
-.toggle-switch {
-  position: relative;
-  display: inline-block;
-  width: 40px;
-  height: 22px;
-  cursor: pointer;
-}
-.toggle-switch input { opacity: 0; width: 0; height: 0; }
-.toggle-slider {
-  position: absolute;
-  inset: 0;
-  background: #d1d5db;
-  border-radius: 22px;
-  transition: background 0.2s;
-}
-.toggle-slider::before {
-  content: '';
-  position: absolute;
-  width: 16px;
-  height: 16px;
-  left: 3px;
-  top: 3px;
-  background: #fff;
-  border-radius: 50%;
-  transition: transform 0.2s;
-}
-.toggle-switch input:checked + .toggle-slider { background: #2563eb; }
-.toggle-switch input:checked + .toggle-slider::before { transform: translateX(18px); }
-.notify-msg {
-  font-size: 13px;
-  padding: 8px 12px;
-  border-radius: 6px;
-}
-.notify-msg.success { background: #dcfce7; color: #15803d; }
-.notify-msg.error { background: #fef2f2; color: #dc2626; }
-.notify-actions {
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-}
-.notify-btn-test {
-  padding: 7px 16px;
-  font-size: 13px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  background: #fff;
-  color: #374151;
-  cursor: pointer;
-  font-weight: 500;
-}
-.notify-btn-test:hover:not(:disabled) { background: #f9fafb; }
-.notify-btn-save {
-  padding: 7px 20px;
-  font-size: 13px;
+  padding: 7px 10px;
+  border-radius: var(--r-md);
   border: none;
-  border-radius: 6px;
-  background: #2563eb;
-  color: #fff;
+  background: none;
+  color: var(--ink-2);
+  font-family: inherit;
+  font-size: 12.5px;
   cursor: pointer;
-  font-weight: 600;
-}
-.notify-btn-save:hover:not(:disabled) { background: #1d4ed8; }
-.notify-btn-test:disabled,
-.notify-btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
-
-.data-indicator {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--accent-cyan);
-  box-shadow: 0 0 0 5px rgba(103, 223, 255, 0.14);
+  transition: .12s;
 }
 
-.data-indicator.warning {
-  background: var(--accent-amber);
-  box-shadow: 0 0 0 5px rgba(255, 182, 92, 0.14);
+.more-menu-item:hover:not(:disabled) {
+  background: var(--paper-2);
+  color: var(--ink);
 }
 
-.data-indicator.success {
-  background: var(--accent-teal);
-  box-shadow: 0 0 0 5px rgba(140, 240, 201, 0.14);
+.more-menu-item:disabled { opacity: .4; cursor: not-allowed; }
+
+/* ── Canvas ── */
+.app-canvas {
+  min-width: 0;
+  background: var(--paper);
+  min-height: 100vh;
+  overflow-y: auto;
 }
 
-.hero-strip {
-  margin-top: 18px;
-  margin-bottom: 24px;
+/* ── Page chrome (from new design) ── */
+.page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 56px 40px;
 }
 
-.hero-status {
-  background: linear-gradient(180deg, rgba(9, 18, 33, 0.78), rgba(9, 18, 33, 0.58));
-  border: 1px solid var(--border-soft);
-  border-radius: 26px;
-  backdrop-filter: blur(22px);
-  box-shadow: var(--shadow-panel);
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 28px;
+  margin-bottom: 36px;
+  border-bottom: 1px solid var(--line);
 }
 
-.hero-status {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  padding: 18px;
-}
-
-.status-card {
-  min-height: 108px;
+.page-head-l {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  padding: 18px;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  gap: 8px;
+  min-width: 0;
 }
 
-.status-label {
-  display: block;
-  margin-bottom: 10px;
+.eyebrow {
   font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  color: var(--text-muted);
   text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.status-card strong {
-  display: block;
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text-primary);
+.eyebrow::after {
+  content: '';
+  width: 28px;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.5;
 }
 
-.status-card.compact strong {
-  font-size: 15px;
-  color: var(--text-secondary);
+.page-title {
+  font-size: 30px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin: 0;
+  line-height: 1.15;
 }
 
-.main-content {
-  padding-bottom: 28px;
+.page-meta {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  color: var(--ink-3);
+  font-size: 12px;
+  margin-top: 4px;
 }
 
-.app-shell.presentation-mode .main-content {
-  max-width: 100%;
-  padding-bottom: 0;
+.page-meta .sep {
+  width: 3px;
+  height: 3px;
+  background: var(--ink-4);
+  border-radius: 50%;
 }
 
-.global-history-overlay {
+.section {
+  margin-bottom: 56px;
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 16px;
+}
+
+.section-head h2 {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0;
+}
+
+.section-head .sub {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+/* ── History center overlay ── */
+.gh-overlay {
   position: fixed;
   inset: 0;
   z-index: 1200;
   display: flex;
   justify-content: flex-end;
-  background: rgba(4, 10, 20, 0.64);
-  backdrop-filter: blur(8px);
+  background: rgba(31,29,24,0.4);
+  backdrop-filter: blur(4px);
 }
 
-.global-history-panel {
-  width: min(620px, 100%);
+.gh-panel {
+  width: min(600px, 100%);
   height: 100%;
-  padding: 28px 24px;
-  background: linear-gradient(180deg, rgba(7, 15, 28, 0.97), rgba(9, 18, 33, 0.99));
-  border-left: 1px solid var(--border-soft);
-  box-shadow: -24px 0 70px rgba(0, 0, 0, 0.35);
-  overflow-y: auto;
-}
-
-.global-history-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-  margin-bottom: 16px;
-}
-
-.ghh-title-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.ghh-icon {
-  color: var(--accent-cyan);
-  opacity: 0.8;
-  flex-shrink: 0;
-}
-
-.global-history-header h3 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-
-.ghh-count-badge {
-  height: 22px;
-  padding: 0 8px;
-  border-radius: 999px;
-  background: rgba(103, 223, 255, 0.12);
-  color: var(--accent-cyan);
-  font-size: 11px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-}
-
-.close-btn {
-  width: 34px;
-  height: 34px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-secondary);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: 0.18s ease;
-}
-
-.close-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-primary);
-}
-
-.history-tab-rail {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
-  padding: 4px;
-  margin-bottom: 20px;
-}
-
-.history-tabs {
-  display: flex;
-  gap: 2px;
-}
-
-.history-tabs button {
-  height: 34px;
-  padding: 0 14px;
-  border-radius: 10px;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  transition: 0.18s ease;
-  flex: 1;
-  justify-content: center;
-}
-
-.history-tabs button:hover:not(.active) {
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-primary);
-}
-
-.history-tabs button.active {
-  color: #04111d;
-  background: linear-gradient(135deg, var(--accent-cyan), rgba(140, 240, 201, 0.92));
-  box-shadow: 0 2px 8px rgba(103, 223, 255, 0.25);
-}
-
-.history-sections {
-  display: grid;
-  gap: 22px;
-}
-
-/* ===== 趋势图 ===== */
-.trend-panel {
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  box-shadow: -8px 0 40px rgba(31,29,24,0.08);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  overflow: hidden;
 }
 
-.trend-empty {
-  padding: 48px 0;
-  text-align: center;
-  color: var(--text-secondary);
-  font-size: 14px;
-}
-
-.trend-head {
+.gh-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.trend-head h4 {
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.trend-legend {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  flex-wrap: wrap;
-}
-
-.tl-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.tl-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
 
-.tl-ref {
-  color: rgba(251, 191, 36, 0.7);
-  font-size: 11px;
-}
-
-.trend-svg {
-  width: 100%;
-  height: auto;
-  display: block;
-  overflow: visible;
-}
-
-.trend-dot-g {
-  cursor: default;
-}
-
-.trend-dot-g circle {
-  transition: r 0.15s ease;
-}
-
-.trend-dot-g:hover circle {
-  r: 7;
-}
-
-.history-group {
-  padding: 16px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.history-group-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.hgh-left {
+.gh-head-left {
   display: flex;
   align-items: center;
   gap: 8px;
+  color: var(--ink-3);
 }
 
-.history-group-head h4 {
-  font-size: 13px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-secondary);
+.gh-head-left h3 {
   margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
 }
 
-.hgh-count {
-  height: 18px;
-  min-width: 18px;
-  padding: 0 5px;
+.gh-badge {
+  padding: 1px 7px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text-muted);
+  background: var(--paper-2);
+  color: var(--ink-3);
   font-size: 11px;
   font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+.gh-close {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 16px;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: 0.12s;
+}
+.gh-close:hover { background: var(--paper-2); color: var(--ink); }
+
+.gh-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
 }
 
-.restore-link {
-  border: 1px solid rgba(103, 223, 255, 0.2);
-  background: rgba(103, 223, 255, 0.06);
-  color: var(--accent-cyan);
-  cursor: pointer;
+.gh-tabs button {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: var(--r-md);
+  border: none;
+  background: transparent;
+  color: var(--ink-3);
   font: inherit;
-  font-size: 12px;
-  height: 26px;
-  padding: 0 10px;
-  border-radius: 999px;
+  font-size: 12.5px;
+  cursor: pointer;
   display: flex;
   align-items: center;
   gap: 4px;
-  transition: 0.18s ease;
+  transition: 0.12s;
 }
 
-.restore-link:hover {
-  background: rgba(103, 223, 255, 0.14);
-}
+.gh-tabs button:hover:not(.active) { background: var(--paper-2); color: var(--ink); }
+.gh-tabs button.active { background: var(--ink); color: var(--surface); }
 
-.history-card-list {
-  display: grid;
-  gap: 8px;
-}
-
-.history-card {
-  width: 100%;
-  padding: 14px 14px 12px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-left: 3px solid transparent;
-  background: rgba(255, 255, 255, 0.02);
-  color: var(--text-primary);
-  text-align: left;
-  cursor: pointer;
-  transition: 0.2s ease;
-}
-
-.history-card.zaigong {
-  border-left-color: rgba(103, 223, 255, 0.35);
-}
-
-.history-card.budget {
-  border-left-color: rgba(251, 191, 36, 0.35);
-}
-
-.history-card:hover {
-  transform: translateY(-1px);
-  border-color: rgba(255, 255, 255, 0.12);
-  border-left-color: inherit;
-  background: rgba(255, 255, 255, 0.05);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-}
-
-.history-card.zaigong:hover { border-left-color: rgba(103, 223, 255, 0.6); }
-.history-card.budget:hover  { border-left-color: rgba(251, 191, 36, 0.6); }
-
-.history-card-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-
-.hc-filename {
+.gh-body {
   flex: 1;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.5;
-  color: var(--text-primary);
-}
-
-.hc-id {
-  font-size: 11px;
-  font-family: monospace;
-  color: var(--text-muted);
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 6px;
-  padding: 2px 6px;
-  flex-shrink: 0;
-  align-self: flex-start;
-}
-
-.hc-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  margin-bottom: 10px;
-}
-
-.hc-chip {
-  height: 22px;
-  padding: 0 8px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-secondary);
-  font-size: 11px;
-  display: flex;
-  align-items: center;
-}
-
-.hc-chip--date {
-  background: rgba(103, 223, 255, 0.08);
-  color: rgba(103, 223, 255, 0.8);
-}
-
-.hc-chip--target {
-  background: rgba(251, 191, 36, 0.08);
-  color: rgba(251, 191, 36, 0.8);
-}
-
-.hc-kpi-row {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  margin-bottom: 10px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: rgba(103, 223, 255, 0.04);
-  border: 1px solid rgba(103, 223, 255, 0.08);
-}
-
-.hc-kpi {
+  overflow-y: auto;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  flex: 1;
-  text-align: center;
+  gap: 20px;
 }
 
-.hc-kpi em {
-  font-style: normal;
-  font-size: 10px;
-  color: var(--text-muted);
-  letter-spacing: 0.02em;
-}
-
-.hc-kpi b {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--accent-cyan);
-}
-
-.hc-kpi-sep {
-  width: 1px;
-  height: 28px;
-  background: rgba(255, 255, 255, 0.07);
-  flex-shrink: 0;
-}
-
-.history-card-actions {
+.gh-empty {
   display: flex;
-  gap: 6px;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 20px;
+  color: var(--ink-4);
+  font-size: 13px;
 }
 
-.compare-slot {
-  width: 30px;
-  height: 26px;
-  border-radius: 7px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--text-muted);
-  cursor: pointer;
-  font: 600 12px/1 inherit;
-  letter-spacing: 0.02em;
-  transition: 0.18s ease;
-}
+.gh-empty.compact { padding: 20px; }
 
-.compare-slot:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-secondary);
-}
+.gh-trend { flex: 1; overflow-y: auto; padding: 16px; }
 
-.compare-slot.active {
-  color: #04111d;
-  border-color: rgba(103, 223, 255, 0.4);
-  background: linear-gradient(135deg, var(--accent-cyan), rgba(140, 240, 201, 0.92));
-}
-
-.history-compare-panel {
-  margin-top: 18px;
-  padding-top: 18px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.history-compare-head {
+.gh-trend-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.history-compare-head h5 {
-  font-size: 15px;
-}
-
-.history-compare-head span {
-  color: var(--text-secondary);
-  font-size: 12px;
-}
-
-.compare-result-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 14px;
-  margin-bottom: 14px;
-}
-
-.compare-result-card {
-  display: grid;
+  flex-wrap: wrap;
   gap: 8px;
-  padding: 16px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.compare-result-card span,
-.compare-mini-head {
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.compare-result-card strong {
-  font-size: 22px;
-}
-
-.compare-result-card em {
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-style: normal;
-}
-
-.compare-result-card p {
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-
-.compare-mini-table {
-  padding: 14px 16px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.compare-mini-head {
   margin-bottom: 12px;
 }
 
-.compare-mini-table table {
-  width: 100%;
-  border-collapse: collapse;
-}
+.gh-trend-head h4 { font-size: 13px; font-weight: 600; color: var(--ink); margin: 0; }
 
-.compare-mini-table th,
-.compare-mini-table td {
-  padding: 10px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  text-align: left;
-  font-size: 13px;
-}
-
-.compare-mini-table th {
-  color: var(--text-muted);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.history-center-empty {
-  min-height: 220px;
-  display: grid;
-  place-items: center;
-  text-align: center;
-  color: var(--text-secondary);
-}
-
-.history-center-empty.compact {
-  min-height: 100px;
-}
-
-@media (max-width: 1100px) {
-  .hero-status {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .status-card {
-    min-height: 96px;
-  }
-}
-
-@media (max-width: 900px) {
-  .app-shell {
-    padding: 16px;
-  }
-
-  .top-nav {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .nav-links {
-    justify-content: flex-start;
-  }
-
-  .global-history-panel {
-    width: 100%;
-  }
-
-  .history-compare-head {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-}
-
-@media (max-width: 640px) {
-  .hero-status {
-    border-radius: 24px;
-  }
-
-  .hero-status {
-    grid-template-columns: 1fr;
-  }
-
-  .brand-text {
-    font-size: 22px;
-  }
-
-  .nav-links button {
-    flex: 1 1 calc(50% - 10px);
-    justify-content: center;
-  }
-}
-
-/* ===== Analyst Mode (match zaigong_analysis_page style) ===== */
-.app-shell.analyst-mode {
-  padding: 0;
-  background: #f6f5f2;
-  font-family: 'IBM Plex Sans', 'Noto Sans SC', sans-serif;
-  box-shadow: 0 0 0 100vmax #f6f5f2;
-  clip-path: inset(0 -100vmax);
-}
-
-.app-shell.analyst-mode .backdrop {
-  display: none;
-}
-
-.app-shell.analyst-mode .top-nav {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  height: 62px;
-  margin: 0;
-  border-radius: 0;
-  border: none;
-  border-bottom: 1px solid #e4e3dc;
-  background: #ffffff;
-  box-shadow: none;
-  backdrop-filter: none;
-  padding: 0 24px;
-  gap: 0;
-}
-
-.app-shell.analyst-mode .nav-brand {
-  gap: 10px;
-  margin-right: 28px;
-}
-
-.app-shell.analyst-mode .brand-mark {
-  width: 28px;
-  height: 28px;
-  border-radius: 7px;
-  background: #1c1b18;
-  border: none;
-  color: #fff;
-  font-size: 10px;
-  letter-spacing: 0.2px;
-}
-
-.app-shell.analyst-mode .brand-copy {
-  gap: 0;
-}
-
-.app-shell.analyst-mode .brand-text {
-  font-size: 19px;
-  font-weight: 700;
-  letter-spacing: 0;
-  color: #1c1b18;
-  line-height: 1;
-}
-
-.app-shell.analyst-mode .nav-links {
-  gap: 2px;
-}
-
-.app-shell.analyst-mode .nav-main-links {
-  margin-left: 12px;
-  justify-content: flex-start;
-}
-
-.app-shell.analyst-mode .nav-end-links {
-  margin-left: auto;
-  justify-content: flex-end;
-}
-
-.app-shell.analyst-mode .nav-links button {
-  min-height: 30px;
-  height: 30px;
-  border-radius: 5px;
-  border: none;
-  background: transparent;
-  color: #6b6a63;
-  padding: 0 12px;
-  font-size: 13px;
-  font-weight: 400;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.app-shell.analyst-mode .nav-links button svg {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-}
-
-.app-shell.analyst-mode .nav-links button:hover:not(.disabled) {
-  background: #f0efe9;
-  color: #1c1b18;
-}
-
-.app-shell.analyst-mode .nav-links button.active {
-  background: #1c1b18;
-  color: #fff;
-  box-shadow: none;
-}
-
-.app-shell.analyst-mode .history-nav-button {
-  border: 1px solid #d0cfc6 !important;
-  background: #fff !important;
-  color: #6b6a63 !important;
-}
-
-.app-shell.analyst-mode .data-indicator {
-  width: 5px;
-  height: 5px;
-  box-shadow: none;
-  background: #34c77b;
-}
-
-.app-shell.analyst-mode .data-indicator.warning {
-  background: #f59e0b;
-  box-shadow: none;
-}
-
-.app-shell.analyst-mode .data-indicator.success {
-  background: #34c77b;
-  box-shadow: none;
-}
-
-.app-shell.analyst-mode .main-content {
-  max-width: 1200px;
-  padding: 16px 24px 28px;
-}
-
-.app-shell.analyst-mode .hero-strip {
-  display: none;
-}
-
-.app-shell.analyst-mode .global-history-overlay {
-  background: rgba(28, 27, 24, 0.25);
-}
-
-.app-shell.analyst-mode .global-history-panel {
-  background: #ffffff;
-  border-left: 1px solid #e4e3dc;
-  box-shadow: -12px 0 30px rgba(28, 27, 24, 0.15);
-}
-
-.app-shell.analyst-mode .trend-head h4 {
-  color: #1c1b18;
-}
-
-.app-shell.analyst-mode .trend-legend {
-  color: #6b6a63;
-}
-
-.app-shell.analyst-mode .trend-empty {
-  color: #9b9790;
-}
-
-.app-shell.analyst-mode .history-tab-rail {
-  background: #f0efe9;
-  border-color: #d8d7d0;
-}
-
-.app-shell.analyst-mode .history-tabs button {
-  color: #9b9790;
-}
-
-.app-shell.analyst-mode .history-tabs button:hover:not(.active) {
-  background: rgba(0,0,0,0.04);
-  color: #3d3c37;
-}
-
-.app-shell.analyst-mode .history-tabs button.active {
-  color: #fff;
-  background: #1c1b18;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-}
-
-.app-shell.analyst-mode .global-history-header {
-  border-bottom-color: #e4e3dc;
-}
-
-.app-shell.analyst-mode .global-history-header h3 {
-  color: #1c1b18;
-}
-
-.app-shell.analyst-mode .ghh-count-badge {
-  background: rgba(0,0,0,0.07);
-  color: #6b6a63;
-}
-
-.app-shell.analyst-mode .ghh-icon {
-  color: #6b6a63;
-}
-
-.app-shell.analyst-mode .history-group-head h4 {
-  color: #9b9790;
-}
-
-.app-shell.analyst-mode .hgh-count {
-  background: rgba(0,0,0,0.06);
-  color: #9b9790;
-}
-
-.app-shell.analyst-mode .restore-link {
-  border-color: rgba(0,0,0,0.1);
-  background: rgba(0,0,0,0.04);
-  color: #3d3c37;
-}
-
-.app-shell.analyst-mode .restore-link:hover {
-  background: rgba(0,0,0,0.08);
-}
-
-.app-shell.analyst-mode .compare-result-card span,
-.app-shell.analyst-mode .compare-mini-head,
-.app-shell.analyst-mode .compare-mini-table th {
-  color: #a8a79f;
-}
-
-.app-shell.analyst-mode .history-center-empty p {
-  color: #9b9790;
-}
-
-.app-shell.analyst-mode .close-btn {
-  background: #f0efe9;
-  border-color: #d0cfc6;
-  color: #6b6a63;
-}
-
-.app-shell.analyst-mode .close-btn:hover {
-  background: #e4e3dc;
-  color: #1c1b18;
-}
-
-.app-shell.analyst-mode .compare-slot {
-  background: #f5f4f0;
-  border-color: #d0cfc6;
-  color: #9b9790;
-}
-
-.app-shell.analyst-mode .compare-slot:hover {
-  background: #eae9e4;
-  color: #3d3c37;
-}
-
-.app-shell.analyst-mode .compare-slot.active {
-  background: #1c1b18;
-  border-color: #1c1b18;
-  color: #fff;
-}
-
-.app-shell.analyst-mode .history-group {
-  background: #f8f7f4;
-  border-color: #e4e3dc;
-}
-
-.app-shell.analyst-mode .history-card {
-  background: #fff;
-  border-color: #e4e3dc;
-  border-left-color: transparent;
-}
-
-.app-shell.analyst-mode .history-card.zaigong {
-  border-left-color: rgba(14, 165, 200, 0.35);
-}
-
-.app-shell.analyst-mode .history-card.budget {
-  border-left-color: rgba(200, 148, 10, 0.35);
-}
-
-.app-shell.analyst-mode .history-card:hover {
-  box-shadow: 0 3px 12px rgba(0,0,0,0.08);
-  background: #fff;
-  border-color: #c8c7be;
-}
-
-.app-shell.analyst-mode .history-card.zaigong:hover { border-left-color: rgba(14,165,200,0.6); }
-.app-shell.analyst-mode .history-card.budget:hover  { border-left-color: rgba(200,148,10,0.6); }
-
-.app-shell.analyst-mode .hc-filename {
-  color: #1c1b18;
-}
-
-.app-shell.analyst-mode .hc-id {
-  background: #f0efe9;
-  color: #9b9790;
-}
-
-.app-shell.analyst-mode .hc-chip {
-  background: #f0efe9;
-  color: #6b6a63;
-}
-
-.app-shell.analyst-mode .hc-chip--date {
-  background: rgba(14,165,200,0.08);
-  color: rgba(14,165,200,0.9);
-}
-
-.app-shell.analyst-mode .hc-chip--target {
-  background: rgba(200,148,10,0.08);
-  color: rgba(200,148,10,0.9);
-}
-
-.app-shell.analyst-mode .hc-kpi-row {
-  background: rgba(14,165,200,0.04);
-  border-color: rgba(14,165,200,0.1);
-}
-
-.app-shell.analyst-mode .hc-kpi em {
-  color: #a8a79f;
-}
-
-.app-shell.analyst-mode .hc-kpi b {
-  color: #0e87b4;
-}
-
-.app-shell.analyst-mode .hc-kpi-sep {
-  background: #e4e3dc;
-}
-
-.app-shell.analyst-mode .compare-result-card,
-.app-shell.analyst-mode .compare-mini-table {
-  background: #fff;
-  border: 1px solid #e4e3dc;
-}
-
-.app-shell.analyst-mode .compare-result-card strong,
-.app-shell.analyst-mode .compare-result-card p,
-.app-shell.analyst-mode .compare-mini-table td {
-  color: #1c1b18;
-}
-
-.app-shell.analyst-mode .history-compare-head h5 {
-  color: #1c1b18;
-}
-
-.app-shell.analyst-mode .history-compare-head span {
-  color: #6b6a63;
-}
-
-.app-shell.analyst-mode .compare-result-card em {
-  color: #6b6a63;
-}
-
-/* ===== Big Screen Mode - compact nav to match analyst mode size ===== */
-.app-shell.big-screen-mode .top-nav {
-  height: 62px;
-  padding: 0 24px;
-  gap: 0;
-  border-radius: 0;
-  border-left: none;
-  border-right: none;
-  border-top: none;
-}
-
-.app-shell.big-screen-mode .nav-brand {
-  gap: 10px;
-  margin-right: 28px;
-}
-
-.app-shell.big-screen-mode .brand-mark {
-  width: 28px;
-  height: 28px;
-  border-radius: 7px;
-  font-size: 10px;
-}
-
-.app-shell.big-screen-mode .brand-text {
-  font-size: 19px;
-  font-weight: 700;
-  letter-spacing: 0;
-  line-height: 1;
-}
-
-.app-shell.big-screen-mode .nav-links {
-  gap: 2px;
-}
-
-.app-shell.big-screen-mode .nav-main-links {
-  margin-left: 12px;
-  justify-content: flex-start;
-}
-
-.app-shell.big-screen-mode .nav-end-links {
-  margin-left: auto;
-  justify-content: flex-end;
-}
-
-.app-shell.big-screen-mode .nav-links button {
-  min-height: 30px;
-  height: 30px;
-  border-radius: 5px;
-  padding: 0 12px;
-  font-size: 13px;
-}
-
-.nav-live-info {
+.gh-legend {
   display: flex;
   align-items: center;
-  gap: 7px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.45);
-  font-family: 'DM Mono', monospace;
-  white-space: nowrap;
-  flex: 1;
+  gap: 12px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+.gh-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+
+.gh-svg { width: 100%; height: auto; display: block; overflow: visible; }
+
+.gh-section { display: flex; flex-direction: column; gap: 10px; }
+
+.gh-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.gh-sec-left { display: flex; align-items: center; gap: 8px; }
+
+.gh-sec-left h4 {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-3);
+  margin: 0;
+}
+
+.gh-count {
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--paper-2);
+  color: var(--ink-4);
+  font-size: 10.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  font-family: var(--font-mono);
+}
+
+.gh-restore {
+  font-size: 11.5px;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+.gh-restore:hover { text-decoration: underline; }
+
+.gh-card-list { display: flex; flex-direction: column; gap: 6px; }
+
+.gh-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  cursor: pointer;
+  transition: 0.12s;
+}
+
+.gh-card:hover { border-color: var(--line-2); box-shadow: var(--shadow-card); }
+
+.ghc-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+.ghc-name { font-size: 12.5px; font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ghc-id { font-size: 10.5px; color: var(--ink-4); font-family: var(--font-mono); flex-shrink: 0; }
+
+.ghc-chips { display: flex; gap: 4px; flex-wrap: wrap; }
+
+.ghc-chip {
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--paper-2);
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+}
+
+.ghc-kpis {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--line);
+}
+
+.ghc-kpi { display: flex; align-items: center; gap: 4px; font-size: 11.5px; }
+.ghc-kpi em { color: var(--ink-4); font-style: normal; font-size: 10.5px; }
+.ghc-kpi b { color: var(--ink); font-weight: 600; font-family: var(--font-mono); }
+.ghc-sep { width: 1px; height: 10px; background: var(--line); }
+
+.ghc-actions { display: flex; gap: 4px; }
+
+.ghc-slot {
+  height: 20px;
+  min-width: 24px;
+  padding: 0 6px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: var(--paper-2);
+  color: var(--ink-4);
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.12s;
+}
+
+.ghc-slot.active { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+
+/* Compare panel */
+.gh-compare {
+  padding: 12px;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ghcmp-head { display: flex; align-items: center; gap: 8px; }
+.ghcmp-head h5 { font-size: 12px; font-weight: 600; color: var(--ink); margin: 0; }
+.ghcmp-head span { font-size: 11px; color: var(--ink-4); }
+
+.ghcmp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+.ghcmp-card {
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ghcmp-card span { font-size: 11px; color: var(--ink-4); }
+.ghcmp-card strong { font-size: 14px; font-weight: 600; color: var(--ink); font-family: var(--font-mono); }
+.ghcmp-card p { font-size: 11px; color: var(--ink-3); margin: 0; }
+
+.ghcmp-table { display: flex; flex-direction: column; gap: 4px; }
+.ghcmp-table-head { font-size: 11px; font-weight: 600; color: var(--ink-3); }
+
+.ghcmp-table table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ghcmp-table th { text-align: left; padding: 4px 6px; color: var(--ink-4); font-weight: 500; }
+.ghcmp-table td { padding: 4px 6px; border-bottom: 1px solid var(--line); color: var(--ink-2); }
+
+.delta-up { color: var(--ok); font-weight: 600; }
+.delta-down { color: var(--bad); font-weight: 600; }
+
+/* ── Notify modal ── */
+.notify-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(31,29,24,0.4);
+  backdrop-filter: blur(4px);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
   justify-content: center;
 }
 
-.nav-live-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #34d399;
-  box-shadow: 0 0 6px #34d399;
-  flex-shrink: 0;
+.notify-modal {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  width: 480px;
+  max-width: 95vw;
+  box-shadow: var(--shadow-pop);
 }
 
-.presentation-toggle-btn {
-  display: inline-flex;
+.notify-modal-header {
+  display: flex;
   align-items: center;
-  gap: 7px;
-  min-height: 30px;
-  height: 30px;
-  padding: 0 13px;
-  border-radius: 5px;
-  border: 1px solid rgba(96, 165, 250, 0.35);
-  background: rgba(96, 165, 250, 0.1);
-  color: #93c5fd;
-  cursor: pointer;
-  font-size: 13px;
-  font-family: inherit;
-  transition: 0.2s ease;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
 }
 
-.presentation-toggle-btn svg {
-  width: 13px;
-  height: 13px;
+.notify-modal-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.notify-modal-header .modal-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: var(--ink-4);
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.notify-modal-body {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.notify-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.notify-badge {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 20px;
+}
+
+.notify-badge.configured { background: var(--ok-soft); color: var(--ok); }
+.notify-badge.unconfigured { background: var(--paper-2); color: var(--ink-4); }
+
+.notify-masked {
+  font-size: 11.5px;
+  color: var(--ink-4);
+  font-family: var(--font-mono);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notify-clear-btn {
+  font-size: 11.5px;
+  padding: 2px 9px;
+  border: 1px solid var(--bad-soft);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--bad);
+  cursor: pointer;
   flex-shrink: 0;
 }
+.notify-clear-btn:hover { background: var(--bad-soft); }
 
-.presentation-toggle-btn:hover {
-  background: rgba(96, 165, 250, 0.18);
-  border-color: rgba(96, 165, 250, 0.55);
-  color: #bfdbfe;
+.notify-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
+
+.notify-field label { font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
+
+.notify-input {
+  width: 100%;
+  padding: 7px 10px;
+  font-size: 12.5px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  outline: none;
+  color: var(--ink);
+  background: var(--surface);
+}
+.notify-input:focus { border-color: var(--accent); }
+
+.notify-hint { margin: 0; font-size: 11px; color: var(--ink-4); line-height: 1.5; }
+
+.notify-toggle-row { flex-direction: row !important; align-items: center; justify-content: space-between; }
+
+.toggle-switch { position: relative; display: inline-block; width: 36px; height: 20px; cursor: pointer; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider { position: absolute; inset: 0; background: var(--line-2); border-radius: 20px; transition: background 0.2s; }
+.toggle-slider::before { content: ''; position: absolute; width: 14px; height: 14px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: transform 0.2s; }
+.toggle-switch input:checked + .toggle-slider { background: var(--accent); }
+.toggle-switch input:checked + .toggle-slider::before { transform: translateX(16px); }
+
+.notify-msg { font-size: 12.5px; padding: 7px 11px; border-radius: var(--r-md); }
+.notify-msg.success { background: var(--ok-soft); color: var(--ok); }
+.notify-msg.error { background: var(--bad-soft); color: var(--bad); }
+
+.notify-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+.notify-btn-test {
+  padding: 6px 14px;
+  font-size: 12.5px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+  font-weight: 500;
+  font-family: inherit;
+}
+.notify-btn-test:hover:not(:disabled) { background: var(--paper-2); }
+
+.notify-btn-save {
+  padding: 6px 18px;
+  font-size: 12.5px;
+  border: none;
+  border-radius: var(--r-md);
+  background: var(--ink);
+  color: var(--surface);
+  cursor: pointer;
+  font-weight: 600;
+  font-family: inherit;
+}
+.notify-btn-save:hover:not(:disabled) { background: var(--ink-2); }
+.notify-btn-test:disabled, .notify-btn-save:disabled { opacity: 0.45; cursor: not-allowed; }
 </style>
