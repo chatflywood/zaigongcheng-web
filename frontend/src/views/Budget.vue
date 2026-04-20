@@ -133,21 +133,9 @@
           </div>
         </div>
         <div class="page-actions">
-          <button class="btn ghost" @click="openHistoryPanel">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 5h12v9H2V5zM2 5V3h12v2M5 2v3M11 2v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            历史记录
-          </button>
           <button v-if="viewingSnapshotLabel" class="btn ghost" @click="restoreLatestView">
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 4l1 3 3-1M14 12l-1-3-3 1M3 7a5 5 0 019-1M13 9a5 5 0 01-9 1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
             返回最新
-          </button>
-          <button class="btn ghost" @click="clearData">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 11V3M8 3l-3 3M8 3l3 3M3 12v1.5h10V12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            重新上传
-          </button>
-          <button class="btn">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 12v1.5h10V12M5 8l3 3 3-3M8 3v8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            导出
           </button>
         </div>
       </header>
@@ -177,10 +165,6 @@
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 5h12v9H2V5zM2 5V3h12v2M5 2v3M11 2v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
             历史记录
           </button>
-          <button class="btn" @click="clearData">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 11V3M8 3l-3 3M8 3l3 3M3 12v1.5h10V12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            替换源文件
-          </button>
         </div>
       </div>
 
@@ -190,17 +174,17 @@
           <div class="budget-hero-kpis">
             <div>
               <div class="bk-label">年度预算</div>
-              <div class="bk-value mono">{{ data.budget_total?.toFixed(2) || '0.00' }}<span class="bk-unit">万</span></div>
+              <div class="bk-value mono">{{ animatedBudget[0].toFixed(2) }}<span class="bk-unit">万</span></div>
               <div class="bk-sub">预算入账总额</div>
             </div>
             <div>
               <div class="bk-label">已占用</div>
-              <div class="bk-value mono accent">{{ data.occupied_total?.toFixed(2) || '0.00' }}</div>
+              <div class="bk-value mono accent">{{ animatedBudget[1].toFixed(2) }}</div>
               <div class="bk-sub">占预算 <span class="mono" style="color:var(--ink)">{{ data.budget_total > 0 ? ((data.occupied_total || 0) / data.budget_total * 100).toFixed(1) : '0.0' }}%</span></div>
             </div>
             <div>
               <div class="bk-label">全年支出</div>
-              <div class="bk-value mono" style="color:var(--ink-2)">{{ data.annual_spend_total?.toFixed(2) || '0.00' }}</div>
+              <div class="bk-value mono" style="color:var(--ink-2)">{{ animatedBudget[2].toFixed(2) }}</div>
               <div class="bk-sub">
                 占预算 <span class="mono">{{ data.budget_total > 0 ? ((data.annual_spend_total || 0) / data.budget_total * 100).toFixed(1) : '0.0' }}%</span>
                 <span v-if="data.budget_total > 0 && (data.annual_spend_total || 0) / data.budget_total > 1" style="color:var(--bad)"> ⚠</span>
@@ -208,7 +192,7 @@
             </div>
             <div>
               <div class="bk-label">剩余可调度</div>
-              <div class="bk-value mono">{{ data.budget_total > 0 ? (data.budget_total - (data.occupied_total || 0) - (data.preoccupied_total || 0)).toFixed(2) : '0.00' }}</div>
+              <div class="bk-value mono">{{ animatedBudget[3].toFixed(2) }}</div>
               <div class="bk-sub">
                 {{ data.budget_total > 0 ? Math.max(0, 100 - ((data.occupied_total || 0) + (data.preoccupied_total || 0)) / data.budget_total * 100).toFixed(1) : '0.0' }}% 未分配
               </div>
@@ -280,38 +264,60 @@
             <span class="sub">共 <strong>{{ data.categories?.length || 0 }}</strong> 个专业 · 其中有预算或支出的</span>
           </div>
         </div>
-        <div class="ds-card">
-          <table class="ds-tbl">
+        <div class="ds-card" style="padding:0">
+          <table class="ds-tbl cat-tbl">
+            <colgroup>
+              <col style="width:28px">
+              <col style="width:120px">
+              <col style="width:100px">
+              <col style="width:100px">
+              <col style="width:100px">
+              <col style="width:100px">
+              <col>
+              <col style="width:72px">
+            </colgroup>
             <thead>
               <tr>
-                <th style="width:24px"></th>
+                <th></th>
                 <th>专业</th>
-                <th class="num">预算</th>
+                <th class="num">年度预算</th>
                 <th class="num">已占用</th>
+                <th class="num">预占用</th>
                 <th class="num">全年支出</th>
-                <th>占用结构</th>
-                <th class="num">执行率</th>
+                <th style="padding-left:12px">预算使用进度</th>
+                <th class="num">支出完成率</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="(cat, i) in (data.categories || [])" :key="cat.name"
-                :style="{ opacity: cat.budget === 0 && cat.annual_spend === 0 ? 0.45 : 1 }">
-                <td><span :style="{ display:'block', width:'8px', height:'8px', borderRadius:'2px', background: `oklch(${72 - i*2.5}% 0.10 ${40 + i*22})` }"></span></td>
-                <td class="col-name">{{ cat.name }}</td>
-                <td class="num mono">{{ cat.budget > 0 ? formatNum(cat.budget) : '—' }}</td>
-                <td class="num mono" :style="{ fontWeight: cat.occupied > 0 ? 500 : 400 }">{{ cat.occupied > 0 ? formatNum(cat.occupied) : '—' }}</td>
-                <td class="num mono" :style="{ color: cat.spend_progress > 1 ? 'var(--bad)' : 'var(--ink-2)' }">{{ cat.annual_spend > 0 ? formatNum(cat.annual_spend) : '—' }}</td>
-                <td style="min-width:200px">
-                  <div v-if="cat.budget > 0" style="display:flex;align-items:center;gap:12px">
-                    <div style="flex:1;display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--paper-2)">
-                      <div :style="{ width: Math.min((cat.occupied || 0) / cat.budget * 100, 100) + '%', background: (cat.occupied || 0) / cat.budget > 1 ? 'var(--bad)' : 'var(--accent)' }"></div>
-                      <div :style="{ width: Math.min((cat.preoccupied || 0) / cat.budget * 100, 100) + '%', background: 'var(--accent-soft)' }"></div>
-                    </div>
-                    <span class="mono" style="font-size:11.5px;color:var(--ink-2);width:56px;text-align:right">{{ (((cat.occupied || 0) + (cat.preoccupied || 0)) / cat.budget * 100).toFixed(1) }}%</span>
-                  </div>
-                  <span v-else class="muted" style="font-size:11px">无预算</span>
+                :style="{ opacity: cat.budget === 0 && cat.annual_spend === 0 ? 0.4 : 1 }">
+                <td style="padding-left:16px">
+                  <span :style="{ display:'block', width:'8px', height:'8px', borderRadius:'2px', background: `oklch(${72 - i*2.5}% 0.10 ${40 + i*22})` }"></span>
                 </td>
-                <td class="num mono" :style="{ color: cat.spend_progress > 1 ? 'var(--bad)' : cat.spend_progress > 0.8 ? 'var(--warn)' : 'var(--ink-2)' }">
+                <td class="col-name" style="font-weight:500">{{ cat.name }}</td>
+                <td class="num mono">{{ cat.budget > 0 ? formatNum(cat.budget) : '—' }}</td>
+                <td class="num mono" :style="{ color: cat.occupied > 0 ? 'var(--ink)' : 'var(--ink-4)', fontWeight: cat.occupied > 0 ? 500 : 400 }">
+                  {{ cat.occupied > 0 ? formatNum(cat.occupied) : '—' }}
+                </td>
+                <td class="num mono" :style="{ color: cat.preoccupied > 0 ? 'var(--warn)' : 'var(--ink-4)' }">
+                  {{ cat.preoccupied > 0 ? formatNum(cat.preoccupied) : '—' }}
+                </td>
+                <td class="num mono" :style="{ color: cat.spend_progress > 1 ? 'var(--bad)' : 'var(--ink-2)' }">
+                  {{ cat.annual_spend > 0 ? formatNum(cat.annual_spend) : '—' }}
+                </td>
+                <td style="padding-left:12px">
+                  <div v-if="cat.budget > 0" style="display:flex;align-items:center;gap:10px">
+                    <div style="flex:1;display:flex;height:5px;border-radius:3px;overflow:hidden;background:var(--paper-2);min-width:80px">
+                      <div :style="{ width: Math.min((cat.occupied || 0) / cat.budget * 100, 100) + '%', background: (cat.occupied || 0) / cat.budget > 1 ? 'var(--bad)' : 'var(--accent)' }"></div>
+                      <div :style="{ width: Math.min((cat.preoccupied || 0) / cat.budget * 100, 100) + '%', background: 'var(--warn)', opacity: 0.45 }"></div>
+                    </div>
+                    <span class="mono" style="font-size:11px;color:var(--ink-3);width:48px;text-align:right;flex-shrink:0">
+                      {{ (((cat.occupied || 0) + (cat.preoccupied || 0)) / cat.budget * 100).toFixed(1) }}%
+                    </span>
+                  </div>
+                  <span v-else style="font-size:11px;color:var(--ink-4)">无预算</span>
+                </td>
+                <td class="num mono" :style="{ color: cat.spend_progress > 1 ? 'var(--bad)' : cat.spend_progress > 0.8 ? 'var(--warn)' : 'var(--ink-3)' }">
                   {{ cat.budget > 0 ? (cat.spend_progress * 100).toFixed(1) + '%' : '—' }}
                 </td>
               </tr>
@@ -469,6 +475,27 @@ const fileInput = ref(null)
 const loading = ref(false)
 const hasData = ref(false)
 const data = ref({})
+const animatedBudget = ref([0, 0, 0, 0])
+
+function runBudgetCountUp(d) {
+  if (!d?.budget_total) { animatedBudget.value = [0, 0, 0, 0]; return }
+  const targets = [
+    d.budget_total || 0,
+    d.occupied_total || 0,
+    d.annual_spend_total || 0,
+    Math.max(0, (d.budget_total || 0) - (d.occupied_total || 0) - (d.preoccupied_total || 0)),
+  ]
+  const duration = 900
+  const startTs = performance.now()
+  function tick(ts) {
+    const t = Math.min((ts - startTs) / duration, 1)
+    const eased = 1 - Math.pow(1 - t, 3)
+    animatedBudget.value = targets.map(v => v * eased)
+    if (t < 1) requestAnimationFrame(tick)
+    else animatedBudget.value = [...targets]
+  }
+  requestAnimationFrame(tick)
+}
 const selectedManager = ref('')
 const selectedCategory = ref('')
 const historyVisible = ref(false)
@@ -481,6 +508,7 @@ const localComparison = ref(null)
 const categoryTableCollapsed = ref(true)
 const projectTableCollapsed = ref(true)
 const selectedFile = ref(null)
+const showUpload = ref(false)
 const selectedFileName = ref('')
 const uploadMessage = ref('')
 const uploadMessageType = ref('info')
@@ -493,6 +521,8 @@ watch(() => props.initialData, (newData) => {
     snapshotDisplayDate.value = null
   }
 }, { immediate: true })
+
+watch(data, (d) => runBudgetCountUp(d), { immediate: true })
 
 const displayAnalysisDate = computed(() => snapshotDisplayDate.value || props.analysisDate)
 const comparisonSource = computed(() => props.historyComparison || localComparison.value)
@@ -693,7 +723,7 @@ async function processFile(file) {
       currentRecordId.value = null
       localComparison.value = null
       clearSelectedFile()
-      // 通知父组件
+      showUpload.value = false
       emit('dataUpdate', result.data)
     }
   } catch (error) {
@@ -804,6 +834,27 @@ onMounted(() => {
   max-width: 1440px;
   margin: 0 auto;
 }
+.upload-overlay {
+  position: fixed; inset: 0; background: rgba(31,29,24,0.42);
+  z-index: 1000; display: grid; place-items: center; padding: 40px;
+}
+.upload-overlay-card {
+  background: var(--paper); border: 1px solid var(--line-2);
+  border-radius: var(--r-xl); width: min(560px, 100%);
+  box-shadow: var(--shadow-pop);
+}
+.upload-overlay-head {
+  padding: 18px 24px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.upload-overlay-head h3 { font-size: 16px; font-weight: 500; color: var(--ink); margin: 0; }
+.upload-overlay-body { padding: 20px 24px 24px; }
+.overlay-divider { height: 1px; background: var(--line); margin: 16px 0; }
+.drawer-close {
+  background: none; border: none; cursor: pointer;
+  color: var(--ink-3); font-size: 16px; padding: 2px 6px; border-radius: var(--r-sm);
+}
+.drawer-close:hover { background: var(--surface-2); color: var(--ink); }
 
 /* ===== 上传区域 ===== */
 .upload-section {
@@ -2702,7 +2753,9 @@ onMounted(() => {
   flex: 1 !important;
   display: flex !important;
   flex-direction: column !important;
+  align-items: center !important;
   justify-content: center !important;
+  text-align: center !important;
   padding: 22px 18px !important;
   margin: 12px 12px 0 !important;
   border-radius: 8px !important;

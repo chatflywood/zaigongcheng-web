@@ -18,9 +18,6 @@
       <div class="page-head-l">
         <span class="eyebrow">关键指标 / Quarterly Briefing</span>
         <h1 class="page-title-h1">关键指标摘要</h1>
-        <div style="font-size:12.5px;color:var(--ink-3);margin-top:6px">
-          代替原「大屏」页面。每个指标自带叙事，可截图直接用作周/月度汇报。
-        </div>
         <div class="page-meta">
           <span>数据截止 · 当前周期</span>
           <span class="ph-sep"></span>
@@ -55,33 +52,31 @@
       </div>
       <div class="ki-gauge-grid">
 
-        <!-- Card 1: 资本性支出年度进度 -->
+        <!-- Card 1: 当期资本性支出进度 -->
         <div class="ki-gauge-cell">
           <div class="ki-gauge-donut">
             <svg width="120" height="120" viewBox="0 0 120 120">
               <circle cx="60" cy="60" r="50" fill="none" stroke="var(--paper-2)" stroke-width="10"/>
               <circle cx="60" cy="60" r="50" fill="none"
-                :stroke="gaugeColor(parseFloat(capitalProgress), 100)"
-                stroke-width="10"
-                stroke-linecap="round"
-                stroke-dasharray="314.16"
-                :stroke-dashoffset="314.16 * (1 - Math.min(parseFloat(capitalProgress), 100) / 100)"
+                :stroke="gaugeColor(animatedGauges[0], 100)"
+                stroke-width="10" stroke-linecap="round" stroke-dasharray="314.16"
+                :stroke-dashoffset="314.16 * (1 - Math.min(animatedGauges[0], 100) / 100)"
                 transform="rotate(-90 60 60)"
               />
             </svg>
             <div class="ki-gauge-center">
-              <div class="mono ki-gauge-val">{{ capitalProgress }}</div>
+              <div class="mono ki-gauge-val">{{ animatedGauges[0].toFixed(1) }}</div>
               <div class="ki-gauge-target">目标 100%</div>
             </div>
           </div>
           <div class="ki-gauge-info">
-            <div class="ki-gauge-label">资本性支出年度进度</div>
+            <div class="ki-gauge-label">当期资本性支出进度</div>
             <div class="ki-gauge-sub mono">{{ props.zaigongData?.metrics?.capital?.toFixed(1) || '0.0' }} / {{ displayTargetValue }} 万</div>
             <div class="ki-gauge-delta" :class="parseFloat(capitalProgress) >= 80 ? 'ok' : 'up'">
               <span class="tri-up"></span>缺口 {{ props.zaigongData?.metrics?.deficit?.toFixed(1) || '0.0' }} 万
             </div>
             <div class="ki-gauge-narrative">
-              已完成年度目标的 {{ capitalProgress }}%，距离全年 {{ displayTargetValue }} 万元目标还差 {{ props.zaigongData?.metrics?.deficit?.toFixed(1) || '—' }} 万。
+              当期资本性支出已完成目标的 {{ capitalProgress }}%，累计 {{ props.zaigongData?.metrics?.capital?.toFixed(1) || '0.0' }} 万元，距离当期 {{ displayTargetValue }} 万元目标还差 {{ props.zaigongData?.metrics?.deficit?.toFixed(1) || '—' }} 万。
             </div>
           </div>
         </div>
@@ -92,17 +87,15 @@
             <svg width="120" height="120" viewBox="0 0 120 120">
               <circle cx="60" cy="60" r="50" fill="none" stroke="var(--paper-2)" stroke-width="10"/>
               <circle cx="60" cy="60" r="50" fill="none"
-                :stroke="gaugeColor(parseFloat(transferRate), 80)"
-                stroke-width="10"
-                stroke-linecap="round"
-                stroke-dasharray="314.16"
-                :stroke-dashoffset="314.16 * (1 - Math.min(parseFloat(transferRate), 100) / 100)"
+                :stroke="gaugeColor(animatedGauges[1], 60)"
+                stroke-width="10" stroke-linecap="round" stroke-dasharray="314.16"
+                :stroke-dashoffset="314.16 * (1 - Math.min(animatedGauges[1], 100) / 100)"
                 transform="rotate(-90 60 60)"
               />
             </svg>
             <div class="ki-gauge-center">
-              <div class="mono ki-gauge-val">{{ transferRate }}</div>
-              <div class="ki-gauge-target">目标 80%</div>
+              <div class="mono ki-gauge-val">{{ animatedGauges[1].toFixed(1) }}</div>
+              <div class="ki-gauge-target">目标 60%</div>
             </div>
           </div>
           <div class="ki-gauge-info">
@@ -113,7 +106,7 @@
               {{ parseFloat(transferRate) < 10 ? '低位' : '—' }}
             </div>
             <div class="ki-gauge-narrative">
-              整体转固率 {{ transferRate }}%，{{ parseFloat(transferRate) < 80 ? '低于 80% 期望值。期末余额仍有较大规模尚未转为固定资产。' : '已达标。' }}
+              整体转固率 {{ transferRate }}%，{{ parseFloat(transferRate) < 60 ? '低于 60% 期望值。期末余额仍有较大规模尚未转为固定资产。' : '已达标。' }}
             </div>
           </div>
         </div>
@@ -124,21 +117,19 @@
             <svg width="120" height="120" viewBox="0 0 120 120">
               <circle cx="60" cy="60" r="50" fill="none" stroke="var(--paper-2)" stroke-width="10"/>
               <circle cx="60" cy="60" r="50" fill="none"
-                :stroke="gaugeColor(parseFloat(annualCapitalProgress), 100)"
-                stroke-width="10"
-                stroke-linecap="round"
-                stroke-dasharray="314.16"
-                :stroke-dashoffset="314.16 * (1 - Math.min(parseFloat(annualCapitalProgress), 100) / 100)"
+                :stroke="gaugeColor(animatedGauges[2], 100)"
+                stroke-width="10" stroke-linecap="round" stroke-dasharray="314.16"
+                :stroke-dashoffset="314.16 * (1 - Math.min(animatedGauges[2], 100) / 100)"
                 transform="rotate(-90 60 60)"
               />
             </svg>
             <div class="ki-gauge-center">
-              <div class="mono ki-gauge-val">{{ annualCapitalProgress }}</div>
+              <div class="mono ki-gauge-val">{{ animatedGauges[2].toFixed(1) }}</div>
               <div class="ki-gauge-target">目标 100%</div>
             </div>
           </div>
           <div class="ki-gauge-info">
-            <div class="ki-gauge-label">预算执行率</div>
+            <div class="ki-gauge-label">支出进度</div>
             <div class="ki-gauge-sub mono">{{ props.budgetData?.annual_spend_total?.toFixed(1) || '0.0' }} / {{ props.budgetData?.budget_total?.toFixed(1) || '0.0' }} 万</div>
             <div class="ki-gauge-delta" :class="parseFloat(annualCapitalProgress) > 100 ? 'down' : 'up'">
               <span v-if="parseFloat(annualCapitalProgress) > 100" class="tri-dn"></span>
@@ -146,7 +137,7 @@
               {{ parseFloat(annualCapitalProgress) > 100 ? '超支' : `${(100 - parseFloat(annualCapitalProgress)).toFixed(1)}pp 待执行` }}
             </div>
             <div class="ki-gauge-narrative">
-              全年支出占预算 {{ annualCapitalProgress }}%。{{ parseFloat(annualCapitalProgress) > 100 ? '已超预算，需关注。' : '执行中，未超支。' }}
+              全年支出占已下达预算 {{ annualCapitalProgress }}%。{{ parseFloat(annualCapitalProgress) > 100 ? '已超预算，需关注。' : '执行中，未超支。' }}
             </div>
           </div>
         </div>
@@ -157,16 +148,14 @@
             <svg width="120" height="120" viewBox="0 0 120 120">
               <circle cx="60" cy="60" r="50" fill="none" stroke="var(--paper-2)" stroke-width="10"/>
               <circle cx="60" cy="60" r="50" fill="none"
-                :stroke="gaugeColor(parseFloat(approvalProgress), 90)"
-                stroke-width="10"
-                stroke-linecap="round"
-                stroke-dasharray="314.16"
-                :stroke-dashoffset="314.16 * (1 - Math.min(parseFloat(approvalProgress), 100) / 100)"
+                :stroke="gaugeColor(animatedGauges[3], 90)"
+                stroke-width="10" stroke-linecap="round" stroke-dasharray="314.16"
+                :stroke-dashoffset="314.16 * (1 - Math.min(animatedGauges[3], 100) / 100)"
                 transform="rotate(-90 60 60)"
               />
             </svg>
             <div class="ki-gauge-center">
-              <div class="mono ki-gauge-val">{{ approvalProgress }}</div>
+              <div class="mono ki-gauge-val">{{ animatedGauges[3].toFixed(1) }}</div>
               <div class="ki-gauge-target">目标 90%</div>
             </div>
           </div>
@@ -275,7 +264,7 @@
       </div>
       <div class="ki-narrative-card">
         <p class="ki-narrative-text">
-          本年累计资本性支出 <strong class="mono">{{ props.zaigongData?.metrics?.capital?.toFixed(2) || '—' }} 万元</strong>（年度目标 {{ displayTargetValue }} 万，进度 <strong style="color:var(--accent)">{{ capitalProgress }}%</strong>），年度缺口 <strong class="mono" style="color:var(--warn)">{{ props.zaigongData?.metrics?.deficit?.toFixed(2) || '—' }} 万</strong>。全年预算执行率 <strong style="color:var(--accent)">{{ annualCapitalProgress }}%</strong>，立项进度 {{ approvalProgress }}%。在建工程期末余额规模较大，整体转固率仅 <strong class="mono" style="color:var(--bad)">{{ transferRate }}%</strong>，需在下一周期集中推进转固。
+          当期资本性支出 <strong class="mono">{{ props.zaigongData?.metrics?.capital?.toFixed(2) || '—' }} 万元</strong>（当期目标 {{ displayTargetValue }} 万，进度 <strong style="color:var(--accent)">{{ capitalProgress }}%</strong>），缺口 <strong class="mono" style="color:var(--warn)">{{ props.zaigongData?.metrics?.deficit?.toFixed(2) || '—' }} 万</strong>。全年支出进度 <strong style="color:var(--accent)">{{ annualCapitalProgress }}%</strong>，立项进度 {{ approvalProgress }}%。在建工程期末余额规模较大，整体转固率仅 <strong class="mono" style="color:var(--bad)">{{ transferRate }}%</strong>，需在下一周期集中推进转固。
         </p>
         <div class="ki-narrative-foot">
           <span>AUTO-DRAFTED · 基于上传数据</span>
@@ -317,7 +306,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps({
   zaigongData: Object,
@@ -436,6 +425,30 @@ const dashOffset = (value) => {
   const num = Math.min(100, Math.max(0, parseFloat(value) || 0))
   return Math.round(172.8 * (1 - num / 100))
 }
+
+// ── Gauge count-up animation ──
+const animatedGauges = ref([0, 0, 0, 0])
+
+function runGaugeCountUp() {
+  const targets = [
+    parseFloat(capitalProgress.value) || 0,
+    parseFloat(transferRate.value) || 0,
+    parseFloat(annualCapitalProgress.value) || 0,
+    parseFloat(approvalProgress.value) || 0,
+  ]
+  const duration = 900
+  const startTs = performance.now()
+  function tick(ts) {
+    const t = Math.min((ts - startTs) / duration, 1)
+    const eased = 1 - Math.pow(1 - t, 3)
+    animatedGauges.value = targets.map(v => v * eased)
+    if (t < 1) requestAnimationFrame(tick)
+    else animatedGauges.value = [...targets]
+  }
+  requestAnimationFrame(tick)
+}
+
+watch([capitalProgress, transferRate, annualCapitalProgress, approvalProgress], runGaugeCountUp, { immediate: true })
 
 // 全屏展示模式
 const presentationMode = ref(false)

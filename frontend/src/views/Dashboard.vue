@@ -125,21 +125,9 @@
           </div>
         </div>
         <div class="page-actions">
-          <button class="btn ghost" @click="openHistoryPanel">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 5h12v9H2V5zM2 5V3h12v2M5 2v3M11 2v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            历史记录
-          </button>
           <button v-if="(isViewingHistory || props.snapshotLabel) && (props.latestData || props.initialData)" class="btn ghost" @click="restoreLatestView">
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 4l1 3 3-1M14 12l-1-3-3 1M3 7a5 5 0 019-1M13 9a5 5 0 01-9 1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
             返回最新
-          </button>
-          <button class="btn" @click="showUpload = true">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 11V3M8 3l-3 3M8 3l3 3M3 12v1.5h10V12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            重新上传
-          </button>
-          <button class="btn" @click="handlePushNotify" :disabled="pushingNotify || !currentRecordId">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M13 5l-5 5-5-5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            {{ pushingNotify ? '推送中...' : '推送播报' }}
           </button>
         </div>
       </header>
@@ -169,44 +157,6 @@
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 5h12v9H2V5zM2 5V3h12v2M5 2v3M11 2v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
             历史记录
           </button>
-          <input ref="fileInput" type="file" accept=".xlsx,.xls" hidden @change="handleFileChange" />
-          <button class="btn primary" @click="showUpload = true">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 11V3M8 3l-3 3M8 3l3 3M3 12v1.5h10V12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            替换源文件
-          </button>
-        </div>
-      </div>
-
-      <!-- Upload overlay (when re-uploading) -->
-      <div v-if="showUpload" class="upload-overlay" @click.self="showUpload = false">
-        <div class="upload-overlay-card">
-          <div class="upload-overlay-head">
-            <h3>重新上传</h3>
-            <button class="drawer-close" @click="showUpload = false">✕</button>
-          </div>
-          <div class="upload-overlay-body">
-            <div class="upload-zone" @dragover.prevent @drop.prevent="handleDrop" @click="triggerFileInput" style="min-height:160px;margin:0">
-              <template v-if="selectedFileName">
-                <div class="selected-file-banner" style="margin:0;width:100%">
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <circle cx="10" cy="10" r="9" stroke="#047857" stroke-width="1.2"/>
-                    <path d="M6 10l3 3 5-5" stroke="#047857" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                  <div class="selected-file-copy">
-                    <div class="selected-file-name">{{ selectedFileName }}</div>
-                    <div class="selected-file-meta">已选择文件 · 等待上传</div>
-                  </div>
-                  <span class="selected-file-change" @click.stop="clearSelectedFile">更换</span>
-                </div>
-              </template>
-              <template v-else>
-                <div class="upload-icon-wrap"><svg class="upload-icon" viewBox="0 0 34 34" fill="none"><rect x="4" y="7" width="26" height="22" rx="3" stroke="currentColor" stroke-width="1.2"/><path d="M11 14h12M11 18.5h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M21.5 3v7M18 6l3.5-3.5L25 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-                <h2>拖拽文件到此处，或<span class="link">点击选择</span></h2>
-                <p class="upload-hint">支持 .xlsx 格式</p>
-              </template>
-            </div>
-            <div v-if="uploadMessage" class="upload-feedback" :class="uploadMessageType" style="margin:8px 0 0">{{ uploadMessage }}</div>
-          </div>
         </div>
       </div>
 
@@ -1036,8 +986,6 @@ const metrics = computed(() => {
       label: '已下单待收货',
       value: (m.pending || 0).toFixed(2),
       unit: '万元',
-      badgeText: rateStatus.value.text,
-      badgeClass: rateStatus.value.badgeClass,
     },
     {
       label: '本月资本性支出',
@@ -1683,6 +1631,14 @@ onUnmounted(() => {})
 }
 .upload-overlay-head h3 { font-size: 16px; font-weight: 500; color: var(--ink); margin: 0; }
 .upload-overlay-body { padding: 20px 24px 24px; }
+.overlay-target-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.overlay-target-label { font-size: 13px; color: var(--ink-2); white-space: nowrap; flex-shrink: 0; }
+.overlay-target-input-wrap { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line-2); border-radius: var(--r-md); padding: 5px 10px; background: var(--paper); flex: 1; }
+.overlay-target-input-wrap input { border: none; outline: none; background: transparent; font-size: 14px; color: var(--ink); width: 100%; font-variant-numeric: tabular-nums; }
+.overlay-target-unit { font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+.overlay-target-confirm { padding: 6px 14px; border-radius: var(--r-md); background: var(--accent); color: #fff; font-size: 13px; font-weight: 500; border: none; cursor: pointer; white-space: nowrap; }
+.overlay-target-confirm:hover { opacity: 0.88; }
+.overlay-divider { height: 1px; background: var(--line); margin: 16px 0; }
 
 /* ── KPI grid ──────────────────────────────────── */
 .kpi-grid {
@@ -2092,11 +2048,11 @@ onUnmounted(() => {})
 .four-class-modal-table .col-project-status { width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .four-class-modal-table .col-days { width: 72px; white-space: nowrap; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
 .four-class-modal-table .col-days.days-overdue { color: var(--bad); font-weight: 700; }
-.four-class-modal-table .col-days.days-warning { color: var(--warn); font-weight: 700; }
+.four-class-modal-table .col-days.days-warning { color: var(--ink); font-weight: 700; }
 .four-class-modal-table .col-suggestion { color: var(--ink-3); font-size: 11px; white-space: normal; line-height: 1.4; width: 140px; word-break: break-word; }
 .four-class-modal-table .status-tag { display: inline-block; padding: 2px 7px; border-radius: var(--r-sm); font-size: 11px; font-weight: 600; }
 .four-class-modal-table .status-tag.已触发, .four-class-modal-table .row-已触发 td { background: var(--bad-soft); color: var(--bad); }
-.four-class-modal-table .status-tag.预警, .four-class-modal-table .row-预警 td { color: var(--warn); }
+.four-class-modal-table .status-tag.预警, .four-class-modal-table .row-预警 td { color: var(--ink); }
 .four-class-group { margin-bottom: 20px; }
 .four-class-group .group-header { display: flex; align-items: center; gap: 12px; padding: 6px 10px; border-radius: var(--r-sm); margin-bottom: 6px; }
 .four-class-group.group-liezhang .group-header { background: var(--info-soft); color: #1F497D; }

@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import Dashboard from './views/Dashboard.vue'
 import Budget from './views/Budget.vue'
 import KeyIndicators from './views/KeyIndicators.vue'
-import { getHistory, getHistorySnapshot, getBudgetHistory, getBudgetHistorySnapshot, getNotifyConfig, saveNotifyConfig, clearNotifyConfig, testNotifyWebhook, pushNotify, generateBriefImage } from './api'
+import { getHistory, getHistorySnapshot, getBudgetHistory, getBudgetHistorySnapshot, getNotifyConfig, saveNotifyConfig, clearNotifyConfig, testNotifyWebhook, pushNotify, generateBriefImage, uploadExcel, uploadBudget } from './api'
 
 const currentView = ref('zaigong')
 const isAnalystMode = computed(() => currentView.value !== 'key-indicators')
@@ -33,6 +33,115 @@ const zaigongCompareResult = ref(null)
 const budgetCompareResult = ref(null)
 const presentationMode = ref(false)
 
+// ── 数据管理面板 ──────────────────────────────────────────────
+const showDataManager = ref(false)
+const dmZaigongFile = ref(null)
+const dmZaigongFileName = ref('')
+const dmZaigongMsg = ref('')
+const dmZaigongMsgType = ref('info')
+const dmZaigongLoading = ref(false)
+const dmBudgetFile = ref(null)
+const dmBudgetFileName = ref('')
+const dmBudgetMsg = ref('')
+const dmBudgetMsgType = ref('info')
+const dmBudgetLoading = ref(false)
+const dmTargetValue = ref(null)
+const dmZaigongInput = ref(null)
+const dmBudgetInput = ref(null)
+
+function openDataManager() {
+  dmTargetValue.value = Number(localStorage.getItem('zaigong_target_value')) || null
+  dmZaigongFileName.value = ''
+  dmZaigongMsg.value = ''
+  dmBudgetFileName.value = ''
+  dmBudgetMsg.value = ''
+  showDataManager.value = true
+}
+
+function daysSince(dateStr) {
+  if (!dateStr) return null
+  const d = new Date(dateStr)
+  if (isNaN(d)) return null
+  return Math.floor((Date.now() - d.getTime()) / 86400000)
+}
+
+function dmFreshClass(days) {
+  if (days === null) return ''
+  if (days > 60) return 'stale-bad'
+  if (days > 30) return 'stale-warn'
+  return 'stale-ok'
+}
+
+function dmPickZaigong() { dmZaigongInput.value?.click() }
+function dmPickBudget() { dmBudgetInput.value?.click() }
+
+function dmOnZaigongFile(e) {
+  const f = e.target.files[0]; if (!f) return
+  dmZaigongFile.value = f; dmZaigongFileName.value = f.name; dmZaigongMsg.value = ''
+}
+function dmOnBudgetFile(e) {
+  const f = e.target.files[0]; if (!f) return
+  dmBudgetFile.value = f; dmBudgetFileName.value = f.name; dmBudgetMsg.value = ''
+}
+function dmDropZaigong(e) {
+  const f = e.dataTransfer.files[0]; if (!f) return
+  dmZaigongFile.value = f; dmZaigongFileName.value = f.name; dmZaigongMsg.value = ''
+}
+function dmDropBudget(e) {
+  const f = e.dataTransfer.files[0]; if (!f) return
+  dmBudgetFile.value = f; dmBudgetFileName.value = f.name; dmBudgetMsg.value = ''
+}
+
+async function dmUploadZaigong() {
+  if (!dmZaigongFile.value) { dmZaigongMsg.value = '请先选择文件'; dmZaigongMsgType.value = 'error'; return }
+  if (!dmTargetValue.value) { dmZaigongMsg.value = '请先设置目标金额'; dmZaigongMsgType.value = 'error'; return }
+  dmZaigongLoading.value = true
+  dmZaigongMsg.value = '上传中…'
+  try {
+    const result = await uploadExcel(dmZaigongFile.value, dmTargetValue.value)
+    if (result.success) {
+      localStorage.setItem('zaigong_target_value', dmTargetValue.value)
+      onZaigongDataUpdate(result.data)
+      dmZaigongFileName.value = ''
+      dmZaigongFile.value = null
+      dmZaigongMsg.value = '上传成功'
+      dmZaigongMsgType.value = 'success'
+    } else {
+      dmZaigongMsg.value = result.message || '上传失败'
+      dmZaigongMsgType.value = 'error'
+    }
+  } catch (e) {
+    dmZaigongMsg.value = '上传失败：' + (e.message || '未知错误')
+    dmZaigongMsgType.value = 'error'
+  } finally {
+    dmZaigongLoading.value = false
+  }
+}
+
+async function dmUploadBudget() {
+  if (!dmBudgetFile.value) { dmBudgetMsg.value = '请先选择文件'; dmBudgetMsgType.value = 'error'; return }
+  dmBudgetLoading.value = true
+  dmBudgetMsg.value = '上传中…'
+  try {
+    const result = await uploadBudget(dmBudgetFile.value)
+    if (result.success) {
+      onBudgetDataUpdate(result.data)
+      dmBudgetFileName.value = ''
+      dmBudgetFile.value = null
+      dmBudgetMsg.value = '上传成功'
+      dmBudgetMsgType.value = 'success'
+    } else {
+      dmBudgetMsg.value = result.message || '上传失败'
+      dmBudgetMsgType.value = 'error'
+    }
+  } catch (e) {
+    dmBudgetMsg.value = '上传失败：' + (e.message || '未知错误')
+    dmBudgetMsgType.value = 'error'
+  } finally {
+    dmBudgetLoading.value = false
+  }
+}
+
 const canShowKeyIndicators = computed(() => {
   return zaigongData.value && budgetData.value
 })
@@ -43,7 +152,6 @@ const readinessText = computed(() => {
 })
 
 const activeViewLabel = computed(() => {
-  if (currentView.value === 'overview') return '设计说明'
   if (currentView.value === 'budget') return '预算立项'
   if (currentView.value === 'key-indicators') return '关键指标'
   return '在建工程'
@@ -57,11 +165,6 @@ const currentMonthLabel = computed(() => {
   return `${y}.${m} · 第 ${q} 季度`
 })
 
-const overviewPages = [
-  { id: 'zaigong', t: '在建工程', d: '资本性支出进度、管理员排名、四类工程预警、转固推进', count: '2026.03 数据' },
-  { id: 'budget', t: '预算立项', d: '总预算 vs 已占用/预占用，按专业拆分，新建项目流水', count: '7 个专业' },
-  { id: 'key-indicators', t: '关键指标', d: '4 个核心 KPI 仪表盘 + 重点工作清单（替代旧大屏）', count: '可投屏' },
-]
 
 function switchView(view) {
   currentView.value = view
@@ -617,10 +720,6 @@ async function handleNavPush() {
       <nav class="sidebar-nav">
         <div class="side-section">
           <div class="side-label">分析</div>
-          <div class="side-link" :class="{ active: currentView === 'overview' }" @click="switchView('overview')">
-            <svg class="side-icn" viewBox="0 0 16 16" fill="none"><path d="M8 2l1.5 4.5L14 8l-4.5 1.5L8 14l-1.5-4.5L2 8l4.5-1.5L8 2z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
-            <span>设计说明</span>
-          </div>
           <div class="side-link" :class="{ active: currentView === 'zaigong' }" @click="switchView('zaigong')">
             <svg class="side-icn" viewBox="0 0 16 16" fill="none"><path d="M8 2l6 3-6 3-6-3 6-3zM2 8l6 3 6-3M2 11l6 3 6-3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
             <span>在建工程</span>
@@ -640,15 +739,19 @@ async function handleNavPush() {
         </div>
         <div class="side-section">
           <div class="side-label">工具</div>
-          <div class="side-link disabled">
-            <svg class="side-icn" viewBox="0 0 16 16" fill="none"><path d="M5 5h6v6H5zM5 5V3a2 2 0 00-2 2h2zM11 5V3a2 2 0 012 2h-2zM5 11v2a2 2 0 01-2-2h2zM11 11v2a2 2 0 002-2h-2z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
-            <span>预警规则</span>
-            <span class="side-wip">WIP</span>
+          <div class="side-link" :class="{ disabled: !zaigongLatestRecordId }" @click="zaigongLatestRecordId && handleGenerateBrief()">
+            <svg class="side-icn" viewBox="0 0 16 16" fill="none"><rect x="4" y="1.5" width="8" height="13" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M6 5h4M6 7.5h4M6 10h2.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+            <span>{{ briefGenerating ? '生成中…' : '手机简报' }}</span>
           </div>
-          <div class="side-link disabled">
-            <svg class="side-icn" viewBox="0 0 16 16" fill="none"><path d="M8 3v8M5 8l3 3 3-3M3 13h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            <span>导出与分享</span>
-            <span class="side-wip">WIP</span>
+          <div class="side-link" :class="{ disabled: !notifyConfigured || !zaigongLatestRecordId }" @click="notifyConfigured && zaigongLatestRecordId && handleNavPush()">
+            <svg class="side-icn" viewBox="0 0 16 16" fill="none"><path d="M14 2L7.5 8.5M14 2L10 14l-2.5-5.5L2 6l12-4z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>{{ navPushing ? '推送中…' : '推送播报' }}</span>
+            <span v-if="!notifyConfigured" class="side-wip">未配置</span>
+          </div>
+          <div class="side-link" @click="openDataManager">
+            <svg class="side-icn" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h12M2 12h7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="12.5" cy="12.5" r="2.5" stroke="currentColor" stroke-width="1.2"/><path d="M12.5 11.5v1l.7.7" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
+            <span>数据管理</span>
+            <span class="side-badge-dot" :class="{ ok: zaigongLatestData && budgetLatestData, warn: zaigongLatestData !== budgetLatestData }"></span>
           </div>
           <div class="side-link" @click="openHistoryCenter">
             <svg class="side-icn" viewBox="0 0 16 16" fill="none"><path d="M2 5h12v9H2V5zM2 5V3h12v2M5 2v3M11 2v3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -666,91 +769,15 @@ async function handleNavPush() {
         <strong>当月窗口</strong>
         <span>{{ currentMonthLabel }}</span>
         <span class="side-version">v0.4 · 内部预览</span>
-        <div v-if="zaigongLatestRecordId" class="sidebar-actions">
-          <div class="more-menu-wrap" @click.stop>
-            <button class="side-more-btn" :class="{ open: moreMenuOpen }" @click="toggleMoreMenu">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><circle cx="12" cy="5" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="19" r="1.2" fill="currentColor"/></svg>
-              更多操作
-            </button>
-            <div v-if="moreMenuOpen" class="more-menu-dropdown">
-              <button class="more-menu-item" :disabled="briefGenerating" @click="handleGenerateBrief(); closeMoreMenu()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg>
-                {{ briefGenerating ? '生成中…' : '手机简报' }}
-              </button>
-              <button v-if="notifyConfigured" class="more-menu-item" :disabled="navPushing" @click="handleNavPush(); closeMoreMenu()">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/></svg>
-                {{ navPushing ? '推送中…' : '推送播报' }}
-              </button>
-            </div>
-          </div>
-          <button v-if="currentView === 'key-indicators'" class="side-more-btn" @click="togglePresentationMode">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-            展示模式
-          </button>
-        </div>
+        <button v-if="currentView === 'key-indicators'" class="side-more-btn" @click="togglePresentationMode">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+          展示模式
+        </button>
       </div>
     </aside>
 
     <!-- ── Canvas ─────────────────────────────────────────── -->
     <main class="app-canvas">
-      <div v-if="currentView === 'overview'" class="page">
-        <header class="page-head">
-          <div class="page-head-l">
-            <span class="eyebrow">重设计提案 · v0.4</span>
-            <h1 class="page-title">给「工程数据分析」一次安静的呼吸</h1>
-            <div class="page-meta">
-              <span>提案人 · Claude</span>
-              <span class="sep"></span>
-              <span>基于 dashboard.html / budget.html / key-indicators.html</span>
-            </div>
-          </div>
-        </header>
-        <div class="section">
-          <div class="section-head"><h2>四个原则</h2></div>
-          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r-lg)">
-            <div style="background:var(--surface);padding:24px 26px">
-              <div style="font-family:var(--font-mono);font-size:11px;color:var(--accent);letter-spacing:0.08em;margin-bottom:10px">P · 01</div>
-              <div style="font-size:16px;font-weight:500;color:var(--ink);margin-bottom:6px">克制压倒装饰</div>
-              <div style="font-size:13px;color:var(--ink-2);line-height:1.6">纸感背景、单一强调色、高对比层级。装饰只在必要处出现。</div>
-            </div>
-            <div style="background:var(--surface);padding:24px 26px">
-              <div style="font-family:var(--font-mono);font-size:11px;color:var(--accent);letter-spacing:0.08em;margin-bottom:10px">P · 02</div>
-              <div style="font-size:16px;font-weight:500;color:var(--ink);margin-bottom:6px">空间是数据的呼吸</div>
-              <div style="font-size:13px;color:var(--ink-2);line-height:1.6">KPI 之间留 1px 分隔线，section 之间 56px，卡片之间 24px。</div>
-            </div>
-            <div style="background:var(--surface);padding:24px 26px">
-              <div style="font-family:var(--font-mono);font-size:11px;color:var(--accent);letter-spacing:0.08em;margin-bottom:10px">P · 03</div>
-              <div style="font-size:16px;font-weight:500;color:var(--ink);margin-bottom:6px">数字优先于图表</div>
-              <div style="font-size:13px;color:var(--ink-2);line-height:1.6">所有数字 tabular-nums，右对齐。图表只在解释趋势时出现。</div>
-            </div>
-            <div style="background:var(--surface);padding:24px 26px">
-              <div style="font-family:var(--font-mono);font-size:11px;color:var(--accent);letter-spacing:0.08em;margin-bottom:10px">P · 04</div>
-              <div style="font-size:16px;font-weight:500;color:var(--ink);margin-bottom:6px">可截图汇报</div>
-              <div style="font-size:13px;color:var(--ink-2);line-height:1.6">每个区块独立成稿，配色和留白考虑截图贴入周报 PPT 的场景。</div>
-            </div>
-          </div>
-        </div>
-        <div class="section">
-          <div class="section-head"><h2>三个页面</h2><span class="sub">点击进入</span></div>
-          <div style="display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;background:var(--surface)">
-            <div v-for="(s, i) in overviewPages" :key="s.id"
-              style="padding:20px 24px;display:flex;align-items:center;gap:24px;cursor:pointer;transition:background 0.12s"
-              :style="{ borderBottom: i < overviewPages.length - 1 ? '1px solid var(--line)' : 'none' }"
-              @click="switchView(s.id)"
-              @mouseenter="$event.currentTarget.style.background='var(--surface-2)'"
-              @mouseleave="$event.currentTarget.style.background='var(--surface)'"
-            >
-              <div style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3);width:24px">0{{i+1}}</div>
-              <div style="flex:1">
-                <div style="font-size:15px;font-weight:500;color:var(--ink)">{{ s.t }}</div>
-                <div style="font-size:12.5px;color:var(--ink-3);margin-top:3px">{{ s.d }}</div>
-              </div>
-              <div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono)">{{ s.count }}</div>
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="opacity:0.4"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </div>
-          </div>
-        </div>
-      </div>
       <Dashboard
         v-if="currentView === 'zaigong'"
         :initial-data="zaigongData"
@@ -782,6 +809,96 @@ async function handleNavPush() {
         @presentation-change="onPresentationChange"
       />
     </main>
+
+    <!-- ── 数据管理面板 ──────────────────────────────────── -->
+    <div v-if="showDataManager" class="dm-overlay" @click.self="showDataManager = false">
+      <div class="dm-panel">
+        <div class="dm-head">
+          <div>
+            <div class="dm-eyebrow">Data Sources</div>
+            <h3 class="dm-title">数据管理</h3>
+          </div>
+          <button class="modal-close" @click="showDataManager = false">×</button>
+        </div>
+        <div class="dm-body">
+
+          <!-- 在建工程 -->
+          <div class="dm-card">
+            <div class="dm-card-header">
+              <div class="dm-card-title">
+                <span class="dm-card-icon">①</span>
+                在建工程明细总表
+              </div>
+              <div class="dm-status" :class="zaigongLatestData ? 'status-ok' : 'status-none'">
+                {{ zaigongLatestData ? '已加载' : '未上传' }}
+              </div>
+            </div>
+            <div v-if="zaigongLatestDate" class="dm-freshness" :class="dmFreshClass(daysSince(zaigongLatestDate))">
+              上次上传 {{ zaigongLatestDate }} · 距今 {{ daysSince(zaigongLatestDate) }} 天
+            </div>
+
+            <div class="dm-target-row">
+              <span class="dm-target-label">当期资本性支出目标</span>
+              <div class="dm-target-input-wrap">
+                <input type="number" v-model.number="dmTargetValue" placeholder="如 650" />
+                <span class="dm-target-unit">万元</span>
+              </div>
+            </div>
+
+            <div class="dm-zone" @dragover.prevent @drop.prevent="dmDropZaigong" @click="dmPickZaigong">
+              <template v-if="dmZaigongFileName">
+                <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="#047857" stroke-width="1.2"/><path d="M6 10l3 3 5-5" stroke="#047857" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span class="dm-zone-name">{{ dmZaigongFileName }}</span>
+                <span class="dm-zone-change" @click.stop="dmZaigongFileName = ''; dmZaigongFile = null">更换</span>
+              </template>
+              <template v-else>
+                <svg width="20" height="20" viewBox="0 0 34 34" fill="none"><rect x="4" y="7" width="26" height="22" rx="3" stroke="currentColor" stroke-width="1.2"/><path d="M11 14h12M11 18.5h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M21.5 3v7M18 6l3.5-3.5L25 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span>拖拽或<em>点击选择</em> .xlsx 文件</span>
+              </template>
+            </div>
+            <input ref="dmZaigongInput" type="file" accept=".xlsx,.xls" hidden @change="dmOnZaigongFile" />
+            <div v-if="dmZaigongMsg" class="dm-msg" :class="dmZaigongMsgType">{{ dmZaigongMsg }}</div>
+            <button class="dm-upload-btn" :disabled="dmZaigongLoading || !dmZaigongFileName" @click="dmUploadZaigong">
+              {{ dmZaigongLoading ? '上传中…' : '上传在建工程数据' }}
+            </button>
+          </div>
+
+          <!-- 预算立项 -->
+          <div class="dm-card">
+            <div class="dm-card-header">
+              <div class="dm-card-title">
+                <span class="dm-card-icon">②</span>
+                预算执行情况（预算占用）
+              </div>
+              <div class="dm-status" :class="budgetLatestData ? 'status-ok' : 'status-none'">
+                {{ budgetLatestData ? '已加载' : '未上传' }}
+              </div>
+            </div>
+            <div v-if="budgetLatestDate" class="dm-freshness" :class="dmFreshClass(daysSince(budgetLatestDate))">
+              上次上传 {{ budgetLatestDate }} · 距今 {{ daysSince(budgetLatestDate) }} 天
+            </div>
+
+            <div class="dm-zone" @dragover.prevent @drop.prevent="dmDropBudget" @click="dmPickBudget">
+              <template v-if="dmBudgetFileName">
+                <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="#047857" stroke-width="1.2"/><path d="M6 10l3 3 5-5" stroke="#047857" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span class="dm-zone-name">{{ dmBudgetFileName }}</span>
+                <span class="dm-zone-change" @click.stop="dmBudgetFileName = ''; dmBudgetFile = null">更换</span>
+              </template>
+              <template v-else>
+                <svg width="20" height="20" viewBox="0 0 34 34" fill="none"><rect x="4" y="7" width="26" height="22" rx="3" stroke="currentColor" stroke-width="1.2"/><path d="M11 14h12M11 18.5h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M21.5 3v7M18 6l3.5-3.5L25 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span>拖拽或<em>点击选择</em> .xlsx 文件</span>
+              </template>
+            </div>
+            <input ref="dmBudgetInput" type="file" accept=".xlsx,.xls" hidden @change="dmOnBudgetFile" />
+            <div v-if="dmBudgetMsg" class="dm-msg" :class="dmBudgetMsgType">{{ dmBudgetMsg }}</div>
+            <button class="dm-upload-btn" :disabled="dmBudgetLoading || !dmBudgetFileName" @click="dmUploadBudget">
+              {{ dmBudgetLoading ? '上传中…' : '上传预算数据' }}
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
 
     <!-- ── 历史记录中心 ──────────────────────────────────── -->
     <div v-if="historyCenterVisible" class="gh-overlay" @click.self="closeHistoryCenter">
@@ -995,6 +1112,45 @@ async function handleNavPush() {
 
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ── 数据管理面板 ── */
+.dm-overlay { position: fixed; inset: 0; background: rgba(31,29,24,0.45); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 32px; }
+.dm-panel { background: var(--paper); border: 1px solid var(--line-2); border-radius: var(--r-xl); width: min(760px, 100%); box-shadow: var(--shadow-pop); max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; }
+.dm-head { display: flex; align-items: flex-start; justify-content: space-between; padding: 20px 24px 16px; border-bottom: 1px solid var(--line); }
+.dm-eyebrow { font-size: 10.5px; font-family: var(--font-mono); color: var(--ink-3); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }
+.dm-title { font-size: 16px; font-weight: 600; color: var(--ink); margin: 0; }
+.dm-body { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 20px 24px 24px; overflow-y: auto; }
+.dm-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.dm-card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dm-card-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--ink); }
+.dm-card-icon { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+.dm-status { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 99px; }
+.dm-status.status-ok { background: var(--ok-soft, #d1fae5); color: var(--ok); }
+.dm-status.status-none { background: var(--paper-2); color: var(--ink-3); }
+.dm-freshness { font-size: 11.5px; font-family: var(--font-mono); padding: 6px 10px; border-radius: var(--r-md); }
+.dm-freshness.stale-ok { background: var(--ok-soft, #d1fae5); color: var(--ok); }
+.dm-freshness.stale-warn { background: var(--warn-soft); color: #92400e; }
+.dm-freshness.stale-bad { background: var(--bad-soft); color: var(--bad); }
+.dm-target-row { display: flex; align-items: center; gap: 8px; }
+.dm-target-label { font-size: 12px; color: var(--ink-3); white-space: nowrap; flex-shrink: 0; }
+.dm-target-input-wrap { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line-2); border-radius: var(--r-md); padding: 5px 10px; background: var(--paper); flex: 1; }
+.dm-target-input-wrap input { border: none; outline: none; background: transparent; font-size: 14px; color: var(--ink); width: 100%; font-variant-numeric: tabular-nums; }
+.dm-target-unit { font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+.dm-zone { border: 1.5px dashed var(--line-2); border-radius: var(--r-md); padding: 16px; display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; font-size: 12.5px; color: var(--ink-3); transition: border-color 0.15s, background 0.15s; min-height: 72px; text-align: center; flex-wrap: wrap; }
+.dm-zone:hover { border-color: var(--accent); background: var(--surface-2); color: var(--ink-2); }
+.dm-zone em { color: var(--accent); font-style: normal; text-decoration: underline; text-underline-offset: 2px; }
+.dm-zone-name { font-size: 12.5px; color: var(--ink); font-weight: 500; word-break: break-all; }
+.dm-zone-change { font-size: 11.5px; color: var(--accent); cursor: pointer; white-space: nowrap; text-decoration: underline; text-underline-offset: 2px; }
+.dm-msg { font-size: 12px; padding: 6px 10px; border-radius: var(--r-sm); }
+.dm-msg.success { background: var(--ok-soft, #d1fae5); color: var(--ok); }
+.dm-msg.error { background: var(--bad-soft); color: var(--bad); }
+.dm-msg.info { background: var(--surface-2); color: var(--ink-3); }
+.dm-upload-btn { padding: 8px 14px; border-radius: var(--r-md); background: var(--accent); color: #fff; font-size: 13px; font-weight: 500; border: none; cursor: pointer; width: 100%; transition: opacity 0.15s; }
+.dm-upload-btn:hover:not(:disabled) { opacity: 0.88; }
+.dm-upload-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.side-badge-dot { width: 6px; height: 6px; border-radius: 50%; margin-left: auto; flex-shrink: 0; }
+.side-badge-dot.ok { background: var(--ok); }
+.side-badge-dot.warn { background: var(--warn); }
 
 /* ── App shell: sidebar + canvas ── */
 #app {
