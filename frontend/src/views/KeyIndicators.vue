@@ -37,9 +37,9 @@
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 5V2h3M11 2h3v3M2 11v3h3M14 11v3h-3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
           {{ presentationMode ? '退出展示' : '投屏' }}
         </button>
-        <button class="ki-btn primary">
+        <button class="ki-btn primary" @click="exportPNG" :disabled="exportLoading">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 12v1.5h10V12M5 8l3 3 3-3M8 3v8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          导出 PNG
+          {{ exportLoading ? '生成中…' : '导出 PNG' }}
         </button>
       </div>
     </header>
@@ -174,6 +174,23 @@
       </div>
     </div>
 
+    <!-- ── Narrative summary ── -->
+    <div class="section" v-if="props.zaigongData?.metrics">
+      <div class="section-head">
+        <h2>一段话摘要 · 可粘贴</h2>
+        <span class="sub">为周报起草</span>
+      </div>
+      <div class="ki-narrative-card">
+        <p class="ki-narrative-text">
+          当期资本性支出 <strong class="mono">{{ props.zaigongData?.metrics?.capital?.toFixed(2) || '—' }} 万元</strong>（当期目标 {{ displayTargetValue }} 万，进度 <strong style="color:var(--accent)">{{ capitalProgress }}%</strong>），缺口 <strong class="mono" style="color:var(--warn)">{{ props.zaigongData?.metrics?.deficit?.toFixed(2) || '—' }} 万</strong>。全年支出进度 <strong style="color:var(--accent)">{{ annualCapitalProgress }}%</strong>，立项进度 {{ approvalProgress }}%。在建工程期末余额规模较大，整体转固率仅 <strong class="mono" style="color:var(--bad)">{{ transferRate }}%</strong>，需在下一周期集中推进转固。
+        </p>
+        <div class="ki-narrative-foot">
+          <span>AUTO-DRAFTED · 基于上传数据</span>
+          <button class="ki-btn ghost" style="height:28px;font-size:11px" @click="copyNarrative">复制纯文本</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Manager contribution + Top 6 balances ── -->
     <div class="section" v-if="props.zaigongData?.summary?.length || props.zaigongData?.detail?.length">
       <div class="section-head">
@@ -256,23 +273,6 @@
       </div>
     </div>
 
-    <!-- ── Narrative summary ── -->
-    <div class="section" v-if="props.zaigongData?.metrics">
-      <div class="section-head">
-        <h2>一段话摘要 · 可粘贴</h2>
-        <span class="sub">为周报起草</span>
-      </div>
-      <div class="ki-narrative-card">
-        <p class="ki-narrative-text">
-          当期资本性支出 <strong class="mono">{{ props.zaigongData?.metrics?.capital?.toFixed(2) || '—' }} 万元</strong>（当期目标 {{ displayTargetValue }} 万，进度 <strong style="color:var(--accent)">{{ capitalProgress }}%</strong>），缺口 <strong class="mono" style="color:var(--warn)">{{ props.zaigongData?.metrics?.deficit?.toFixed(2) || '—' }} 万</strong>。全年支出进度 <strong style="color:var(--accent)">{{ annualCapitalProgress }}%</strong>，立项进度 {{ approvalProgress }}%。在建工程期末余额规模较大，整体转固率仅 <strong class="mono" style="color:var(--bad)">{{ transferRate }}%</strong>，需在下一周期集中推进转固。
-        </p>
-        <div class="ki-narrative-foot">
-          <span>AUTO-DRAFTED · 基于上传数据</span>
-          <button class="ki-btn ghost" style="height:28px;font-size:11px">复制纯文本</button>
-        </div>
-      </div>
-    </div>
-
     <!-- Work item modal -->
     <div v-if="modalVisible" class="ki-modal-overlay" @click.self="closeModal">
       <div class="ki-modal">
@@ -307,6 +307,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import html2canvas from 'html2canvas'
 
 const props = defineProps({
   zaigongData: Object,
@@ -454,24 +455,53 @@ watch([capitalProgress, transferRate, annualCapitalProgress, approvalProgress], 
 const presentationMode = ref(false)
 
 async function togglePresentationMode() {
+  const entering = !presentationMode.value
+  presentationMode.value = entering
+  emit('presentation-change', entering)
   try {
-    if (!document.fullscreenElement) {
-      await document.documentElement.requestFullscreen()
-      presentationMode.value = true
-      emit('presentation-change', true)
+    if (entering) {
+      await document.documentElement.requestFullscreen?.()
     } else {
-      await document.exitFullscreen()
-      presentationMode.value = false
-      emit('presentation-change', false)
+      if (document.fullscreenElement) await document.exitFullscreen()
     }
-  } catch (error) {
-    console.error('切换展示模式失败:', error)
-  }
+  } catch (_) {}
 }
 
 function handleFullscreenChange() {
-  presentationMode.value = Boolean(document.fullscreenElement)
-  emit('presentation-change', presentationMode.value)
+  if (!document.fullscreenElement && presentationMode.value) {
+    presentationMode.value = false
+    emit('presentation-change', false)
+  }
+}
+
+// 复制摘要文本
+function copyNarrative() {
+  const text = `当期资本性支出 ${props.zaigongData?.metrics?.capital?.toFixed(2) || '—'} 万元（当期目标 ${displayTargetValue.value} 万，进度 ${capitalProgress.value}%），缺口 ${props.zaigongData?.metrics?.deficit?.toFixed(2) || '—'} 万。全年支出进度 ${annualCapitalProgress.value}%，立项进度 ${approvalProgress.value}%。在建工程期末余额规模较大，整体转固率仅 ${transferRate.value}%，需在下一周期集中推进转固。`
+  navigator.clipboard.writeText(text).catch(() => {})
+}
+
+// 导出 PNG
+const exportLoading = ref(false)
+async function exportPNG() {
+  if (exportLoading.value) return
+  exportLoading.value = true
+  try {
+    const el = document.querySelector('.ki-page')
+    const canvas = await html2canvas(el, {
+      backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--paper').trim() || '#f7f6f1',
+      scale: 2,
+      useCORS: true,
+      logging: false,
+    })
+    const link = document.createElement('a')
+    link.download = `关键指标摘要_${currentDate.value}.png`
+    link.href = canvas.toDataURL('image/png')
+    link.click()
+  } catch (e) {
+    console.error('导出失败', e)
+  } finally {
+    exportLoading.value = false
+  }
 }
 
 // 重点工作
@@ -633,8 +663,22 @@ onUnmounted(() => {
 .ki-fullscreen {
   position: fixed; inset: 0; z-index: 9999;
   background: var(--paper); overflow-y: auto;
-  padding: 0 40px 40px;
+  padding: 0 56px 56px; max-width: none;
 }
+.ki-fullscreen .ki-gauge-grid { gap: 2px; }
+.ki-fullscreen .ki-gauge-cell { padding: 36px 40px; grid-template-columns: 160px 1fr; gap: 32px; }
+.ki-fullscreen .ki-gauge-donut { width: 160px; height: 160px; }
+.ki-fullscreen .ki-gauge-donut svg { width: 160px; height: 160px; }
+.ki-fullscreen .ki-gauge-val { font-size: 34px; }
+.ki-fullscreen .ki-gauge-label { font-size: 16px; }
+.ki-fullscreen .ki-gauge-sub { font-size: 13px; }
+.ki-fullscreen .ki-gauge-narrative { font-size: 14px; line-height: 1.65; }
+.ki-fullscreen .ki-narrative-text { font-size: 16px; line-height: 1.8; }
+.ki-fullscreen .ki-work-title { font-size: 16px; }
+.ki-fullscreen .page-title-h1 { font-size: 32px; }
+.ki-fullscreen .ki-card-title { font-size: 15px; }
+.ki-fullscreen .ki-mgr-name { font-size: 14px; }
+.ki-fullscreen .ki-mgr-amount { font-size: 14px; }
 
 /* Presentation nav */
 .ki-pres-nav {

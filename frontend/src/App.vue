@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import Dashboard from './views/Dashboard.vue'
 import Budget from './views/Budget.vue'
 import KeyIndicators from './views/KeyIndicators.vue'
+import Archive from './views/Archive.vue'
 import { getHistory, getHistorySnapshot, getBudgetHistory, getBudgetHistorySnapshot, getNotifyConfig, saveNotifyConfig, clearNotifyConfig, testNotifyWebhook, pushNotify, generateBriefImage, uploadExcel, uploadBudget } from './api'
 
 const currentView = ref('zaigong')
@@ -154,6 +155,7 @@ const readinessText = computed(() => {
 const activeViewLabel = computed(() => {
   if (currentView.value === 'budget') return '预算立项'
   if (currentView.value === 'key-indicators') return '关键指标'
+  if (currentView.value === 'archive') return '数据档案'
   return '在建工程'
 })
 
@@ -713,7 +715,7 @@ async function handleNavPush() {
         <div class="brand-mark">CTC</div>
         <div>
           <div class="brand-name">工程数据分析</div>
-          <span class="brand-sub">仙桃 · 云网发展部</span>
+          <span class="brand-sub">仙桃 · 云网运营部</span>
         </div>
       </div>
 
@@ -735,6 +737,13 @@ async function handleNavPush() {
           >
             <svg class="side-icn" viewBox="0 0 16 16" fill="none"><path d="M3 11a5 5 0 0110 0M8 11l3-3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
             <span>关键指标</span>
+          </div>
+        </div>
+        <div class="side-section">
+          <div class="side-label">档案</div>
+          <div class="side-link" :class="{ active: currentView === 'archive' }" @click="switchView('archive')">
+            <svg class="side-icn" viewBox="0 0 16 16" fill="none"><rect x="2" y="5" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M2 5l2-3h8l2 3M6 8.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>数据档案</span>
           </div>
         </div>
         <div class="side-section">
@@ -808,6 +817,7 @@ async function handleNavPush() {
         :four-class-warnings="zaigongFourClassWarnings"
         @presentation-change="onPresentationChange"
       />
+      <Archive v-else-if="currentView === 'archive'" />
     </main>
 
     <!-- ── 数据管理面板 ──────────────────────────────────── -->

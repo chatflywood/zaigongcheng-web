@@ -269,8 +269,8 @@
                     <th>工程管理员</th>
                     <th class="num">在管</th>
                     <th class="num">本年支出</th>
-                    <th class="num">结转</th>
-                    <th class="num">待到货</th>
+                    <th class="num">结转额</th>
+                    <th class="num">待收货</th>
                     <th>转固率</th>
                   </tr>
                 </thead>
@@ -319,7 +319,7 @@
                 <th>管理员</th>
                 <th class="num">期末余额</th>
                 <th class="num">本年支出</th>
-                <th class="num">待到货</th>
+                <th class="num">待收货</th>
                 <th>转固率</th>
               </tr>
             </thead>

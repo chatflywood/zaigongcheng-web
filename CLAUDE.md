@@ -21,14 +21,15 @@
 zaigongcheng-web/
 ├── frontend/
 │   ├── src/
-│   │   ├── views/          # 页面组件（Dashboard.vue、Budget.vue、KeyIndicators.vue）
+│   │   ├── views/          # 页面组件（Dashboard.vue、Budget.vue、KeyIndicators.vue、Archive.vue）
 │   │   ├── services/       # API 封装
 │   │   └── router/         # 路由
 │   └── package.json
 ├── backend/
 │   ├── main.py             # FastAPI 入口，CORS 允许 localhost:5173
 │   ├── models.py           # SQLAlchemy 数据模型
-│   ├── routers/            # 路由模块（analysis、budget、ai、notify、report）
+│   ├── routers/            # 路由模块（analysis、budget、ai、notify、report、archive）
+│   ├── uploads/archive/    # 数据档案文件存储目录
 │   ├── services/           # 业务逻辑
 │   └── .env                # 环境变量（MiniMax API Key，不提交 git）
 └── docs/
@@ -56,10 +57,12 @@ cd backend && uvicorn main:app --reload
 - **Dashboard.vue**：在建工程主看板，含各工程管理员汇总、预警分析、转固推进清单
 - **Budget.vue**：预算分析看板
 - **KeyIndicators.vue**：关键指标页面
+- **Archive.vue**：数据档案库，支持三类年度文档上传存储与在线预览（SheetJS + mammoth.js）
 - **routers/analysis.py**：在建工程数据分析接口
 - **routers/notify.py**：飞书/企业微信消息推送
 - **routers/report.py**：月报生成
 - **routers/ai.py**：AI 分析接口（MiniMax）
+- **routers/archive.py**：数据档案上传、列表、下载、删除接口
 
 ## 注意事项
 

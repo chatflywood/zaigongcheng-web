@@ -127,6 +127,32 @@ export async function updateTargetValue(recordId, target) {
   return response.data
 }
 
+export async function listArchives() {
+  const response = await axios.get(`${API_BASE}/archive/list`)
+  return response.data
+}
+
+export async function uploadArchive(file, category, year, note = '') {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('category', category)
+  formData.append('year', year)
+  formData.append('note', note)
+  const response = await axios.post(`${API_BASE}/archive/upload`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+  return response.data
+}
+
+export function getArchiveFileUrl(recordId) {
+  return `${API_BASE}/archive/file/${recordId}`
+}
+
+export async function deleteArchive(recordId) {
+  const response = await axios.post(`${API_BASE}/archive/delete/${recordId}`)
+  return response.data
+}
+
 export async function exportTransferPriority(recordId, targetRate) {
   const params = targetRate ? { target_rate: targetRate / 100 } : {}
   const response = await axios.get(

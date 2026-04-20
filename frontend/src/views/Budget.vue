@@ -122,7 +122,7 @@
       <header class="page-head">
         <div class="page-head-l">
           <span class="eyebrow">预算立项 / Budget Allocation</span>
-          <h1 class="page-title-h1">2026 年度预算执行</h1>
+          <h1 class="page-title-h1">年度预算执行</h1>
           <div class="page-meta">
             <svg width="11" height="11" viewBox="0 0 11 11" fill="none" style="color:var(--ink-3)"><rect x="1" y="1" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1"/><path d="M3 4h5M3 6h3" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
             <span>预算立项分析.xlsx</span>

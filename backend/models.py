@@ -64,6 +64,23 @@ class AppConfig(Base):
     updated_at = Column(DateTime, default=datetime.now)
 
 
+class ArchiveRecord(Base):
+    """数据档案记录"""
+    __tablename__ = "archive_records"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    uploaded_at = Column(DateTime, default=datetime.now, index=True)
+    category = Column(String(50), index=True)   # 年度建设情况 / 多年趋势汇总 / 投资预算报告
+    year = Column(String(10))                    # 如 "2025"
+    original_filename = Column(String(255))
+    stored_filename = Column(String(255))        # 磁盘上的实际文件名
+    file_size = Column(Integer)                  # 字节数
+    note = Column(Text, default='')
+
+    def __repr__(self):
+        return f"<ArchiveRecord {self.id} {self.category} {self.year}>"
+
+
 def init_db():
     """初始化数据库表"""
     Base.metadata.create_all(bind=engine)
