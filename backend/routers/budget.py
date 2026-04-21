@@ -58,7 +58,20 @@ def build_zaigong_spend_summary_from_record(record):
         return {}
 
     downloads_dir = Path.home() / "Downloads"
-    matches = list(downloads_dir.rglob(record.source_filename))
+    import re as _re
+
+    def _valid_xlsx(p):
+        return p.suffix.lower() == ".xlsx" and not p.name.startswith(".")
+
+    # 先精确匹配，失败则按文件名关键词模糊匹配（兼容日期略有不同的情况）
+    matches = [p for p in downloads_dir.rglob(record.source_filename) if _valid_xlsx(p)]
+    if not matches:
+        base = _re.sub(r'\(\d+\)', '', Path(record.source_filename).stem).strip()
+        matches = sorted(
+            [p for p in downloads_dir.rglob("*.xlsx") if _valid_xlsx(p) and base in p.stem],
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
     if not matches:
         return {}
 

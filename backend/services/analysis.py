@@ -211,7 +211,7 @@ def build_dashboard_data(summary: pd.DataFrame, metrics: dict, month_label: str,
     detail_list = []
     if detail_df is not None:
         for _, row in detail_df.iterrows():
-            detail_list.append({
+            entry = {
                 "工程名称": str(row["工程名称"]),
                 "工程管理员": str(row["工程管理员"]),
                 "结转额": round(float(row["结转额（工程总投资-累计资本支出）"]), 2),
@@ -220,7 +220,11 @@ def build_dashboard_data(summary: pd.DataFrame, metrics: dict, month_label: str,
                 "本月资本性支出": round(float(row["本月资本性支出"]), 2),
                 "在建工程期末余额": round(float(row["在建工程期末余额"]) / 10000, 4),
                 "转固率": round(float(row["转固率"]), 4),
-            })
+            }
+            # 保留一级专业，用于与预算数据关联计算全年支出
+            if "一级专业" in row.index and pd.notna(row["一级专业"]):
+                entry["一级专业"] = str(row["一级专业"]).strip()
+            detail_list.append(entry)
 
     return {
         "monthLabel": month_label,
