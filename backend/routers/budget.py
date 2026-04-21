@@ -159,6 +159,45 @@ async def upload_budget(file: UploadFile = File(...)):
         )
 
 
+@router.post("/refresh-spend")
+async def refresh_budget_spend():
+    """
+    用最新在建工程数据重新计算预算的全年支出，无需重新上传预算文件。
+    在建工程数据更新后自动调用此接口同步 Budget / KeyIndicators 页面数据。
+    """
+    db = SessionLocal()
+    try:
+        record = db.query(BudgetRecord).order_by(BudgetRecord.uploaded_at.desc()).first()
+        if not record or not record.budget_data:
+            return {"success": False, "message": "暂无预算记录，请先上传预算文件"}
+
+        stored = json.loads(record.budget_data)
+        spend_summary = get_latest_zaigong_spend_summary()
+
+        # 按专业更新 annual_spend
+        categories = stored.get("categories", [])
+        for cat in categories:
+            cat["annual_spend"] = round(spend_summary.get(cat["name"], 0), 2)
+            budget = cat.get("budget") or 0
+            cat["spend_progress"] = round(cat["annual_spend"] / budget, 4) if budget > 0 else 0
+
+        annual_spend_total = round(sum(c.get("annual_spend", 0) for c in categories), 2)
+        budget_total = stored.get("budget_total") or 0
+        stored["annual_spend_total"] = annual_spend_total
+        stored["spend_progress"] = round(annual_spend_total / budget_total, 4) if budget_total > 0 else 0
+        stored["categories"] = categories
+
+        cleaned = clean_nan(stored)
+        record.budget_data = json.dumps(cleaned, ensure_ascii=False)
+        db.commit()
+
+        return {"success": True, "data": cleaned}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+    finally:
+        db.close()
+
+
 @router.get("/history")
 async def get_budget_history(limit: int = 10):
     """获取预算分析历史记录。"""

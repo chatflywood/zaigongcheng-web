@@ -4,7 +4,7 @@ import Dashboard from './views/Dashboard.vue'
 import Budget from './views/Budget.vue'
 import KeyIndicators from './views/KeyIndicators.vue'
 import Archive from './views/Archive.vue'
-import { getHistory, getHistorySnapshot, getBudgetHistory, getBudgetHistorySnapshot, getNotifyConfig, saveNotifyConfig, clearNotifyConfig, testNotifyWebhook, pushNotify, generateBriefImage, uploadExcel, uploadBudget } from './api'
+import { getHistory, getHistorySnapshot, getBudgetHistory, getBudgetHistorySnapshot, getNotifyConfig, saveNotifyConfig, clearNotifyConfig, testNotifyWebhook, pushNotify, generateBriefImage, uploadExcel, uploadBudget, refreshBudgetSpend } from './api'
 
 const currentView = ref('zaigong')
 const isAnalystMode = computed(() => currentView.value !== 'key-indicators')
@@ -235,7 +235,7 @@ function getRecordDateLabel(sectionKey, record) {
   return formatHistoryTime(record.uploaded_at)
 }
 
-function onZaigongDataUpdate(data) {
+async function onZaigongDataUpdate(data) {
   zaigongData.value = data
   zaigongLatestData.value = data
   zaigongSnapshotLabel.value = ''
@@ -243,6 +243,16 @@ function onZaigongDataUpdate(data) {
     const date = formatUploadDate()
     zaigongDate.value = date
     zaigongLatestDate.value = date
+    // 同步刷新预算页面的全年支出（使用最新在建工程数据重新计算）
+    try {
+      const result = await refreshBudgetSpend()
+      if (result.success && result.data) {
+        budgetData.value = result.data
+        budgetLatestData.value = result.data
+      }
+    } catch (e) {
+      // 未上传预算文件时静默忽略
+    }
   } else {
     zaigongDate.value = null
     zaigongLatestDate.value = null
@@ -526,14 +536,29 @@ async function loadLatestDataOnMount() {
 
     if (budgetResult.success && budgetResult.data?.length) {
       const latestBudget = budgetResult.data[0]
-      const snapshot = await getBudgetHistorySnapshot(latestBudget.id)
-      if (snapshot.success && snapshot.data?.current) {
-        const cur = snapshot.data.current
-        budgetData.value = cur.data
-        budgetLatestData.value = cur.data
-        budgetLatestRecordId.value = cur.id
-        budgetDate.value = formatHistoryTime(cur.uploaded_at)
-        budgetLatestDate.value = budgetDate.value
+      // 先用最新在建工程数据刷新预算全年支出，再加载快照
+      try {
+        const refreshed = await refreshBudgetSpend()
+        if (refreshed.success && refreshed.data) {
+          budgetData.value = refreshed.data
+          budgetLatestData.value = refreshed.data
+          budgetLatestRecordId.value = latestBudget.id
+          budgetDate.value = formatHistoryTime(latestBudget.uploaded_at)
+          budgetLatestDate.value = budgetDate.value
+        } else {
+          throw new Error('refresh failed')
+        }
+      } catch {
+        // 刷新失败则退回读快照
+        const snapshot = await getBudgetHistorySnapshot(latestBudget.id)
+        if (snapshot.success && snapshot.data?.current) {
+          const cur = snapshot.data.current
+          budgetData.value = cur.data
+          budgetLatestData.value = cur.data
+          budgetLatestRecordId.value = cur.id
+          budgetDate.value = formatHistoryTime(cur.uploaded_at)
+          budgetLatestDate.value = budgetDate.value
+        }
       }
     }
   } catch (err) {

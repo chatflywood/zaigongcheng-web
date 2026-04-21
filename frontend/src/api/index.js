@@ -127,6 +127,11 @@ export async function updateTargetValue(recordId, target) {
   return response.data
 }
 
+export async function refreshBudgetSpend() {
+  const response = await axios.post(`${API_BASE}/budget/refresh-spend`)
+  return response.data
+}
+
 export async function listArchives() {
   const response = await axios.get(`${API_BASE}/archive/list`)
   return response.data
