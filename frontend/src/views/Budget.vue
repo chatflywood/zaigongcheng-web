@@ -1,5 +1,17 @@
 <template>
   <div class="dashboard">
+
+    <!-- ── 标签栏 ── -->
+    <div class="bpage-tabs">
+      <button class="bpage-tab" :class="{ active: batchTab === 'budget' }" @click="batchTab = 'budget'">预算执行</button>
+      <button class="bpage-tab" :class="{ active: batchTab === 'batch' }" @click="switchToBatchTab">
+        批次下达
+        <span v-if="batchData.batches.length" class="bpage-tab-count">{{ batchData.batches.length }}</span>
+      </button>
+    </div>
+
+    <!-- ── 预算执行 Tab ── -->
+    <div v-show="batchTab === 'budget'">
     <div v-if="!hasData" class="upload-section">
       <div class="upload-shell">
         <div class="upload-page-header">
@@ -379,6 +391,195 @@
 
 
 
+    </div><!-- /budget tab -->
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- 批次下达 Tab                                               -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div v-show="batchTab === 'batch'" class="batch-view">
+
+      <div class="batch-view-head">
+        <div>
+          <span class="eyebrow">投资预算 / Budget Batches</span>
+          <h1 class="page-title-h1">批次下达台账</h1>
+          <div class="page-meta">
+            <span>{{ batchData.specialties.length }} 个专业</span>
+            <span class="ph-sep"></span>
+            <span>{{ batchData.batches.length }} 批次</span>
+            <span v-if="batchData.batches.length" class="ph-sep"></span>
+            <span v-if="batchData.batches.length">累计下达 <strong>{{ formatBatchNum(grandTotal) }}</strong> 万元</span>
+          </div>
+        </div>
+        <div class="batch-head-actions">
+          <button class="btn ghost" @click="openSpecialtyPanel">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M11.5 9v5M9 11.5h5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            管理专业
+          </button>
+          <button class="btn primary" @click="openCreateModal">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            新增批次
+          </button>
+        </div>
+      </div>
+
+      <!-- 加载中 -->
+      <div v-if="batchLoading" class="batch-loading-wrap">
+        <div class="loader-ring"></div>
+        <span>读取中...</span>
+      </div>
+
+      <!-- 表格 -->
+      <div v-else class="ds-card" style="padding:0;overflow:hidden">
+        <div class="batch-table-outer">
+          <table class="batch-tbl">
+            <thead>
+              <tr>
+                <th class="bc-date">批次日期</th>
+                <th v-for="s in batchData.specialties" :key="s" class="bc-amount">{{ s }}</th>
+                <th class="bc-subtotal">小计</th>
+                <th class="bc-note">用途说明</th>
+                <th class="bc-ops"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- 预算下达合计行 -->
+              <tr class="br-total">
+                <td class="bc-date">预算下达合计</td>
+                <td v-for="s in batchData.specialties" :key="s" class="bc-amount">
+                  <span v-if="batchData.totals[s]" :class="{ neg: batchData.totals[s] < 0 }">{{ formatBatchNum(batchData.totals[s]) }}</span>
+                  <span v-else class="bc-zero">—</span>
+                </td>
+                <td class="bc-subtotal"><strong>{{ formatBatchNum(grandTotal) }}</strong></td>
+                <td class="bc-note bc-note-muted">共 {{ batchData.batches.length }} 批次</td>
+                <td class="bc-ops"></td>
+              </tr>
+              <!-- 各批次 -->
+              <tr v-for="(batch, idx) in batchData.batches" :key="batch.id"
+                class="br-batch" :class="{ 'br-even': idx % 2 === 1 }">
+                <td class="bc-date">{{ batch.batch_date }}</td>
+                <td v-for="s in batchData.specialties" :key="s" class="bc-amount">
+                  <div class="bc-cell-wrap"
+                    @mouseenter="batch.notes?.[s] ? showCellNote($event, batch.notes[s]) : null"
+                    @mouseleave="hideCellNote">
+                    <span v-if="batch.amounts[s] != null && batch.amounts[s] !== 0"
+                      :class="{ neg: batch.amounts[s] < 0 }">{{ formatBatchNum(batch.amounts[s]) }}</span>
+                    <span v-else class="bc-zero">—</span>
+                    <span v-if="batch.notes?.[s]" class="bc-note-corner"></span>
+                  </div>
+                </td>
+                <td class="bc-subtotal">{{ formatBatchNum(batchSubtotal(batch)) }}</td>
+                <td class="bc-note" :title="batch.note">{{ batch.note }}</td>
+                <td class="bc-ops">
+                  <button class="btn-row-op" @click="openEditModal(batch)">编辑</button>
+                  <button class="btn-row-op del" @click="confirmDeleteBatch(batch)">删除</button>
+                </td>
+              </tr>
+              <!-- 空状态 -->
+              <tr v-if="!batchData.batches.length">
+                <td :colspan="batchData.specialties.length + 4" class="batch-empty-cell">
+                  暂无批次记录，点击右上角「新增批次」开始
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── 新增 / 编辑批次弹窗 ── -->
+      <div v-if="batchModal.visible" class="modal-overlay" @click.self="closeBatchModal">
+        <div class="modal-box batch-modal-box">
+          <div class="modal-head">
+            <h3>{{ batchModal.mode === 'create' ? '新增批次' : '编辑批次' }}</h3>
+            <button class="modal-close" @click="closeBatchModal">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="form-row">
+              <label class="form-label">批次日期</label>
+              <input type="date" v-model="batchModal.form.batch_date" class="form-input" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">用途说明</label>
+              <textarea v-model="batchModal.form.note" class="form-textarea" rows="2"
+                placeholder="简述本次批次下达的用途、专项背景..."></textarea>
+            </div>
+            <div class="form-section-title">
+              各专业下达金额
+              <span class="form-section-hint">（万元，不填为 0，支持负数表示调减）</span>
+            </div>
+            <div class="amounts-grid">
+              <div v-for="s in batchData.specialties" :key="s" class="amount-cell">
+                <div class="amount-cell-top">
+                  <label class="amount-label" :title="s">{{ s }}</label>
+                  <button class="btn-note-toggle"
+                    :class="{ active: batchModal.form.notes[s] || noteFieldsOpen[s] }"
+                    @click="toggleNoteField(s)">批注</button>
+                </div>
+                <input type="number" step="0.001"
+                  :value="batchModal.form.amounts[s] ?? ''"
+                  @input="setAmount(s, $event.target.value)"
+                  class="amount-input" placeholder="—" />
+                <textarea v-if="noteFieldsOpen[s] || batchModal.form.notes[s]"
+                  v-model="batchModal.form.notes[s]"
+                  class="amount-note-textarea"
+                  placeholder="输入此专业的批注说明..."
+                  rows="2"></textarea>
+              </div>
+            </div>
+            <div class="modal-subtotal-bar">
+              本批小计：<strong class="mono">{{ formatBatchNum(modalSubtotal) }}</strong> 万元
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn ghost" @click="closeBatchModal">取消</button>
+            <button class="btn primary" @click="saveBatch" :disabled="modalLoading">
+              {{ modalLoading ? '保存中...' : '保存批次' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 专业管理抽屉 ── -->
+      <div v-if="specialtyPanel" class="specialty-overlay" @click.self="specialtyPanel = false">
+        <aside class="specialty-drawer">
+          <div class="specialty-drawer-head">
+            <div>
+              <h3>管理专业列表</h3>
+              <p>共 {{ specialtyList.length }} 个专业 · 顺序即表格列顺序</p>
+            </div>
+            <button class="modal-close" @click="specialtyPanel = false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div class="specialty-list">
+            <div v-for="s in specialtyList" :key="s.id" class="specialty-item">
+              <template v-if="editingSpecialty?.id === s.id">
+                <input v-model="editingSpecialty.name" class="specialty-edit-input"
+                  @keyup.enter="saveSpecialtyEdit" @keyup.escape="editingSpecialty = null" />
+                <button class="btn-sm" @click="saveSpecialtyEdit">保存</button>
+                <button class="btn-sm ghost" @click="editingSpecialty = null">取消</button>
+              </template>
+              <template v-else>
+                <span class="specialty-item-name">{{ s.name }}</span>
+                <div class="specialty-item-ops">
+                  <button class="btn-sm ghost" @click="startEditSpecialty(s)">重命名</button>
+                  <button class="btn-sm danger" @click="confirmDeleteSpecialty(s)">删除</button>
+                </div>
+              </template>
+            </div>
+          </div>
+          <div class="specialty-add-row">
+            <input v-model="newSpecialtyName" class="form-input specialty-add-input"
+              placeholder="输入新增专业名称" @keyup.enter="addNewSpecialty" />
+            <button class="btn primary" @click="addNewSpecialty" :disabled="!newSpecialtyName.trim()">添加</button>
+          </div>
+          <p class="specialty-footer-hint">重命名后，所有历史批次对应金额会自动更新专业名。</p>
+        </aside>
+      </div>
+
+    </div><!-- /batch tab -->
+
     <div v-if="historyVisible" class="history-overlay" @click.self="closeHistoryPanel">
       <aside class="history-panel">
         <div class="history-panel-header">
@@ -439,12 +640,20 @@
       </div>
       <p>分析中...</p>
     </div>
+
+    <!-- 单元格批注悬浮提示（fixed 定位不受 overflow:auto 裁剪） -->
+    <div v-if="cellNoteVisible" class="cell-note-popup"
+      :style="{ left: cellNoteX + 'px', top: cellNoteY + 'px' }">
+      {{ cellNoteText }}
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
-import { uploadBudget, getBudgetHistory, getBudgetHistorySnapshot } from '../api'
+import { ref, computed, watch, onMounted, reactive } from 'vue'
+import { uploadBudget, getBudgetHistory, getBudgetHistorySnapshot,
+  getBatchData, createBatch, updateBatch, deleteBatch,
+  getSpecialties, addSpecialty, updateSpecialty, deleteSpecialty } from '../api'
 
 const props = defineProps({
   initialData: {
@@ -827,6 +1036,182 @@ onMounted(() => {
     loadHistoryList()
   }
 })
+
+// ══════════════════════════════════════════════════════════════════
+// 批次下达 Tab
+// ══════════════════════════════════════════════════════════════════
+
+const batchTab = ref('budget')
+const batchData = ref({ specialties: [], batches: [], totals: {} })
+const batchLoading = ref(false)
+
+const batchModal = ref({
+  visible: false, mode: 'create', editId: null,
+  form: { batch_date: '', note: '', amounts: {}, notes: {} }
+})
+const noteFieldsOpen = reactive({})
+const cellNoteVisible = ref(false)
+const cellNoteText = ref('')
+const cellNoteX = ref(0)
+const cellNoteY = ref(0)
+const modalLoading = ref(false)
+
+const specialtyPanel = ref(false)
+const specialtyList = ref([])
+const newSpecialtyName = ref('')
+const editingSpecialty = ref(null)
+
+const grandTotal = computed(() =>
+  Object.values(batchData.value.totals).reduce((s, v) => s + (v || 0), 0)
+)
+const modalSubtotal = computed(() =>
+  Object.values(batchModal.value.form.amounts).reduce((s, v) => s + (parseFloat(v) || 0), 0)
+)
+
+function batchSubtotal(batch) {
+  return Object.values(batch.amounts).reduce((s, v) => s + (v || 0), 0)
+}
+
+function formatBatchNum(v) {
+  if (v === null || v === undefined || v === 0) return '—'
+  return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+async function switchToBatchTab() {
+  batchTab.value = 'batch'
+  if (!batchData.value.batches.length && !batchLoading.value) {
+    await loadBatchData()
+  }
+}
+
+async function loadBatchData() {
+  batchLoading.value = true
+  try {
+    batchData.value = await getBatchData()
+  } catch (e) {
+    console.error('加载批次数据失败', e)
+  } finally {
+    batchLoading.value = false
+  }
+}
+
+function openCreateModal() {
+  const amounts = {}
+  batchData.value.specialties.forEach(s => { amounts[s] = null })
+  Object.keys(noteFieldsOpen).forEach(k => delete noteFieldsOpen[k])
+  batchModal.value = {
+    visible: true, mode: 'create', editId: null,
+    form: { batch_date: new Date().toISOString().slice(0, 10), note: '', amounts, notes: {} }
+  }
+}
+
+function openEditModal(batch) {
+  const amounts = {}
+  const notes = {}
+  batchData.value.specialties.forEach(s => {
+    amounts[s] = batch.amounts[s] ?? null
+    notes[s] = batch.notes?.[s] ?? ''
+  })
+  Object.keys(noteFieldsOpen).forEach(k => delete noteFieldsOpen[k])
+  Object.entries(notes).forEach(([s, v]) => { if (v) noteFieldsOpen[s] = true })
+  batchModal.value = {
+    visible: true, mode: 'edit', editId: batch.id,
+    form: { batch_date: batch.batch_date, note: batch.note, amounts, notes }
+  }
+}
+
+function closeBatchModal() { batchModal.value.visible = false }
+
+function setAmount(specialty, value) {
+  batchModal.value.form.amounts[specialty] = value === '' ? null : parseFloat(value)
+}
+
+function toggleNoteField(s) {
+  noteFieldsOpen[s] = !noteFieldsOpen[s]
+}
+
+function showCellNote(event, text) {
+  const rect = event.currentTarget.getBoundingClientRect()
+  cellNoteText.value = text
+  cellNoteX.value = rect.left
+  cellNoteY.value = rect.bottom + 6
+  cellNoteVisible.value = true
+}
+
+function hideCellNote() {
+  cellNoteVisible.value = false
+}
+
+async function saveBatch() {
+  const { mode, editId, form } = batchModal.value
+  if (!form.batch_date) { alert('请填写批次日期'); return }
+  modalLoading.value = true
+  try {
+    const payload = {
+      batch_date: form.batch_date,
+      note: form.note,
+      amounts: Object.fromEntries(
+        Object.entries(form.amounts).filter(([, v]) => v !== null && v !== '' && !isNaN(v))
+      ),
+      notes: Object.fromEntries(
+        Object.entries(form.notes || {}).filter(([, v]) => v?.trim())
+      )
+    }
+    if (mode === 'create') await createBatch(payload)
+    else await updateBatch(editId, payload)
+    closeBatchModal()
+    await loadBatchData()
+  } catch (e) {
+    alert('保存失败：' + (e.response?.data?.detail || e.message))
+  } finally {
+    modalLoading.value = false
+  }
+}
+
+async function confirmDeleteBatch(batch) {
+  if (!confirm(`确认删除 ${batch.batch_date} 这条批次记录？`)) return
+  try {
+    await deleteBatch(batch.id)
+    await loadBatchData()
+  } catch (e) { alert('删除失败：' + e.message) }
+}
+
+async function openSpecialtyPanel() {
+  specialtyPanel.value = true
+  specialtyList.value = await getSpecialties()
+}
+
+async function addNewSpecialty() {
+  const name = newSpecialtyName.value.trim()
+  if (!name) return
+  try {
+    await addSpecialty(name)
+    newSpecialtyName.value = ''
+    specialtyList.value = await getSpecialties()
+    await loadBatchData()
+  } catch (e) { alert('添加失败：' + (e.response?.data?.detail || e.message)) }
+}
+
+function startEditSpecialty(s) { editingSpecialty.value = { id: s.id, name: s.name } }
+
+async function saveSpecialtyEdit() {
+  if (!editingSpecialty.value) return
+  try {
+    await updateSpecialty(editingSpecialty.value.id, { name: editingSpecialty.value.name })
+    editingSpecialty.value = null
+    specialtyList.value = await getSpecialties()
+    await loadBatchData()
+  } catch (e) { alert('重命名失败：' + (e.response?.data?.detail || e.message)) }
+}
+
+async function confirmDeleteSpecialty(s) {
+  if (!confirm(`确认删除专业「${s.name}」？已有批次中该专业的金额数据不受影响。`)) return
+  try {
+    await deleteSpecialty(s.id)
+    specialtyList.value = await getSpecialties()
+    await loadBatchData()
+  } catch (e) { alert('删除失败：' + e.message) }
+}
 </script>
 
 <style scoped>
@@ -3128,4 +3513,218 @@ onMounted(() => {
   color: var(--ink-2); font-size: 12px; cursor: pointer; font-family: inherit;
 }
 .filter-sel:hover { border-color: var(--ink-4); }
+
+/* ══════════════════════════════════════════════════════════════════
+   批次下达 Tab
+══════════════════════════════════════════════════════════════════ */
+
+/* 标签栏 */
+.bpage-tabs {
+  display: flex; gap: 2px; padding: 0 0 0 2px; margin-bottom: 0;
+  border-bottom: 1px solid var(--line);
+}
+.bpage-tab {
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 18px; border: none; background: none; cursor: pointer;
+  font-size: 13px; font-weight: 500; color: var(--ink-3);
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s; font-family: inherit;
+}
+.bpage-tab:hover { color: var(--ink-2); }
+.bpage-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
+.bpage-tab-count {
+  background: var(--accent); color: #fff; border-radius: 10px;
+  padding: 1px 6px; font-size: 11px; font-weight: 600;
+}
+
+/* 批次视图框架 */
+.batch-view { padding: 28px 0 48px; }
+.batch-view-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  margin-bottom: 20px; gap: 16px;
+}
+.batch-head-actions { display: flex; gap: 8px; flex-shrink: 0; margin-top: 4px; }
+
+/* 加载 */
+.batch-loading-wrap {
+  display: flex; align-items: center; gap: 12px;
+  padding: 48px; color: var(--ink-3); font-size: 14px;
+}
+
+/* 表格容器 */
+.batch-table-outer { overflow-x: auto; max-height: 65vh; overflow-y: auto; }
+
+/* 批次表格 */
+.batch-tbl { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.batch-tbl thead { position: sticky; top: 0; z-index: 10; }
+.batch-tbl thead tr { background: var(--surface); }
+.batch-tbl th {
+  padding: 10px 12px; font-weight: 600; font-size: 11px; color: var(--ink-3);
+  text-align: right; white-space: nowrap; border-bottom: 2px solid var(--line);
+  letter-spacing: 0.02em;
+}
+.batch-tbl td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; white-space: nowrap; }
+
+/* 列宽 */
+.bc-date { text-align: left !important; min-width: 110px; font-weight: 500; color: var(--ink); }
+.bc-amount { min-width: 88px; text-align: right; color: var(--ink-2); font-family: var(--font-mono); font-size: 12px; }
+.bc-subtotal { min-width: 100px; text-align: right; font-family: var(--font-mono); font-size: 12px; }
+.bc-note { min-width: 200px; max-width: 300px; text-align: left; overflow: hidden; text-overflow: ellipsis; color: var(--ink-3); font-size: 12px; }
+.bc-ops { min-width: 90px; text-align: right; padding-right: 14px; }
+
+/* 行样式 */
+.br-total { background: rgba(46,117,182,0.07); }
+.br-total td { font-weight: 600; color: var(--ink); border-bottom: 2px solid var(--line); }
+.br-total .bc-subtotal { color: #1F3864; }
+.br-batch:hover { background: var(--surface); }
+.br-even { background: var(--paper-2, #fafaf8); }
+.br-even:hover { background: var(--surface); }
+
+/* 零值 */
+.bc-zero { color: var(--ink-4); }
+.bc-note-muted { color: var(--ink-4) !important; font-style: italic; }
+
+/* 负数 */
+.neg { color: var(--bad, #c00000); }
+
+/* 单元格批注角标 */
+.bc-cell-wrap { position: relative; display: inline-flex; align-items: center; width: 100%; justify-content: flex-end; }
+.bc-note-corner {
+  position: absolute; top: -4px; right: -4px; pointer-events: none;
+  width: 0; height: 0; border-style: solid;
+  border-width: 0 7px 7px 0;
+  border-color: transparent #e53e3e transparent transparent;
+}
+
+/* 全局批注弹窗（teleport to body） */
+.cell-note-popup {
+  position: fixed; z-index: 9999; pointer-events: none;
+  background: #fff; border: 1px solid #e2e8f0;
+  border-radius: 8px; padding: 9px 12px;
+  font-size: 12px; line-height: 1.6; max-width: 280px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.13);
+  color: #374151; white-space: pre-wrap;
+}
+
+/* 空状态 */
+.batch-empty-cell { text-align: center; padding: 48px 24px; color: var(--ink-3); font-size: 14px; }
+
+/* 行内操作按钮 */
+.btn-row-op {
+  padding: 3px 10px; border-radius: var(--r-sm); border: 1px solid var(--line-2);
+  background: none; cursor: pointer; font-size: 11px; color: var(--ink-3);
+  font-family: inherit; transition: all 0.15s;
+}
+.btn-row-op:hover { color: var(--ink); border-color: var(--ink-3); background: var(--surface); }
+.btn-row-op.del:hover { color: var(--bad); border-color: var(--bad); background: rgba(192,0,0,0.05); }
+
+/* 弹窗 */
+.batch-modal-box {
+  width: min(700px, 96vw); max-height: 90vh;
+  display: flex; flex-direction: column;
+}
+.modal-body { overflow-y: auto; flex: 1; padding: 20px 24px; }
+.form-row { margin-bottom: 14px; }
+.form-label { display: block; font-size: 12px; font-weight: 500; color: var(--ink-2); margin-bottom: 5px; }
+.form-input {
+  width: 100%; padding: 8px 12px; border-radius: var(--r-md);
+  border: 1px solid var(--line-2); background: var(--surface);
+  color: var(--ink); font-size: 13px; font-family: inherit; outline: none; box-sizing: border-box;
+}
+.form-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(46,117,182,0.12); }
+.form-textarea {
+  width: 100%; padding: 8px 12px; border-radius: var(--r-md);
+  border: 1px solid var(--line-2); background: var(--surface);
+  color: var(--ink); font-size: 13px; font-family: inherit; outline: none;
+  resize: vertical; box-sizing: border-box;
+}
+.form-textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(46,117,182,0.12); }
+.form-section-title {
+  font-size: 12px; font-weight: 600; color: var(--ink-2);
+  margin: 18px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line);
+}
+.form-section-hint { font-weight: 400; color: var(--ink-4); font-size: 11px; }
+
+/* 金额输入网格 */
+.amounts-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 16px; }
+.amount-cell { display: flex; flex-direction: column; gap: 3px; }
+.amount-cell-top { display: flex; justify-content: space-between; align-items: center; gap: 4px; }
+.amount-label {
+  font-size: 11px; color: var(--ink-3); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; font-weight: 500; flex: 1; min-width: 0;
+}
+.btn-note-toggle {
+  flex-shrink: 0; font-size: 10px; padding: 1px 6px;
+  border: 1px solid var(--line-2); border-radius: 3px;
+  background: none; color: var(--ink-4); cursor: pointer; font-family: inherit;
+  transition: all .15s; line-height: 1.6;
+}
+.btn-note-toggle:hover { border-color: var(--ink-3); color: var(--ink-2); }
+.btn-note-toggle.active { border-color: #d97706; color: #d97706; background: #fffbeb; }
+.amount-input {
+  padding: 6px 10px; border-radius: var(--r-sm);
+  border: 1px solid var(--line-2); background: var(--surface);
+  color: var(--ink); font-size: 12px; font-family: var(--font-mono); outline: none;
+  text-align: right; width: 100%; box-sizing: border-box;
+}
+.amount-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(46,117,182,0.1); }
+.amount-note-textarea {
+  width: 100%; font-size: 11px; line-height: 1.5;
+  border: 1px solid #fcd34d; border-radius: var(--r-sm);
+  padding: 5px 8px; resize: vertical; font-family: inherit;
+  background: #fffdf5; color: var(--ink); outline: none; box-sizing: border-box;
+}
+.amount-note-textarea:focus { border-color: #d97706; }
+
+.modal-subtotal-bar {
+  margin-top: 14px; padding: 10px 14px; border-radius: var(--r-md);
+  background: var(--surface); font-size: 13px; color: var(--ink-2); text-align: right;
+}
+.modal-footer {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 14px 24px; border-top: 1px solid var(--line);
+}
+
+/* 专业管理抽屉 */
+.specialty-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 1000;
+  display: flex; align-items: stretch; justify-content: flex-end;
+}
+.specialty-drawer {
+  width: 360px; background: var(--paper); box-shadow: -4px 0 32px rgba(0,0,0,0.18);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.specialty-drawer-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding: 20px 20px 16px; border-bottom: 1px solid var(--line);
+}
+.specialty-drawer-head h3 { margin: 0 0 2px; font-size: 15px; color: var(--ink); }
+.specialty-drawer-head p { margin: 0; font-size: 12px; color: var(--ink-3); }
+.specialty-list { flex: 1; overflow-y: auto; padding: 8px 0; }
+.specialty-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 16px; border-bottom: 1px solid var(--line);
+}
+.specialty-item:last-child { border-bottom: none; }
+.specialty-item-name { flex: 1; font-size: 13px; color: var(--ink); }
+.specialty-item-ops { display: flex; gap: 4px; flex-shrink: 0; }
+.specialty-edit-input {
+  flex: 1; padding: 4px 8px; border-radius: var(--r-sm);
+  border: 1px solid var(--accent); background: var(--surface);
+  color: var(--ink); font-size: 13px; font-family: inherit; outline: none;
+}
+.specialty-add-row { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--line); }
+.specialty-add-input { flex: 1; }
+.specialty-footer-hint { margin: 0; padding: 8px 16px 16px; font-size: 11px; color: var(--ink-4); line-height: 1.5; }
+
+/* 小按钮 */
+.btn-sm {
+  padding: 3px 10px; border-radius: var(--r-sm); font-size: 11px;
+  border: 1px solid var(--line-2); background: none; cursor: pointer;
+  color: var(--ink-2); font-family: inherit; transition: all 0.15s;
+}
+.btn-sm:hover { background: var(--surface); }
+.btn-sm.ghost { color: var(--ink-3); }
+.btn-sm.danger { color: var(--bad); border-color: rgba(192,0,0,0.25); }
+.btn-sm.danger:hover { background: rgba(192,0,0,0.06); }
 </style>

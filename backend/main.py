@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import analysis, budget, ai, notify, report, archive
+from routers import analysis, budget, ai, notify, report, archive, budget_batch
 from models import init_db
 
 app = FastAPI(title="在建工程分析系统", version="1.0.0")
@@ -13,7 +13,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -24,6 +24,7 @@ app.include_router(ai.router, prefix="/api/ai", tags=["AI分析"])
 app.include_router(notify.router, prefix="/api/notify", tags=["通知"])
 app.include_router(report.router, prefix="/api/report", tags=["月报"])
 app.include_router(archive.router, prefix="/api/archive", tags=["数据档案"])
+app.include_router(budget_batch.router, prefix="/api/budget-batch", tags=["投资批次"])
 
 @app.get("/")
 async def root():

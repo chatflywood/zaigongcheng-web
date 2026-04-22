@@ -158,6 +158,53 @@ export async function deleteArchive(recordId) {
   return response.data
 }
 
+// ── 投资预算批次下达 ───────────────────────────────────────────────
+
+export async function getBatchData() {
+  const response = await axios.get(`${API_BASE}/budget-batch/batches`)
+  return response.data
+}
+
+export async function createBatch(payload) {
+  const response = await axios.post(`${API_BASE}/budget-batch/batches`, payload)
+  return response.data
+}
+
+export async function updateBatch(id, payload) {
+  const response = await axios.put(`${API_BASE}/budget-batch/batches/${id}`, payload)
+  return response.data
+}
+
+export async function deleteBatch(id) {
+  const response = await axios.delete(`${API_BASE}/budget-batch/batches/${id}`)
+  return response.data
+}
+
+export async function getSpecialties() {
+  const response = await axios.get(`${API_BASE}/budget-batch/specialties`)
+  return response.data
+}
+
+export async function addSpecialty(name) {
+  const response = await axios.post(`${API_BASE}/budget-batch/specialties`, { name, sort_order: 999 })
+  return response.data
+}
+
+export async function updateSpecialty(id, payload) {
+  const response = await axios.put(`${API_BASE}/budget-batch/specialties/${id}`, payload)
+  return response.data
+}
+
+export async function deleteSpecialty(id) {
+  const response = await axios.delete(`${API_BASE}/budget-batch/specialties/${id}`)
+  return response.data
+}
+
+export async function reorderSpecialties(order) {
+  const response = await axios.put(`${API_BASE}/budget-batch/specialties/reorder/batch`, order)
+  return response.data
+}
+
 export async function exportTransferPriority(recordId, targetRate) {
   const params = targetRate ? { target_rate: targetRate / 100 } : {}
   const response = await axios.get(

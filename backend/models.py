@@ -2,7 +2,7 @@
 """
 数据库模型
 """
-from sqlalchemy import Column, Integer, String, Float, DateTime, Text, create_engine
+from sqlalchemy import Column, Integer, String, Float, DateTime, Text, create_engine, UniqueConstraint, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
@@ -81,9 +81,59 @@ class ArchiveRecord(Base):
         return f"<ArchiveRecord {self.id} {self.category} {self.year}>"
 
 
+class BatchSpecialty(Base):
+    """投资预算批次专业列表（可配置）"""
+    __tablename__ = "batch_specialties"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), unique=True, nullable=False)
+    sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.now)
+
+
+class BudgetBatch(Base):
+    """投资预算批次下达记录"""
+    __tablename__ = "budget_batches"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    batch_date = Column(String(20), nullable=False)   # "2026-01-08"
+    note = Column(Text, default='')                    # 用途说明
+    amounts = Column(Text, default='{}')               # JSON: {专业名: 金额}
+    notes = Column(Text, default='{}')                # JSON: {专业名: "批注文字"}
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+    def __repr__(self):
+        return f"<BudgetBatch {self.id} {self.batch_date}>"
+
+
+DEFAULT_SPECIALTIES = [
+    "5G无线网及配套", "STN", "综合业务接入区", "有线接入网", "组网专线",
+    "ICT、私有云", "5G定制网", "IDC", "传输光缆", "传输设备", "数据网",
+    "局房及管道", "电源（DC）", "双碳", "其他", "云", "能力平台",
+    "网信安全", "运营系统", "核心网", "科创", "置换料堪用料等增加", "上年预借还原等清算",
+]
+
+
 def init_db():
     """初始化数据库表"""
     Base.metadata.create_all(bind=engine)
+    # 为已有数据库补充 notes 列（幂等）
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE budget_batches ADD COLUMN notes TEXT DEFAULT '{}'"))
+            conn.commit()
+        except Exception:
+            pass
+    # 写入默认专业列表（仅首次，幂等）
+    db = SessionLocal()
+    try:
+        if db.query(BatchSpecialty).count() == 0:
+            for i, name in enumerate(DEFAULT_SPECIALTIES):
+                db.add(BatchSpecialty(name=name, sort_order=i))
+            db.commit()
+    finally:
+        db.close()
 
 
 def get_db():
