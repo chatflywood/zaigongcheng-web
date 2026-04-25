@@ -803,10 +803,6 @@ async function handleNavPush() {
         <strong>当月窗口</strong>
         <span>{{ currentMonthLabel }}</span>
         <span class="side-version">v0.4 · 内部预览</span>
-        <button v-if="currentView === 'key-indicators'" class="side-more-btn" @click="togglePresentationMode">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-          展示模式
-        </button>
       </div>
     </aside>
 

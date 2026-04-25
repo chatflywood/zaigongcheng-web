@@ -399,7 +399,7 @@
     <div v-show="batchTab === 'batch'" class="batch-view">
 
       <div class="batch-view-head">
-        <div>
+        <div class="batch-head-left">
           <span class="eyebrow">投资预算 / Budget Batches</span>
           <h1 class="page-title-h1">批次下达台账</h1>
           <div class="page-meta">
@@ -3538,12 +3538,14 @@ async function confirmDeleteSpecialty(s) {
 }
 
 /* 批次视图框架 */
-.batch-view { padding: 28px 0 48px; }
+.batch-view { padding: 36px 4px 56px; }
 .batch-view-head {
   display: flex; align-items: flex-start; justify-content: space-between;
-  margin-bottom: 20px; gap: 16px;
+  padding-bottom: 28px; margin-bottom: 36px; gap: 24px;
+  border-bottom: 1px solid var(--line);
 }
 .batch-head-actions { display: flex; gap: 8px; flex-shrink: 0; margin-top: 4px; }
+.batch-head-left { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 
 /* 加载 */
 .batch-loading-wrap {
@@ -3559,11 +3561,11 @@ async function confirmDeleteSpecialty(s) {
 .batch-tbl thead { position: sticky; top: 0; z-index: 10; }
 .batch-tbl thead tr { background: var(--surface); }
 .batch-tbl th {
-  padding: 10px 12px; font-weight: 600; font-size: 11px; color: var(--ink-3);
+  padding: 12px 16px; font-weight: 600; font-size: 11px; color: var(--ink-3);
   text-align: right; white-space: nowrap; border-bottom: 2px solid var(--line);
   letter-spacing: 0.02em;
 }
-.batch-tbl td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; white-space: nowrap; }
+.batch-tbl td { padding: 11px 16px; border-bottom: 1px solid var(--line); vertical-align: middle; white-space: nowrap; }
 
 /* 列宽 */
 .bc-date { text-align: left !important; min-width: 110px; font-weight: 500; color: var(--ink); }
@@ -3607,7 +3609,7 @@ async function confirmDeleteSpecialty(s) {
 }
 
 /* 空状态 */
-.batch-empty-cell { text-align: center; padding: 48px 24px; color: var(--ink-3); font-size: 14px; }
+.batch-empty-cell { text-align: center; padding: 56px 32px; color: var(--ink-3); font-size: 14px; }
 
 /* 行内操作按钮 */
 .btn-row-op {
@@ -3623,9 +3625,9 @@ async function confirmDeleteSpecialty(s) {
   width: min(700px, 96vw); max-height: 90vh;
   display: flex; flex-direction: column;
 }
-.modal-body { overflow-y: auto; flex: 1; padding: 20px 24px; }
-.form-row { margin-bottom: 14px; }
-.form-label { display: block; font-size: 12px; font-weight: 500; color: var(--ink-2); margin-bottom: 5px; }
+.modal-body { overflow-y: auto; flex: 1; padding: 24px 28px; }
+.form-row { margin-bottom: 18px; }
+.form-label { display: block; font-size: 12px; font-weight: 500; color: var(--ink-2); margin-bottom: 8px; }
 .form-input {
   width: 100%; padding: 8px 12px; border-radius: var(--r-md);
   border: 1px solid var(--line-2); background: var(--surface);
@@ -3641,13 +3643,13 @@ async function confirmDeleteSpecialty(s) {
 .form-textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(46,117,182,0.12); }
 .form-section-title {
   font-size: 12px; font-weight: 600; color: var(--ink-2);
-  margin: 18px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line);
+  margin: 22px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--line);
 }
 .form-section-hint { font-weight: 400; color: var(--ink-4); font-size: 11px; }
 
 /* 金额输入网格 */
-.amounts-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 16px; }
-.amount-cell { display: flex; flex-direction: column; gap: 3px; }
+.amounts-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 20px; }
+.amount-cell { display: flex; flex-direction: column; gap: 5px; }
 .amount-cell-top { display: flex; justify-content: space-between; align-items: center; gap: 4px; }
 .amount-label {
   font-size: 11px; color: var(--ink-3); white-space: nowrap;
@@ -3662,7 +3664,7 @@ async function confirmDeleteSpecialty(s) {
 .btn-note-toggle:hover { border-color: var(--ink-3); color: var(--ink-2); }
 .btn-note-toggle.active { border-color: #d97706; color: #d97706; background: #fffbeb; }
 .amount-input {
-  padding: 6px 10px; border-radius: var(--r-sm);
+  padding: 8px 12px; border-radius: var(--r-sm);
   border: 1px solid var(--line-2); background: var(--surface);
   color: var(--ink); font-size: 12px; font-family: var(--font-mono); outline: none;
   text-align: right; width: 100%; box-sizing: border-box;
@@ -3677,12 +3679,12 @@ async function confirmDeleteSpecialty(s) {
 .amount-note-textarea:focus { border-color: #d97706; }
 
 .modal-subtotal-bar {
-  margin-top: 14px; padding: 10px 14px; border-radius: var(--r-md);
+  margin-top: 18px; padding: 12px 16px; border-radius: var(--r-md);
   background: var(--surface); font-size: 13px; color: var(--ink-2); text-align: right;
 }
 .modal-footer {
-  display: flex; justify-content: flex-end; gap: 8px;
-  padding: 14px 24px; border-top: 1px solid var(--line);
+  display: flex; justify-content: flex-end; gap: 10px;
+  padding: 16px 28px; border-top: 1px solid var(--line);
 }
 
 /* 专业管理抽屉 */
