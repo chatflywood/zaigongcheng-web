@@ -29,10 +29,6 @@
         </div>
       </div>
       <div class="page-actions">
-        <button class="ki-btn ghost" @click="openAddModal">
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          添加工作
-        </button>
         <button class="ki-btn ghost" @click="togglePresentationMode">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 5V2h3M11 2h3v3M2 11v3h3M14 11v3h-3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
           {{ presentationMode ? '退出展示' : '投屏' }}
@@ -44,260 +40,292 @@
       </div>
     </header>
 
-    <!-- ── 4 Core KPI Donut Gauges (2×2 hairline grid) ── -->
-    <div class="section">
-      <div class="section-head">
-        <h2>四个核心指标</h2>
-        <span class="sub">对比目标 · 含叙事说明</span>
+    <!-- ── Summary banner ── -->
+    <div class="ki-summary-banner" v-if="props.zaigongData?.metrics">
+      <p class="ki-summary-text">
+        当期资本性支出 <strong class="mono">{{ props.zaigongData?.metrics?.capital?.toFixed(2) || '—' }} 万元</strong>（当期目标 {{ displayTargetValue }} 万，进度 <strong style="color:var(--accent)">{{ capitalProgress }}%</strong>），缺口 <strong class="mono" style="color:var(--warn)">{{ props.zaigongData?.metrics?.deficit?.toFixed(2) || '—' }} 万</strong>。全年支出进度 <strong style="color:var(--accent)">{{ annualCapitalProgress }}%</strong>，立项进度 {{ approvalProgress }}%。整体转固率仅 <strong class="mono" :style="{ color: parseFloat(transferRate) < 60 ? 'var(--bad)' : 'var(--ok)' }">{{ transferRate }}%</strong>{{ parseFloat(transferRate) < 60 ? '，低于60%期望值，需在下一周期集中推进转固。' : '，已达标。' }}
+      </p>
+      <div class="ki-summary-foot">
+        <span>AUTO-DRAFTED · 基于上传数据</span>
+        <button class="ki-btn ghost" style="height:24px;font-size:11px" @click="copyNarrative">复制文本</button>
       </div>
-      <div class="ki-gauge-grid">
+    </div>
 
-        <!-- Card 1: 当期资本性支出进度 -->
-        <div class="ki-gauge-cell">
-          <div class="ki-gauge-donut">
-            <svg width="120" height="120" viewBox="0 0 120 120">
-              <circle cx="60" cy="60" r="50" fill="none" stroke="var(--paper-2)" stroke-width="10"/>
-              <circle cx="60" cy="60" r="50" fill="none"
-                :stroke="gaugeColor(animatedGauges[0], 100)"
-                stroke-width="10" stroke-linecap="round" stroke-dasharray="314.16"
-                :stroke-dashoffset="314.16 * (1 - Math.min(animatedGauges[0], 100) / 100)"
-                transform="rotate(-90 60 60)"
-              />
-            </svg>
-            <div class="ki-gauge-center">
-              <div class="mono ki-gauge-val">{{ animatedGauges[0].toFixed(1) }}</div>
-              <div class="ki-gauge-target">目标 100%</div>
+    <!-- ── Two-Column Magazine Layout ── -->
+    <div class="ki-two-col">
+
+      <!-- Left: 2×2 KPI Donut Grid (60%) -->
+      <div class="ki-left-col">
+        <div class="ki-kpi-grid">
+
+          <!-- Card 1: 资本性支出进度 -->
+          <div class="ki-kpi-card">
+            <div class="ki-kpi-donut">
+              <svg width="110" height="110" viewBox="0 0 120 120">
+                <circle cx="60" cy="60" r="48" fill="none" stroke="var(--paper-2)" stroke-width="9"/>
+                <circle cx="60" cy="60" r="48" fill="none"
+                  :stroke="gaugeColor(animatedGauges[0], 100)"
+                  stroke-width="9" stroke-linecap="round" stroke-dasharray="301.59"
+                  :stroke-dashoffset="301.59 * (1 - Math.min(animatedGauges[0], 100) / 100)"
+                  transform="rotate(-90 60 60)"
+                />
+              </svg>
+              <div class="ki-kpi-center">
+                <div class="ki-kpi-val">{{ animatedGauges[0].toFixed(1) }}<span class="ki-kpi-unit">%</span></div>
+                <div class="ki-kpi-target">目标 100%</div>
+              </div>
             </div>
-          </div>
-          <div class="ki-gauge-info">
-            <div class="ki-gauge-label">当期资本性支出进度</div>
-            <div class="ki-gauge-sub mono">{{ props.zaigongData?.metrics?.capital?.toFixed(1) || '0.0' }} / {{ displayTargetValue }} 万</div>
-            <div class="ki-gauge-delta" :class="parseFloat(capitalProgress) >= 80 ? 'ok' : 'up'">
+            <div class="ki-kpi-label">资本性支出进度</div>
+            <div class="ki-kpi-sub mono">{{ props.zaigongData?.metrics?.capital?.toFixed(1) || '0.0' }} / {{ displayTargetValue }} 万</div>
+            <div class="ki-kpi-delta" :class="parseFloat(capitalProgress) >= 80 ? 'ok' : 'up'">
               <span class="tri-up"></span>缺口 {{ props.zaigongData?.metrics?.deficit?.toFixed(1) || '0.0' }} 万
             </div>
-            <div class="ki-gauge-narrative">
-              当期资本性支出已完成目标的 {{ capitalProgress }}%，累计 {{ props.zaigongData?.metrics?.capital?.toFixed(1) || '0.0' }} 万元，距离当期 {{ displayTargetValue }} 万元目标还差 {{ props.zaigongData?.metrics?.deficit?.toFixed(1) || '—' }} 万。
+            <div class="ki-kpi-narrative">
+              已完成目标的 {{ capitalProgress }}%，累计 {{ props.zaigongData?.metrics?.capital?.toFixed(1) || '0.0' }} 万元。
             </div>
           </div>
-        </div>
 
-        <!-- Card 2: 转固率 -->
-        <div class="ki-gauge-cell">
-          <div class="ki-gauge-donut">
-            <svg width="120" height="120" viewBox="0 0 120 120">
-              <circle cx="60" cy="60" r="50" fill="none" stroke="var(--paper-2)" stroke-width="10"/>
-              <circle cx="60" cy="60" r="50" fill="none"
-                :stroke="gaugeColor(animatedGauges[1], 60)"
-                stroke-width="10" stroke-linecap="round" stroke-dasharray="314.16"
-                :stroke-dashoffset="314.16 * (1 - Math.min(animatedGauges[1], 100) / 100)"
-                transform="rotate(-90 60 60)"
-              />
-            </svg>
-            <div class="ki-gauge-center">
-              <div class="mono ki-gauge-val">{{ animatedGauges[1].toFixed(1) }}</div>
-              <div class="ki-gauge-target">目标 60%</div>
+          <!-- Card 2: 转固率 -->
+          <div class="ki-kpi-card">
+            <div class="ki-kpi-donut">
+              <svg width="110" height="110" viewBox="0 0 120 120">
+                <circle cx="60" cy="60" r="48" fill="none" stroke="var(--paper-2)" stroke-width="9"/>
+                <circle cx="60" cy="60" r="48" fill="none"
+                  :stroke="gaugeColor(animatedGauges[1], 60)"
+                  stroke-width="9" stroke-linecap="round" stroke-dasharray="301.59"
+                  :stroke-dashoffset="301.59 * (1 - Math.min(animatedGauges[1], 100) / 100)"
+                  transform="rotate(-90 60 60)"
+                />
+              </svg>
+              <div class="ki-kpi-center">
+                <div class="ki-kpi-val" :class="parseFloat(transferRate) < 60 ? 'is-low' : ''">{{ animatedGauges[1].toFixed(1) }}<span class="ki-kpi-unit">%</span></div>
+                <div class="ki-kpi-target">目标 60%</div>
+              </div>
             </div>
-          </div>
-          <div class="ki-gauge-info">
-            <div class="ki-gauge-label">转固率</div>
-            <div class="ki-gauge-sub mono">期末余额 vs 年初数</div>
-            <div class="ki-gauge-delta" :class="parseFloat(transferRate) < 10 ? 'down' : 'flat'">
+            <div class="ki-kpi-label">转固率</div>
+            <div class="ki-kpi-sub mono">期末余额 vs 年初数</div>
+            <div class="ki-kpi-delta" :class="parseFloat(transferRate) < 10 ? 'down' : 'flat'">
               <span v-if="parseFloat(transferRate) < 10" class="tri-dn"></span>
               {{ parseFloat(transferRate) < 10 ? '低位' : '—' }}
             </div>
-            <div class="ki-gauge-narrative">
-              整体转固率 {{ transferRate }}%，{{ parseFloat(transferRate) < 60 ? '低于 60% 期望值。期末余额仍有较大规模尚未转为固定资产。' : '已达标。' }}
+            <div class="ki-kpi-narrative">
+              整体转固率 {{ transferRate }}%，{{ parseFloat(transferRate) < 60 ? '低于 60% 期望值。' : '已达标。' }}
             </div>
           </div>
-        </div>
 
-        <!-- Card 3: 预算执行率 -->
-        <div class="ki-gauge-cell">
-          <div class="ki-gauge-donut">
-            <svg width="120" height="120" viewBox="0 0 120 120">
-              <circle cx="60" cy="60" r="50" fill="none" stroke="var(--paper-2)" stroke-width="10"/>
-              <circle cx="60" cy="60" r="50" fill="none"
-                :stroke="gaugeColor(animatedGauges[2], 100)"
-                stroke-width="10" stroke-linecap="round" stroke-dasharray="314.16"
-                :stroke-dashoffset="314.16 * (1 - Math.min(animatedGauges[2], 100) / 100)"
-                transform="rotate(-90 60 60)"
-              />
-            </svg>
-            <div class="ki-gauge-center">
-              <div class="mono ki-gauge-val">{{ animatedGauges[2].toFixed(1) }}</div>
-              <div class="ki-gauge-target">目标 100%</div>
+          <!-- Card 3: 预算执行率 -->
+          <div class="ki-kpi-card">
+            <div class="ki-kpi-donut">
+              <svg width="110" height="110" viewBox="0 0 120 120">
+                <circle cx="60" cy="60" r="48" fill="none" stroke="var(--paper-2)" stroke-width="9"/>
+                <circle cx="60" cy="60" r="48" fill="none"
+                  :stroke="gaugeColor(animatedGauges[2], 100)"
+                  stroke-width="9" stroke-linecap="round" stroke-dasharray="301.59"
+                  :stroke-dashoffset="301.59 * (1 - Math.min(animatedGauges[2], 100) / 100)"
+                  transform="rotate(-90 60 60)"
+                />
+              </svg>
+              <div class="ki-kpi-center">
+                <div class="ki-kpi-val" :class="parseFloat(annualCapitalProgress) > 100 ? 'is-low' : ''">{{ animatedGauges[2].toFixed(1) }}<span class="ki-kpi-unit">%</span></div>
+                <div class="ki-kpi-target">目标 100%</div>
+              </div>
             </div>
-          </div>
-          <div class="ki-gauge-info">
-            <div class="ki-gauge-label">支出进度</div>
-            <div class="ki-gauge-sub mono">{{ props.budgetData?.annual_spend_total?.toFixed(1) || '0.0' }} / {{ props.budgetData?.budget_total?.toFixed(1) || '0.0' }} 万</div>
-            <div class="ki-gauge-delta" :class="parseFloat(annualCapitalProgress) > 100 ? 'down' : 'up'">
+            <div class="ki-kpi-label">支出进度</div>
+            <div class="ki-kpi-sub mono">{{ props.budgetData?.annual_spend_total?.toFixed(1) || '0.0' }} / {{ props.budgetData?.budget_total?.toFixed(1) || '0.0' }} 万</div>
+            <div class="ki-kpi-delta" :class="parseFloat(annualCapitalProgress) > 100 ? 'down' : 'up'">
               <span v-if="parseFloat(annualCapitalProgress) > 100" class="tri-dn"></span>
               <span v-else class="tri-up"></span>
               {{ parseFloat(annualCapitalProgress) > 100 ? '超支' : `${(100 - parseFloat(annualCapitalProgress)).toFixed(1)}pp 待执行` }}
             </div>
-            <div class="ki-gauge-narrative">
-              全年支出占已下达预算 {{ annualCapitalProgress }}%。{{ parseFloat(annualCapitalProgress) > 100 ? '已超预算，需关注。' : '执行中，未超支。' }}
+            <div class="ki-kpi-narrative">
+              全年支出占已下达预算 {{ annualCapitalProgress }}%。
             </div>
           </div>
-        </div>
 
-        <!-- Card 4: 立项进度 -->
-        <div class="ki-gauge-cell">
-          <div class="ki-gauge-donut">
-            <svg width="120" height="120" viewBox="0 0 120 120">
-              <circle cx="60" cy="60" r="50" fill="none" stroke="var(--paper-2)" stroke-width="10"/>
-              <circle cx="60" cy="60" r="50" fill="none"
-                :stroke="gaugeColor(animatedGauges[3], 90)"
-                stroke-width="10" stroke-linecap="round" stroke-dasharray="314.16"
-                :stroke-dashoffset="314.16 * (1 - Math.min(animatedGauges[3], 100) / 100)"
-                transform="rotate(-90 60 60)"
-              />
-            </svg>
-            <div class="ki-gauge-center">
-              <div class="mono ki-gauge-val">{{ animatedGauges[3].toFixed(1) }}</div>
-              <div class="ki-gauge-target">目标 90%</div>
+          <!-- Card 4: 立项进度 -->
+          <div class="ki-kpi-card">
+            <div class="ki-kpi-donut">
+              <svg width="110" height="110" viewBox="0 0 120 120">
+                <circle cx="60" cy="60" r="48" fill="none" stroke="var(--paper-2)" stroke-width="9"/>
+                <circle cx="60" cy="60" r="48" fill="none"
+                  :stroke="gaugeColor(animatedGauges[3], 90)"
+                  stroke-width="9" stroke-linecap="round" stroke-dasharray="301.59"
+                  :stroke-dashoffset="301.59 * (1 - Math.min(animatedGauges[3], 100) / 100)"
+                  transform="rotate(-90 60 60)"
+                />
+              </svg>
+              <div class="ki-kpi-center">
+                <div class="ki-kpi-val">{{ animatedGauges[3].toFixed(1) }}<span class="ki-kpi-unit">%</span></div>
+                <div class="ki-kpi-target">目标 90%</div>
+              </div>
             </div>
-          </div>
-          <div class="ki-gauge-info">
-            <div class="ki-gauge-label">立项进度</div>
-            <div class="ki-gauge-sub mono">{{ props.budgetData?.occupied_total?.toFixed(1) || '0.0' }} / {{ props.budgetData?.budget_total?.toFixed(1) || '0.0' }} 万</div>
-            <div class="ki-gauge-delta" :class="parseFloat(approvalProgress) < 90 ? 'up' : 'flat'">
+            <div class="ki-kpi-label">立项进度</div>
+            <div class="ki-kpi-sub mono">{{ props.budgetData?.occupied_total?.toFixed(1) || '0.0' }} / {{ props.budgetData?.budget_total?.toFixed(1) || '0.0' }} 万</div>
+            <div class="ki-kpi-delta" :class="parseFloat(approvalProgress) < 90 ? 'up' : 'flat'">
               {{ parseFloat(approvalProgress) < 90 ? `${(90 - parseFloat(approvalProgress)).toFixed(1)}pp 未绑定` : '已达标' }}
             </div>
-            <div class="ki-gauge-narrative">
-              预算占用率 {{ approvalProgress }}%，{{ parseFloat(approvalProgress) >= 90 ? '已超配。' : '部分预算尚未绑定立项。' }}
+            <div class="ki-kpi-narrative">
+              预算占用率 {{ approvalProgress }}%。
             </div>
           </div>
-        </div>
 
-      </div>
-    </div>
-
-    <!-- ── Narrative summary ── -->
-    <div class="section" v-if="props.zaigongData?.metrics">
-      <div class="section-head">
-        <h2>一段话摘要 · 可粘贴</h2>
-        <span class="sub">为周报起草</span>
-      </div>
-      <div class="ki-narrative-card">
-        <p class="ki-narrative-text">
-          当期资本性支出 <strong class="mono">{{ props.zaigongData?.metrics?.capital?.toFixed(2) || '—' }} 万元</strong>（当期目标 {{ displayTargetValue }} 万，进度 <strong style="color:var(--accent)">{{ capitalProgress }}%</strong>），缺口 <strong class="mono" style="color:var(--warn)">{{ props.zaigongData?.metrics?.deficit?.toFixed(2) || '—' }} 万</strong>。全年支出进度 <strong style="color:var(--accent)">{{ annualCapitalProgress }}%</strong>，立项进度 {{ approvalProgress }}%。在建工程期末余额规模较大，整体转固率仅 <strong class="mono" style="color:var(--bad)">{{ transferRate }}%</strong>，需在下一周期集中推进转固。
-        </p>
-        <div class="ki-narrative-foot">
-          <span>AUTO-DRAFTED · 基于上传数据</span>
-          <button class="ki-btn ghost" style="height:28px;font-size:11px" @click="copyNarrative">复制纯文本</button>
         </div>
       </div>
-    </div>
 
-    <!-- ── Manager contribution + Top 6 balances ── -->
-    <div class="section" v-if="props.zaigongData?.summary?.length || props.zaigongData?.detail?.length">
-      <div class="section-head">
-        <h2>责任分布 & 最大在建</h2>
-      </div>
-      <div class="ki-two-col">
+      <!-- Right: Unified panel (aligns with left KPI grid) -->
+      <div class="ki-right-panel">
 
-        <!-- Manager contribution bars -->
-        <div class="ki-card" v-if="props.zaigongData?.summary?.length">
-          <div class="ki-card-head">
-            <div>
-              <div class="ki-card-title">本年支出 · 管理员贡献</div>
-              <div class="ki-card-sub">占总支出比重</div>
-            </div>
+        <!-- 四类工程预警 -->
+        <div class="ki-right-section">
+          <div class="ki-right-section-head">
+            <div><h3>四类工程预警</h3><div class="sub">预警期 60 天</div></div>
+            <button class="ki-btn ghost" v-if="fcWarnings?.items?.length" @click="showFourClassAllDetail">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+              全部
+            </button>
           </div>
-          <div class="ki-card-body">
-            <template v-for="(row, i) in mgrShares" :key="row.name">
-              <div class="ki-mgr-row" :style="{ borderBottom: i < mgrShares.length - 1 ? '1px dashed var(--line)' : 'none' }">
-                <div class="ki-mgr-name">{{ row.manager || row['工程管理员'] }}</div>
-                <div class="ki-mgr-bar-wrap">
-                  <div class="ki-mgr-bar" :style="{ width: row.share + '%', background: row.capital < 0 ? 'var(--bad)' : 'var(--accent)' }"></div>
-                </div>
-                <div class="ki-mgr-amount mono">{{ (row.capital || row['本年累计资本性支出'] || 0).toFixed(1) }}万</div>
-                <div class="ki-mgr-share mono muted">{{ row.share.toFixed(1) }}%</div>
-              </div>
-            </template>
-          </div>
-        </div>
-
-        <!-- Top 6 by balance -->
-        <div class="ki-card" v-if="props.zaigongData?.detail?.length">
-          <div class="ki-card-head">
-            <div>
-              <div class="ki-card-title">期末余额 · Top 6</div>
-              <div class="ki-card-sub">规模最大的在建工程</div>
-            </div>
-          </div>
-          <div style="padding:0">
-            <div v-for="(p, i) in topProjects" :key="p.name"
-              style="padding:14px 20px;display:grid;grid-template-columns:24px 1fr 80px;align-items:center;gap:12px"
-              :style="{ borderBottom: i < topProjects.length - 1 ? '1px solid var(--line)' : 'none' }">
-              <span class="mono muted" style="font-size:11px">{{ i + 1 }}</span>
+          <div class="ki-right-section-body" v-if="fcWarnings?.summary">
+            <div
+              v-for="type in fourClassTypes"
+              :key="type.name"
+              class="warning-item"
+              @click="showFourClassDetail(type.name)"
+            >
               <div style="min-width:0">
-                <div style="font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" :title="p.name">{{ p.name }}</div>
-                <div style="font-size:11px;color:var(--ink-3);margin-top:2px">{{ p.manager }}</div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                  <span class="pill" :class="getWarningPillClass(type.key)"><span class="dot"></span>{{ type.name }}</span>
+                </div>
+                <div style="font-size:12px;color:var(--ink-3)">预警期 60 天</div>
               </div>
-              <div class="num mono" style="font-size:14px;font-weight:500">{{ p.balance?.toFixed(1) }}<span style="font-size:10px;color:var(--ink-3);margin-left:2px;font-weight:400">万</span></div>
+              <div style="font-family:var(--font-mono);font-size:24px;color:var(--ink);font-weight:500;letter-spacing:-0.02em">
+                {{ (fcWarnings.summary?.[type.name]?.triggered || 0) + (fcWarnings.summary?.[type.name]?.warning || 0) }}
+              </div>
+              <div style="font-size:10.5px;color:var(--ink-4);font-family:var(--font-mono);min-width:80px;text-align:right">
+                已触发 {{ fcWarnings.summary?.[type.name]?.triggered || 0 }} · 预警 {{ fcWarnings.summary?.[type.name]?.warning || 0 }}
+              </div>
             </div>
           </div>
+          <div v-else class="ki-right-empty">暂无预警数据</div>
+        </div>
+
+        <!-- 管理员视图 -->
+        <div class="ki-right-section ki-manager-section" v-if="managerViewRows.length">
+          <div class="mgr-header">
+            <span class="mgr-rank-hd">#</span>
+            <span class="mgr-name-hd">管理员</span>
+            <span class="mgr-count-hd">在管</span>
+            <span class="mgr-capital-hd">本年支出</span>
+            <span class="mgr-rate-hd">转固率</span>
+          </div>
+          <div
+            v-for="(row, idx) in managerViewRows"
+            :key="row.manager"
+            class="mgr-row"
+          >
+              <span class="mgr-rank" :class="{ 'top': idx < 3 }">{{ idx + 1 }}</span>
+              <span class="mgr-name">{{ row.manager }}</span>
+              <span class="mgr-count mono muted">{{ row.count }}项</span>
+              <span class="mgr-capital mono" :class="{ 'neg': row.capital < 0 }">{{ formatNum(row.capital) }}</span>
+              <div class="mgr-rate">
+                <span class="mgr-rate-pct">{{ row.rate.toFixed(1) }}%</span>
+                <div class="mgr-rate-track"><div class="mgr-rate-fill" :class="getRateBarClass(row.rate / 100)" :style="{ width: Math.min(row.rate, 100) + '%' }"></div></div>
+              </div>
+            </div>
         </div>
 
       </div>
+
     </div>
 
-    <!-- ── 近期重点工作 ── -->
-    <div class="section" v-if="sortedWorkItems.length > 0 || !props.zaigongData">
-      <div class="section-head">
-        <h2>近期重点工作</h2>
-        <button class="ki-btn ghost" @click="openAddModal">
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          添加
-        </button>
-      </div>
-      <div v-if="sortedWorkItems.length === 0" class="ki-card" style="padding:32px;text-align:center;color:var(--ink-3);font-size:13px">
-        暂无重点工作 · 点击上方添加
-      </div>
-      <div v-else class="ki-card">
-        <div v-for="item in sortedWorkItems" :key="item.id" class="ki-work-item" :class="{ completed: item.status === 'completed' }">
-          <div class="ki-work-head">
-            <span class="ki-priority" :class="'pri-' + item.level">{{ item.levelText }}</span>
-            <span v-if="item.owner" class="ki-work-owner">{{ item.owner }}</span>
-            <span class="ki-work-due mono">{{ item.dueDate }}</span>
+    <!-- ── 四类工程预警明细弹窗 ── -->
+    <div v-if="fourClassDetailVisible" class="four-class-modal-overlay" @click.self="fourClassDetailVisible = false">
+      <div class="four-class-modal">
+        <div class="modal-header">
+          <div>
+            <h3 style="margin:0;font-size:16px;font-weight:600;color:var(--ink)">{{ fourClassDetailType }}</h3>
+            <div style="font-size:12px;color:var(--ink-3);margin-top:2px">{{ fcWarnings?.summary?.analysis_date || currentDate }}</div>
           </div>
-          <div class="ki-work-title">{{ item.content }}</div>
-          <div class="ki-work-actions" v-if="!presentationMode">
-            <button @click="openEditModal(item)">编辑</button>
-            <button class="danger" @click="deleteItem(item.id)">删除</button>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="ki-modal-close" @click="fourClassDetailVisible = false">×</button>
           </div>
         </div>
-      </div>
-    </div>
-
-    <!-- Work item modal -->
-    <div v-if="modalVisible" class="ki-modal-overlay" @click.self="closeModal">
-      <div class="ki-modal">
-        <div class="ki-modal-head">
-          <h4>{{ modalMode === 'add' ? '添加重点工作' : '编辑重点工作' }}</h4>
-          <button @click="closeModal" class="ki-modal-close">×</button>
-        </div>
-        <div class="ki-modal-body">
-          <label>工作内容</label>
-          <textarea v-model="formContent" rows="3" placeholder="输入重点工作内容"></textarea>
-          <label>优先级</label>
-          <select v-model="formLevel">
-            <option value="urgent">紧急</option>
-            <option value="high">跟进</option>
-            <option value="normal">准备</option>
-          </select>
-          <label>责任人</label>
-          <input v-model="formOwner" type="text" placeholder="输入责任人姓名" />
-          <label>完成日期</label>
-          <input v-model="formDueDate" type="date" />
-          <div v-if="formError" class="ki-form-error">{{ formError }}</div>
-        </div>
-        <div class="ki-modal-foot">
-          <button class="ki-btn ghost" @click="closeModal">取消</button>
-          <button class="ki-btn primary" @click="saveItem">保存</button>
+        <div class="modal-body" style="overflow:auto;flex:1;padding:0">
+          <!-- Grouped view -->
+          <template v-if="fourClassDetailType === '四类工程预警明细'">
+            <div v-for="type in fourClassTypes" :key="type.name" class="four-class-group" :class="'group-' + type.key">
+              <div class="group-header" :style="{ display: 'flex', justifyContent: 'space-between', padding: '10px 20px', fontSize: '13px', fontWeight: '500' }">
+                <span>{{ type.name }}</span>
+                <span style="font-family:var(--font-mono);font-size:12px">
+                  已触发 {{ getGroupStats(type.name).triggered }} / 预警 {{ getGroupStats(type.name).warning }}
+                </span>
+              </div>
+              <table class="four-class-table" v-if="getGroupItems(type.name).length">
+                <thead>
+                  <tr>
+                    <th class="col-status">状态</th>
+                    <th class="col-name">工程名称</th>
+                    <th class="col-accept">验收类型</th>
+                    <th class="col-mgr">管理员</th>
+                    <th class="col-date">关键日期</th>
+                    <th class="col-deadline">截止日期</th>
+                    <th class="col-pstatus">工程状态</th>
+                    <th class="col-days">天数</th>
+                    <th class="col-suggestion">处置建议</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="item in getGroupItems(type.name)" :key="item.id" :class="'row-' + item.status">
+                    <td class="col-status"><span class="status-tag" :class="item.status">{{ item.status }}</span></td>
+                    <td class="col-name" :title="item.name">{{ item.name }}</td>
+                    <td class="col-accept">{{ item.acceptType }}</td>
+                    <td class="col-mgr">{{ item.manager }}</td>
+                    <td class="col-date mono">{{ item.keyDate }}</td>
+                    <td class="col-deadline mono">{{ item.deadline }}</td>
+                    <td class="col-pstatus">{{ item.projectStatus }}</td>
+                    <td class="col-days mono" :class="getDaysClass(item.daysLabel, item.status)">
+                      <span v-if="item.status === '预警' && parseInt(item.daysLabel) <= 30">⚠️ </span>{{ item.daysLabel }}
+                    </td>
+                    <td class="col-suggestion">{{ item.suggestion }}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div v-else style="padding:16px 20px;font-size:13px;color:var(--ink-3)">无相关项目</div>
+            </div>
+          </template>
+          <!-- Single-type view -->
+          <template v-else>
+            <table class="four-class-table" v-if="fourClassDetailItems.length">
+              <thead>
+                <tr>
+                  <th class="col-status">状态</th>
+                  <th class="col-name">工程名称</th>
+                  <th class="col-accept">验收类型</th>
+                  <th class="col-mgr">管理员</th>
+                  <th class="col-date">关键日期</th>
+                  <th class="col-deadline">截止日期</th>
+                  <th class="col-pstatus">工程状态</th>
+                  <th class="col-days">天数</th>
+                  <th class="col-suggestion">处置建议</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in fourClassDetailItems" :key="item.id" :class="'row-' + item.status">
+                  <td class="col-status"><span class="status-tag" :class="item.status">{{ item.status }}</span></td>
+                  <td class="col-name" :title="item.name">{{ item.name }}</td>
+                  <td class="col-accept">{{ item.acceptType }}</td>
+                  <td class="col-mgr">{{ item.manager }}</td>
+                  <td class="col-date mono">{{ item.keyDate }}</td>
+                  <td class="col-deadline mono">{{ item.deadline }}</td>
+                  <td class="col-pstatus">{{ item.projectStatus }}</td>
+                  <td class="col-days mono" :class="getDaysClass(item.daysLabel, item.status)">
+                    <span v-if="item.status === '预警' && parseInt(item.daysLabel) <= 30">⚠️ </span>{{ item.daysLabel }}
+                  </td>
+                  <td class="col-suggestion">{{ item.suggestion }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div v-else style="padding:40px;text-align:center;color:var(--ink-3);font-size:13px">无相关项目</div>
+          </template>
         </div>
       </div>
     </div>
@@ -319,13 +347,11 @@ const props = defineProps({
 
 const emit = defineEmits(['presentation-change'])
 
-// 当前日期
 const currentDate = computed(() => {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 })
 
-// 目标值
 const targetValue = computed(() => {
   const value = Number(props.zaigongData?.metrics?.yearTarget)
   return Number.isFinite(value) && value > 0 ? value : null
@@ -335,9 +361,7 @@ const displayTargetValue = computed(() => {
   return targetValue.value === null ? '—' : targetValue.value.toFixed(2)
 })
 
-// 日期格式化
 const normalizedZaigongDate = computed(() => formatDisplayDate(props.zaigongDate))
-const normalizedBudgetDate = computed(() => formatDisplayDate(props.budgetDate))
 
 function formatDisplayDate(value) {
   if (!value) return ''
@@ -355,7 +379,6 @@ function formatDisplayDate(value) {
   return `${year}-${month}-${day}`
 }
 
-// 指标计算
 const capitalProgress = computed(() => {
   if (!props.zaigongData?.metrics?.capital || !targetValue.value || targetValue.value <= 0) return '0.0'
   return ((props.zaigongData.metrics.capital / targetValue.value) * 100).toFixed(1)
@@ -378,14 +401,6 @@ const transferRate = computed(() => {
   return (props.zaigongData.metrics.rate * 100).toFixed(1)
 })
 
-const rateStatusClass = computed(() => {
-  const rate = props.zaigongData?.metrics?.rate || 0
-  if (rate >= 0.6) return 'good'
-  if (rate >= 0.3) return 'warning'
-  return 'danger'
-})
-
-// Donut gauge color helper
 function gaugeColor(value, target) {
   if (value >= target * 0.95) return 'var(--ok)'
   if (value >= target * 0.80) return 'var(--accent)'
@@ -393,41 +408,7 @@ function gaugeColor(value, target) {
   return 'var(--bad)'
 }
 
-// Manager contribution derived from summary rows
-const mgrShares = computed(() => {
-  const rows = props.zaigongData?.summary || []
-  const filtered = rows.filter(r => r.manager !== '合计' && r['工程管理员'] !== '合计')
-  const totalSpend = filtered.reduce((s, r) => s + Math.max(r.capital || r['本年累计资本性支出'] || 0, 0), 0) || 1
-  return filtered
-    .map(r => ({
-      ...r,
-      share: (Math.max(r.capital || r['本年累计资本性支出'] || 0, 0) / totalSpend) * 100,
-    }))
-    .sort((a, b) => b.share - a.share)
-    .slice(0, 8)
-})
-
-// Top 6 projects by balance
-const topProjects = computed(() => {
-  const detail = props.zaigongData?.detail || []
-  return detail
-    .map(p => ({
-      name: p.name || p['工程名称'] || '',
-      manager: p.manager || p['工程管理员'] || '',
-      balance: Number(p.balance || p['在建工程期末余额'] || 0),
-    }))
-    .filter(p => p.balance > 0)
-    .sort((a, b) => b.balance - a.balance)
-    .slice(0, 6)
-})
-
-// SVG 仪表盘 dashOffset 计算
-const dashOffset = (value) => {
-  const num = Math.min(100, Math.max(0, parseFloat(value) || 0))
-  return Math.round(172.8 * (1 - num / 100))
-}
-
-// ── Gauge count-up animation ──
+// Gauge count-up animation
 const animatedGauges = ref([0, 0, 0, 0])
 
 function runGaugeCountUp() {
@@ -451,7 +432,97 @@ function runGaugeCountUp() {
 
 watch([capitalProgress, transferRate, annualCapitalProgress, approvalProgress], runGaugeCountUp, { immediate: true })
 
-// 全屏展示模式
+// Four-class warnings
+const fourClassTypes = [
+  { name: '列账不及时',   key: 'liezhang' },
+  { name: '预转固不及时', key: 'yuzhuang' },
+  { name: '关闭不及时',   key: 'guanbi'   },
+  { name: '长期挂账',     key: 'guazhang' },
+]
+
+const fourClassWarningsLocal = ref(null)
+const fourClassDetailVisible = ref(false)
+const fourClassDetailType = ref('')
+const fourClassDetailItems = ref([])
+
+const fcWarnings = computed(() => fourClassWarningsLocal.value || props.fourClassWarnings)
+
+// Manager view (管理员视图)
+const managerViewRows = computed(() => {
+  const data = props.zaigongData
+  if (!data) return []
+  const summary = data.summary || []
+  const detail = data.detail || []
+
+  const countMap = {}
+  detail.forEach(p => {
+    const mgr = p['工程管理员'] || p.manager || '未分配'
+    countMap[mgr] = (countMap[mgr] || 0) + 1
+  })
+
+  return summary
+    .filter(r => {
+      const name = r.manager || r['工程管理员'] || ''
+      return name !== '合计'
+    })
+    .map(r => ({
+      manager: r.manager || r['工程管理员'] || '未知',
+      count: countMap[r.manager || r['工程管理员']] || (detail.length > 0 ? 0 : (r._count || 0)),
+      capital: r.capital || r['本年累计资本性支出'] || 0,
+      rate: ((r.rate ?? r['转固率']) || 0) * 100,
+    }))
+    .sort((a, b) => b.capital - a.capital)
+})
+
+function formatNum(v) {
+  if (v == null || Number.isNaN(v)) return '—'
+  return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+}
+
+function getRateBarClass(rate) {
+  if (rate >= 0.6) return 'ok'
+  if (rate >= 0.3) return 'warn'
+  return 'bad'
+}
+
+function showFourClassDetail(typeName) {
+  if (!fcWarnings.value?.items) return
+  fourClassDetailType.value = typeName
+  fourClassDetailItems.value = fcWarnings.value.items.filter(i => i.type === typeName)
+  fourClassDetailVisible.value = true
+}
+
+function showFourClassAllDetail() {
+  fourClassDetailType.value = '四类工程预警明细'
+  fourClassDetailItems.value = fcWarnings.value?.items || []
+  fourClassDetailVisible.value = true
+}
+
+function getGroupItems(typeName) {
+  return (fcWarnings.value?.items || []).filter(i => i.type === typeName)
+}
+
+function getGroupStats(typeName) {
+  const items = getGroupItems(typeName)
+  return {
+    triggered: items.filter(i => i.status === '已触发' || i.status === '已触发(超期完成)').length,
+    warning: items.filter(i => i.status === '预警').length,
+  }
+}
+
+function getDaysClass(daysLabel, status) {
+  const days = parseInt(daysLabel)
+  if (status === '已触发' || status === '已触发(超期完成)' || days <= 10) return 'days-overdue'
+  if (days <= 30) return 'days-warning'
+  return ''
+}
+
+function getWarningPillClass(key) {
+  const map = { liezhang: 'info', yuzhuang: 'warn', guanbi: 'bad', guazhang: 'info' }
+  return map[key] || 'info'
+}
+
+// Presentation mode
 const presentationMode = ref(false)
 
 async function togglePresentationMode() {
@@ -474,13 +545,12 @@ function handleFullscreenChange() {
   }
 }
 
-// 复制摘要文本
 function copyNarrative() {
-  const text = `当期资本性支出 ${props.zaigongData?.metrics?.capital?.toFixed(2) || '—'} 万元（当期目标 ${displayTargetValue.value} 万，进度 ${capitalProgress.value}%），缺口 ${props.zaigongData?.metrics?.deficit?.toFixed(2) || '—'} 万。全年支出进度 ${annualCapitalProgress.value}%，立项进度 ${approvalProgress.value}%。在建工程期末余额规模较大，整体转固率仅 ${transferRate.value}%，需在下一周期集中推进转固。`
+  const text = `当期资本性支出 ${props.zaigongData?.metrics?.capital?.toFixed(2) || '—'} 万元（当期目标 ${displayTargetValue.value} 万，进度 ${capitalProgress.value}%），缺口 ${props.zaigongData?.metrics?.deficit?.toFixed(2) || '—'} 万。全年支出进度 ${annualCapitalProgress.value}%，立项进度 ${approvalProgress.value}%。整体转固率仅 ${transferRate.value}%，需在下一周期集中推进转固。`
   navigator.clipboard.writeText(text).catch(() => {})
 }
 
-// 导出 PNG
+// Export PNG
 const exportLoading = ref(false)
 async function exportPNG() {
   if (exportLoading.value) return
@@ -504,148 +574,7 @@ async function exportPNG() {
   }
 }
 
-// 重点工作
-const workItems = ref([])
-const workItemsStorageKey = 'key_work_items_v2'
-const modalVisible = ref(false)
-const modalMode = ref('add')
-const editingItem = ref(null)
-const formContent = ref('')
-const formLevel = ref('normal')
-const formOwner = ref('')
-const formDueDate = ref('')
-const formError = ref('')
-
-const levelMap = { urgent: '紧急', high: '跟进', normal: '准备' }
-const levelPriority = { urgent: 0, high: 1, normal: 2 }
-
-const sortedWorkItems = computed(() => {
-  const pending = workItems.value
-    .filter(item => item.status === 'pending')
-    .sort((a, b) => {
-      const pDiff = levelPriority[a.level] - levelPriority[b.level]
-      if (pDiff !== 0) return pDiff
-      return (a.dueDate || '').localeCompare(b.dueDate || '')
-    })
-  const completed = workItems.value
-    .filter(item => item.status === 'completed')
-    .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))
-  return [...pending, ...completed].map(item => ({
-    ...item,
-    levelText: levelMap[item.level] || '准备'
-  }))
-})
-
-function loadWorkItems() {
-  try {
-    const raw = localStorage.getItem(workItemsStorageKey)
-    workItems.value = raw ? JSON.parse(raw) : []
-  } catch {
-    workItems.value = []
-  }
-}
-
-function saveWorkItems() {
-  localStorage.setItem(workItemsStorageKey, JSON.stringify(workItems.value))
-}
-
-function openAddModal() {
-  modalMode.value = 'add'
-  editingItem.value = null
-  formContent.value = ''
-  formLevel.value = 'normal'
-  formOwner.value = ''
-  formDueDate.value = ''
-  formError.value = ''
-  modalVisible.value = true
-}
-
-function openEditModal(item) {
-  modalMode.value = 'edit'
-  editingItem.value = item
-  formContent.value = item.content || ''
-  formLevel.value = item.level || 'normal'
-  formOwner.value = item.owner || ''
-  formDueDate.value = item.dueDate || ''
-  formError.value = ''
-  modalVisible.value = true
-}
-
-function closeModal() {
-  modalVisible.value = false
-}
-
-function validateForm() {
-  if (!formContent.value.trim()) {
-    formError.value = '请输入工作内容'
-    return false
-  }
-  if (!formOwner.value.trim()) {
-    formError.value = '请输入责任人'
-    return false
-  }
-  if (!formDueDate.value) {
-    formError.value = '请选择完成日期'
-    return false
-  }
-  formError.value = ''
-  return true
-}
-
-function makeItemId() {
-  return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`
-}
-
-function saveItem() {
-  if (!validateForm()) return
-  const now = new Date().toISOString()
-  if (modalMode.value === 'add') {
-    workItems.value.push({
-      id: makeItemId(),
-      content: formContent.value.trim(),
-      level: formLevel.value,
-      owner: formOwner.value.trim(),
-      dueDate: formDueDate.value,
-      status: 'pending',
-      createdAt: now,
-      updatedAt: now
-    })
-  } else {
-    const idx = workItems.value.findIndex(item => item.id === editingItem.value?.id)
-    if (idx >= 0) {
-      workItems.value[idx] = {
-        ...workItems.value[idx],
-        content: formContent.value.trim(),
-        level: formLevel.value,
-        owner: formOwner.value.trim(),
-        dueDate: formDueDate.value,
-        updatedAt: now
-      }
-    }
-  }
-  saveWorkItems()
-  closeModal()
-}
-
-function deleteItem(id) {
-  if (!confirm('确定删除该重点工作？')) return
-  workItems.value = workItems.value.filter(item => item.id !== id)
-  saveWorkItems()
-}
-
-function toggleStatus(item) {
-  const idx = workItems.value.findIndex(target => target.id === item.id)
-  if (idx < 0) return
-  workItems.value[idx] = {
-    ...workItems.value[idx],
-    status: item.status === 'pending' ? 'completed' : 'pending',
-    updatedAt: new Date().toISOString()
-  }
-  saveWorkItems()
-}
-
 onMounted(() => {
-  loadWorkItems()
   presentationMode.value = Boolean(document.fullscreenElement)
   document.addEventListener('fullscreenchange', handleFullscreenChange)
 })
@@ -656,34 +585,31 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* Page layout */
+/* ── Page layout ── */
 .ki-page {
-  max-width: 1180px; margin: 0 auto; padding: 56px 40px;
+  max-width: 1160px; margin: 0 auto; padding: 40px 36px 48px;
 }
 .ki-fullscreen {
   position: fixed; inset: 0; z-index: 9999;
   background: var(--paper); overflow-y: auto;
   padding: 0 56px 56px; max-width: none;
 }
-.ki-fullscreen .ki-gauge-grid { gap: 2px; }
-.ki-fullscreen .ki-gauge-cell { padding: 36px 40px; grid-template-columns: 160px 1fr; gap: 32px; }
-.ki-fullscreen .ki-gauge-donut { width: 160px; height: 160px; }
-.ki-fullscreen .ki-gauge-donut svg { width: 160px; height: 160px; }
-.ki-fullscreen .ki-gauge-val { font-size: 34px; }
-.ki-fullscreen .ki-gauge-label { font-size: 16px; }
-.ki-fullscreen .ki-gauge-sub { font-size: 13px; }
-.ki-fullscreen .ki-gauge-narrative { font-size: 14px; line-height: 1.65; }
-.ki-fullscreen .ki-narrative-text { font-size: 16px; line-height: 1.8; }
-.ki-fullscreen .ki-work-title { font-size: 16px; }
-.ki-fullscreen .page-title-h1 { font-size: 32px; }
-.ki-fullscreen .ki-card-title { font-size: 15px; }
-.ki-fullscreen .ki-mgr-name { font-size: 14px; }
-.ki-fullscreen .ki-mgr-amount { font-size: 14px; }
+.ki-fullscreen .ki-two-col { gap: 32px; }
+.ki-fullscreen .ki-kpi-card { padding: 28px 20px; }
+.ki-fullscreen .ki-kpi-donut { width: 130px; height: 130px; }
+.ki-fullscreen .ki-kpi-donut svg { width: 130px; height: 130px; }
+.ki-fullscreen .ki-kpi-val { font-size: 28px; }
+.ki-fullscreen .ki-kpi-label { font-size: 15px; }
+.ki-fullscreen .ki-summary-text { font-size: 15px; line-height: 1.75; }
+.ki-fullscreen .page-title-h1 { font-size: 28px; }
+.ki-fullscreen .ki-right-section-head { padding: 18px 22px; }
+.ki-fullscreen .warning-item { padding: 18px 22px; }
+.ki-fullscreen .mgr-row { padding: 12px 22px; }
 
-/* Presentation nav */
+/* ── Presentation nav ── */
 .ki-pres-nav {
   display: flex; align-items: center; justify-content: space-between;
-  height: 56px; margin-bottom: 36px; padding: 0 8px;
+  height: 56px; margin-bottom: 32px; padding: 0 8px;
   border-bottom: 1px solid var(--line);
 }
 .ki-nav-mark {
@@ -699,7 +625,7 @@ onUnmounted(() => {
 }
 .ki-exit-btn:hover { background: var(--paper-2); }
 
-/* Buttons */
+/* ── Buttons ── */
 .ki-btn {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 7px 12px; border-radius: var(--r-md);
@@ -714,161 +640,322 @@ onUnmounted(() => {
 .ki-btn.ghost:hover { background: var(--paper-2); }
 .ki-btn svg { width: 12px; height: 12px; opacity: 0.7; }
 
-/* 2×2 Gauge grid */
-.ki-gauge-grid {
-  display: grid; grid-template-columns: repeat(2, 1fr);
-  gap: 1px; background: var(--line);
-  border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden;
+/* ── Page Header ── */
+.page-head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 20px;
+  padding-bottom: 0; border-bottom: none; gap: 16px;
 }
-.ki-gauge-cell {
-  background: var(--surface); padding: 28px 30px;
-  display: grid; grid-template-columns: 120px 1fr; gap: 24px; align-items: center;
+.page-head-l { flex: 1; }
+.eyebrow {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--ink-3); font-family: var(--font-mono);
+  display: inline; gap: 0; font-weight: 400;
 }
-.ki-gauge-donut {
-  position: relative; display: grid; place-items: center;
-  width: 120px; height: 120px;
+.eyebrow::after { display: none; }
+.page-title-h1 {
+  font-size: 22px; font-weight: 650; color: var(--ink); margin: 4px 0 6px;
+  letter-spacing: -0.02em;
 }
-.ki-gauge-center {
+.page-meta {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11.5px; color: var(--ink-3); font-family: var(--font-mono);
+}
+.ph-sep {
+  width: 1px; height: 10px; background: var(--line-2);
+}
+.page-actions {
+  display: flex; gap: 8px; align-items: center; flex-shrink: 0;
+}
+
+/* ── Summary banner ── */
+.ki-summary-banner {
+  margin-bottom: 24px;
+  background: var(--surface-2);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-lg);
+  padding: 18px 20px 0;
+}
+.ki-summary-text {
+  font-size: 13.5px; line-height: 1.8; color: var(--ink-2);
+  margin: 0 0 14px;
+}
+.ki-summary-text strong { color: var(--ink); }
+.ki-summary-text .mono { font-family: var(--font-mono); font-weight: 550; }
+.ki-summary-foot {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0; border-top: 1px solid var(--line);
+  font-size: 10.5px; color: var(--ink-3); font-family: var(--font-mono);
+}
+
+/* ── Two-column layout ── */
+.ki-two-col {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 20px;
+  align-items: stretch;
+}
+
+/* ── Left: 2×2 KPI grid ── */
+.ki-kpi-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.ki-kpi-card {
+  background: var(--surface);
+  padding: 24px 16px 20px;
+  display: flex; flex-direction: column; align-items: center;
+  text-align: center;
+  gap: 10px;
+}
+.ki-kpi-donut {
+  position: relative;
+  display: grid; place-items: center;
+  width: 110px; height: 110px; flex-shrink: 0;
+}
+.ki-kpi-center {
   position: absolute; text-align: center; pointer-events: none;
 }
-.ki-gauge-val {
-  font-size: 24px; font-weight: 500; color: var(--ink);
+.ki-kpi-val {
+  font-size: 22px; font-weight: 550; color: var(--ink);
   letter-spacing: -0.02em; line-height: 1;
 }
-.ki-gauge-target { font-size: 10px; color: var(--ink-3); margin-top: 2px; }
-
-.ki-gauge-label { font-size: 13px; color: var(--ink-2); font-weight: 500; margin-bottom: 4px; }
-.ki-gauge-sub { font-size: 11.5px; color: var(--ink-3); margin-bottom: 10px; font-family: var(--font-mono); }
-.ki-gauge-delta {
+.ki-kpi-val.is-low { color: var(--bad); }
+.ki-kpi-unit {
+  font-size: 13px; font-weight: 450; color: var(--ink-3);
+  margin-left: 1px;
+}
+.ki-kpi-target {
+  font-size: 9px; color: var(--ink-3); margin-top: 2px;
+}
+.ki-kpi-label {
+  font-size: 12.5px; color: var(--ink-2); font-weight: 500;
+}
+.ki-kpi-sub {
+  font-size: 10.5px; color: var(--ink-3);
+  font-family: var(--font-mono);
+}
+.ki-kpi-delta {
   display: inline-flex; align-items: center; gap: 4px;
-  font-family: var(--font-mono); font-size: 11.5px;
-  padding: 2px 7px; border-radius: 999px; margin-bottom: 10px;
+  font-family: var(--font-mono); font-size: 10.5px;
+  padding: 2px 7px; border-radius: 999px;
 }
-.ki-gauge-delta.ok { background: var(--ok-soft); color: var(--ok); }
-.ki-gauge-delta.up { background: var(--info-soft); color: var(--info); }
-.ki-gauge-delta.down { background: var(--bad-soft); color: var(--bad); }
-.ki-gauge-delta.flat { background: var(--paper-2); color: var(--ink-3); }
-.ki-gauge-narrative {
-  font-size: 12.5px; color: var(--ink-2); line-height: 1.55;
-  padding-top: 12px; border-top: 1px dashed var(--line);
+.ki-kpi-delta.ok { background: var(--ok-soft); color: var(--ok); }
+.ki-kpi-delta.up { background: var(--info-soft); color: var(--info); }
+.ki-kpi-delta.down { background: var(--bad-soft); color: var(--bad); }
+.ki-kpi-delta.flat { background: var(--paper-2); color: var(--ink-3); }
+.ki-kpi-narrative {
+  font-size: 11px; color: var(--ink-2); line-height: 1.5;
+  padding-top: 8px; border-top: 1px dashed var(--line);
+  width: 100%;
 }
-.tri-up::before { content: '▲'; font-size: 8px; margin-right: 3px; }
-.tri-dn::before { content: '▼'; font-size: 8px; margin-right: 3px; }
+.tri-up::before { content: '▲'; font-size: 7px; margin-right: 2px; }
+.tri-dn::before { content: '▼'; font-size: 7px; margin-right: 2px; }
 
-/* Two-column layout */
-.ki-two-col {
-  display: grid; grid-template-columns: 1fr 1.4fr; gap: 24px;
+/* ── Right: Unified panel (same border as left grid) ── */
+.ki-right-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  height: 100%;
 }
-
-/* Card */
-.ki-card {
-  background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--r-lg); overflow: hidden;
-}
-.ki-card-head {
-  padding: 16px 20px; display: flex; align-items: center; justify-content: space-between;
+.ki-right-section {
   border-bottom: 1px solid var(--line);
 }
-.ki-card-title { font-size: 14px; font-weight: 500; color: var(--ink); margin: 0; }
-.ki-card-sub { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
-.ki-card-body { padding: 16px 20px; }
+.ki-right-section:last-child { border-bottom: none; flex: 1; display: flex; flex-direction: column; }
+.ki-right-section-head {
+  padding: 10px 16px; display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+}
+.ki-right-section-head h3 { font-size: 13px; font-weight: 500; color: var(--ink); margin: 0; letter-spacing: -0.005em; }
+.ki-right-section-head .sub { font-size: 11px; color: var(--ink-3); }
+.ki-right-section-body { padding: 0; }
+.ki-right-empty { padding: 28px 20px; text-align: center; color: var(--ink-3); font-size: 13px; }
 
-/* Manager rows */
-.ki-mgr-row {
-  display: grid; grid-template-columns: 64px 1fr 64px 44px;
-  align-items: center; gap: 12px; padding: 10px 0;
+.warning-item {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 12px;
+  cursor: pointer; transition: background 120ms;
 }
-.ki-mgr-name { font-size: 13px; font-weight: 500; }
-.ki-mgr-bar-wrap { height: 6px; background: var(--paper-2); border-radius: 3px; overflow: hidden; }
-.ki-mgr-bar { height: 100%; border-radius: 3px; }
-.ki-mgr-amount { font-size: 12px; text-align: right; }
-.ki-mgr-share { font-size: 11px; text-align: right; }
+.warning-item:last-child { border-bottom: none; }
+.warning-item:hover { background: var(--surface-2); }
 
-/* Work items */
-.ki-work-item {
-  padding: 14px 20px; border-bottom: 1px solid var(--line);
-  transition: background 120ms;
+/* Pill badges */
+.pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 500; white-space: nowrap;
 }
-.ki-work-item:last-child { border-bottom: none; }
-.ki-work-item:hover { background: var(--surface-2); }
-.ki-work-item.completed { opacity: 0.55; }
-.ki-work-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.ki-priority {
-  font-size: 10px; font-weight: 500; padding: 2px 7px; border-radius: 4px;
-}
-.pri-urgent { background: var(--bad-soft); color: var(--bad); }
-.pri-high { background: var(--warn-soft); color: var(--warn); }
-.pri-normal { background: var(--ok-soft); color: var(--ok); }
-.ki-work-owner { font-size: 11px; color: var(--ink-3); }
-.ki-work-due { font-size: 11px; color: var(--ink-3); margin-left: auto; }
-.ki-work-title { font-size: 13px; font-weight: 500; color: var(--ink); line-height: 1.4; }
-.ki-work-actions { display: flex; gap: 8px; margin-top: 8px; }
-.ki-work-actions button {
-  height: 26px; padding: 0 10px; border-radius: 6px;
-  border: 1px solid var(--line); background: var(--surface);
-  color: var(--ink-2); font-size: 11px; cursor: pointer; font-family: inherit;
-}
-.ki-work-actions button.danger { border-color: var(--bad-soft); color: var(--bad); }
-.ki-work-actions button:hover { background: var(--paper-2); }
+.pill .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.pill.ok   { background: var(--ok-soft);   color: var(--ok);   }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.bad  { background: var(--bad-soft);  color: var(--bad);  }
+.pill.info { background: var(--info-soft); color: var(--info); }
 
-/* Narrative */
-.ki-narrative-card {
-  background: var(--surface-2); border: 1px dashed var(--line-2);
-  border-radius: var(--r-lg); padding: 28px 32px;
+/* ── Manager view rows ── */
+.mgr-header, .mgr-row {
+  display: grid;
+  grid-template-columns: 22px 1fr 40px 72px 88px;
+  column-gap: 16px;
+  align-items: center;
+  padding: 8px 16px;
 }
-.ki-narrative-text {
-  font-size: 14.5px; line-height: 1.85; color: var(--ink-2);
-  max-width: 880px;
+.mgr-header {
+  border-bottom: 1px solid var(--line);
+  font-size: 10.5px; color: var(--ink-3); font-weight: 500;
+  background: var(--surface-2);
 }
-.ki-narrative-text strong { color: var(--ink); }
-.ki-narrative-foot {
-  margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line);
-  display: flex; justify-content: space-between; align-items: center;
-  font-size: 11px; color: var(--ink-3); font-family: var(--font-mono);
+.mgr-row {
+  border-bottom: 1px solid var(--line);
+  font-size: 12px; transition: background 100ms;
 }
+.mgr-row:last-child { border-bottom: none; }
+.mgr-row:hover { background: var(--surface-2); }
 
-/* Modal */
-.ki-modal-overlay {
-  position: fixed; inset: 0; z-index: 1300;
-  background: rgba(31,29,24,0.45);
+/* Column header alignments */
+.mgr-rank-hd { text-align: center; }
+.mgr-name-hd { min-width: 0; }
+.mgr-count-hd { text-align: right; }
+.mgr-capital-hd { text-align: right; }
+.mgr-rate-hd { }
+
+/* Rank badge */
+.mgr-rank {
+  width: 22px; height: 20px; border-radius: 4px;
   display: grid; place-items: center;
-  backdrop-filter: blur(4px);
+  font-size: 11px; font-weight: 500; color: var(--ink-3);
+  background: var(--paper-2);
 }
-.ki-modal {
-  width: min(480px, 92vw); border-radius: var(--r-xl);
-  background: var(--surface); border: 1px solid var(--line-2);
+.mgr-rank.top { background: var(--accent); color: #fff; font-weight: 600; }
+
+/* Name cell */
+.mgr-name {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--ink); font-weight: 500;
+}
+
+/* Count cell */
+.mgr-count { text-align: right; font-size: 11px; }
+
+/* Capital cell */
+.mgr-capital { text-align: right; font-size: 12px; font-weight: 500; color: var(--ink); }
+.mgr-capital.neg { color: var(--bad); }
+
+/* Rate cell */
+.mgr-rate { display: flex; align-items: center; gap: 4px; }
+.mgr-rate-pct {
+  font-size: 11px; font-family: var(--font-mono); color: var(--ink-3);
+  width: 36px; text-align: right; flex-shrink: 0;
+}
+.mgr-rate-track {
+  flex: 1; height: 4px; border-radius: 2px;
+  background: var(--paper-2); overflow: hidden;
+  min-width: 0;
+}
+.mgr-rate-fill { height: 100%; border-radius: 2px; }
+.mgr-rate-fill.ok { background: var(--ok); }
+.mgr-rate-fill.warn { background: var(--warn); }
+.mgr-rate-fill.bad { background: var(--bad); }
+
+.mono { font-family: var(--font-mono); }
+.muted { color: var(--ink-3); }
+
+/* ── Modal (unchanged) ── */
+.four-class-modal-overlay {
+  position: fixed; inset: 0; background: rgba(31,29,24,0.45);
+  display: flex; align-items: center; justify-content: center; z-index: 9999;
+}
+.four-class-modal {
+  background: var(--surface); width: 98%; max-width: 1400px;
+  max-height: 84vh; display: flex; flex-direction: column;
+  border-radius: var(--r-xl); border: 1px solid var(--line-2);
   box-shadow: var(--shadow-pop); overflow: hidden;
 }
-.ki-modal-head {
+.modal-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 16px 20px; border-bottom: 1px solid var(--line);
 }
-.ki-modal-head h4 { color: var(--ink); font-size: 15px; font-weight: 500; margin: 0; }
+.modal-body {
+  overflow: auto; flex: 1; padding: 0;
+}
 .ki-modal-close {
   width: 28px; height: 28px; border: 1px solid var(--line);
   background: var(--surface); border-radius: var(--r-md);
   color: var(--ink-2); font-size: 18px; cursor: pointer; font-family: inherit;
+  display: grid; place-items: center;
 }
-.ki-modal-body { padding: 18px 20px; display: grid; gap: 10px; }
-.ki-modal-body label { font-size: 12px; color: var(--ink-2); }
-.ki-modal-body input,
-.ki-modal-body textarea,
-.ki-modal-body select {
-  width: 100%; border-radius: var(--r-md); border: 1px solid var(--line-2);
-  background: var(--surface); color: var(--ink);
-  padding: 9px 12px; font: inherit; font-size: 13px;
-}
-.ki-form-error { color: var(--bad); font-size: 12px; }
-.ki-modal-foot { padding: 0 20px 18px; display: flex; justify-content: flex-end; gap: 10px; }
+.ki-modal-close:hover { background: var(--paper-2); }
 
-/* Responsive */
-@media (max-width: 1000px) {
-  .ki-gauge-grid { grid-template-columns: 1fr; }
-  .ki-two-col { grid-template-columns: 1fr; }
+/* Warning table (from Dashboard) */
+.four-class-group { border-bottom: 1px solid var(--line); }
+.four-class-group:last-child { border-bottom: none; }
+.four-class-group.group-liezhang .group-header { background: var(--info-soft); color: #1F497D; }
+.four-class-group.group-yuzhuang .group-header { background: var(--warn-soft); color: #7B3F00; }
+.four-class-group.group-guanbi   .group-header { background: var(--bad-soft);  color: #843C0C; }
+.four-class-group.group-guazhang .group-header { background: #dde5ee;         color: #244062; }
+
+.four-class-table {
+  width: 100%; border-collapse: collapse;
+  table-layout: fixed; min-width: 1000px;
+}
+.four-class-table th {
+  padding: 8px 12px; font-size: 11px; font-weight: 500;
+  color: var(--ink-3); text-align: left; border-bottom: 1px solid var(--line);
+  background: var(--surface-2); white-space: nowrap;
+}
+.four-class-table td {
+  padding: 8px 12px; font-size: 12px; color: var(--ink);
+  border-bottom: 1px solid var(--line);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.four-class-table tr:last-child td { border-bottom: none; }
+.col-status { width: 72px; }
+.col-name { width: auto; min-width: 160px; }
+.col-accept { width: 80px; }
+.col-mgr { width: 72px; }
+.col-date { width: 90px; }
+.col-deadline { width: 90px; }
+.col-pstatus { width: 80px; }
+.col-days { width: 60px; }
+.col-suggestion { width: 140px; }
+
+.status-tag {
+  display: inline-block; padding: 1px 6px; border-radius: 4px;
+  font-size: 10px; font-weight: 500;
+}
+.status-tag.已触发,
+.status-tag.已触发超期完成 {
+  background: var(--bad-soft); color: var(--bad);
+}
+.status-tag.预警 { color: var(--ink); }
+
+.row-已触发,
+.row-已触发超期完成 {
+  background: rgba(220, 38, 38, 0.04);
+}
+
+.col-days.days-overdue { color: var(--bad); font-weight: 700; }
+.col-days.days-warning { color: var(--ink); font-weight: 700; }
+
+/* ── Responsive ── */
+@media (max-width: 960px) {
+  .ki-two-col {
+    grid-template-columns: 1fr;
+  }
+  .ki-kpi-grid { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 640px) {
-  .ki-page { padding: 24px 16px; }
-  .ki-gauge-cell { grid-template-columns: 100px 1fr; gap: 16px; padding: 20px; }
-  .ki-gauge-val { font-size: 20px; }
+  .ki-page { padding: 20px 12px; }
+  .ki-kpi-grid { grid-template-columns: 1fr; }
+  .ki-kpi-card { padding: 20px 16px; }
+  .ki-pres-nav { padding: 0 12px; }
 }
 </style>
