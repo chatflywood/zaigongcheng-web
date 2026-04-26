@@ -3470,7 +3470,7 @@ async function confirmDeleteSpecialty(s) {
   text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px;
 }
 .bk-value {
-  font-size: 36px; font-weight: 500; color: var(--ink);
+  font-size: 32px; font-weight: 500; color: var(--ink);
   letter-spacing: -0.025em; line-height: 1;
   font-family: var(--font-mono);
 }

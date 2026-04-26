@@ -108,414 +108,281 @@
     </div>
 
     <!-- ── Data state (dashboard with data) ── -->
-    <div v-else class="d2-page">
-      <!-- Page head -->
-      <div class="d2-head">
-        <div class="d2-head-top">
-          <h1>在建工程进度看板 <span class="d2-crumb-tag">CAPEX TRACKING</span></h1>
-          <div class="d2-head-actions">
-            <button class="d2-tbtn" @click="openHistoryPanel">
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 5h12v9H2V5zM2 5V3h12v2M5 2v3M11 2v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              历史记录
-            </button>
-            <button v-if="(isViewingHistory || props.snapshotLabel) && (props.latestData || props.initialData)" class="d2-tbtn" @click="restoreLatestView">返回最新</button>
-            <button class="d2-tbtn d2-tbtn-primary" @click="showUpload = true">
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 11V3M5 6l3-3 3 3M3 12v1h10v-1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-              上传数据
-            </button>
+    <div v-else class="page">
+      <!-- Page header -->
+      <header class="page-head">
+        <div class="page-head-l">
+          <span class="eyebrow">在建工程 / Capex Tracking</span>
+          <h1 class="page-title">在建工程进度</h1>
+          <div class="page-meta">
+            <span>在建工程分析.xlsx</span>
+            <span class="sep"></span>
+            <span>共 {{ summaryRows.length }} 人 · 年度目标 {{ targetValue || '—' }} 万</span>
+            <template v-if="displayAnalysisDate">
+              <span class="sep"></span>
+              <span>{{ displayAnalysisDate }}</span>
+            </template>
           </div>
         </div>
-        <div class="d2-head-meta">
-          <span>在建工程分析.xlsx</span>
-          <span class="d2-dot"></span>
-          <span>共 {{ summaryRows.length }} 人</span>
-          <span class="d2-dot"></span>
-          <template v-if="!editingTarget">
-            <span>年度目标 <b>{{ targetValue || '—' }}</b> 万</span>
-            <button v-if="currentRecordId" class="d2-edit-btn" @click="startEditTarget" title="编辑目标">
-              <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M2 14l3-1 8-8-2-2-8 8-1 3z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>
-          </template>
-          <template v-else>
-            <div class="d2-target-edit">
-              <input ref="targetEditInput" v-model="targetEditValue" type="number" class="d2-target-input" @keyup.enter="confirmEditTarget" @keyup.esc="cancelEditTarget" />
-              <span class="d2-target-unit">万</span>
-              <button class="d2-tbtn d2-tbtn-xs" @click="confirmEditTarget" :disabled="targetSaving">确认</button>
-              <button class="d2-tbtn d2-tbtn-xs" @click="cancelEditTarget">取消</button>
-            </div>
-          </template>
-          <template v-if="displayAnalysisDate">
-            <span class="d2-dot"></span>
-            <span>{{ displayAnalysisDate }}</span>
-          </template>
+        <div class="page-actions">
+          <button v-if="(isViewingHistory || props.snapshotLabel) && (props.latestData || props.initialData)" class="btn ghost" @click="restoreLatestView">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 4l1 3 3-1M14 12l-1-3-3 1M3 7a5 5 0 019-1M13 9a5 5 0 01-9 1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            返回最新
+          </button>
+        </div>
+      </header>
+
+      <!-- Upload strip (always on, even with data) -->
+      <div class="upload-strip">
+        <div class="up-icon">
+          <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M4 2h6l2 2v10H4V2zM10 2v2h2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="up-meta">
+          <div class="up-title">
+            在建工程分析.xlsx
+            <span v-if="currentRecordId" class="up-badge">已加载</span>
+          </div>
+          <div class="up-sub">
+            <template v-if="displayAnalysisDate"><span>数据日期 {{ displayAnalysisDate }}</span></template>
+            <span> · 共 {{ summaryRows.length }} 行</span>
+            <template v-if="currentRecordId"><span> · 记录 #{{ currentRecordId }}</span></template>
+          </div>
+        </div>
+        <div class="up-meter">
+          <b>{{ summaryRows.length }}</b>
+          <span>MANAGERS</span>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn ghost" @click="openHistoryPanel">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 5h12v9H2V5zM2 5V3h12v2M5 2v3M11 2v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            历史记录
+          </button>
         </div>
       </div>
 
-      <!-- Main 3-row grid -->
-      <div class="d2-main">
-
-        <!-- KPI row -->
-        <div class="d2-kpi-row">
-          <!-- Health card -->
-          <div class="d2-health">
-            <div class="d2-health-icon">
-              <svg viewBox="0 0 48 48" fill="none">
-                <rect x="8" y="6" width="28" height="36" rx="3" fill="#F5B892" stroke="#E86A33" stroke-width="1.5"/>
-                <rect x="12" y="12" width="20" height="1.5" fill="#E86A33" opacity="0.6"/>
-                <rect x="12" y="17" width="14" height="1.5" fill="#E86A33" opacity="0.5"/>
-                <circle cx="22" cy="30" r="7" fill="#E86A33"/>
-                <path d="M18 30l3 3 5-5" stroke="#fff" stroke-width="1.6" stroke-linecap="round" fill="none"/>
-              </svg>
+      <!-- — KPI row — -->
+      <div class="section" style="margin-bottom:48px">
+        <div class="kpi-grid">
+          <div class="kpi" v-for="(k, i) in metrics" :key="i">
+            <div class="kpi-label">{{ k.label }}</div>
+            <div class="kpi-value"><span class="mono" :class="k.valueClass || ''">{{ animatedValues[i] || k.value }}</span><span v-if="k.unit" style="font-size:13px;color:var(--ink-3);font-weight:400;margin-left:4px">{{ k.unit }}</span></div>
+            <div class="kpi-foot">
+              <span v-if="k.inlineNote">{{ k.inlineNote }}</span>
+              <span v-if="k.badgeText" class="pill" :class="k.badgeClass || ''">{{ k.badgeText }}</span>
+              <span v-if="k.delta !== undefined && k.delta !== null" class="delta" :class="k.deltaDir || ''">
+                <span :class="k.deltaDir === 'up' ? 'tri-up' : k.deltaDir === 'down' ? 'tri-dn' : ''"></span>{{ k.delta }}
+              </span>
             </div>
-            <div class="d2-health-body">
-              <div class="d2-health-label">整体健康度</div>
-              <div class="d2-health-value" :class="healthCard.cls">{{ healthCard.label }}</div>
-              <div class="d2-health-desc">{{ healthCard.desc }}</div>
-              <div class="d2-health-footline"></div>
-              <div class="d2-health-slip">{{ healthCard.slip }}</div>
-            </div>
-          </div>
-
-          <!-- KPI 1 · 本年累计资本性支出 -->
-          <div class="d2-kpi-card">
-            <div class="d2-kpi-head">
-              <div class="d2-kpi-label">本年累计·资本性支出</div>
-              <div class="d2-kpi-ic">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 3h12v10H2V3zM2 6h12M5 3v3M11 3v3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-              </div>
-            </div>
-            <div class="d2-kpi-val">{{ formatNum(dashboard?.metrics?.capital || 0) }}<span class="d2-kpi-unit">万元</span></div>
-            <div>
-              <div class="d2-kpi-prog">
-                <div class="d2-kpi-prog-fill" :style="{ width: Math.min(100, targetValue > 0 ? (dashboard?.metrics?.capital || 0) / targetValue * 100 : 0) + '%' }"></div>
-              </div>
-              <div class="d2-kpi-prog-label">
-                <span>目标 {{ targetValue || '—' }} 万元</span>
-                <span class="d2-pct">{{ targetValue > 0 ? ((dashboard?.metrics?.capital || 0) / targetValue * 100).toFixed(1) : '0.0' }}%</span>
-              </div>
-            </div>
-            <div class="d2-kpi-foot">{{ deficitHint }}</div>
-          </div>
-
-          <!-- KPI 2 · 已下单待收货 -->
-          <div class="d2-kpi-card">
-            <div class="d2-kpi-head">
-              <div class="d2-kpi-label">已下单待收货</div>
-              <div class="d2-kpi-ic">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 5l6-3 6 3v6l-6 3-6-3V5zM2 5l6 3M14 5L8 8M8 8v6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </div>
-            </div>
-            <div class="d2-kpi-val">{{ formatNum(dashboard?.metrics?.pending || 0) }}<span class="d2-kpi-unit">万元</span></div>
-            <div style="flex:1"></div>
-            <div class="d2-kpi-foot">{{ pendingOverLimitCount }} 人超30万</div>
-          </div>
-
-          <!-- KPI 3 · 本月资本性支出 -->
-          <div class="d2-kpi-card">
-            <div class="d2-kpi-head">
-              <div class="d2-kpi-label">本月资本性支出</div>
-              <div class="d2-kpi-ic">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4h12v8H2V4zM8 10a2 2 0 100-4 2 2 0 000 4z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-              </div>
-            </div>
-            <div class="d2-kpi-val" :class="(dashboard?.metrics?.monthSpend || 0) < 0 ? 'd2-neg' : ''">
-              {{ formatNum(dashboard?.metrics?.monthSpend || 0) }}<span class="d2-kpi-unit">万元</span>
-            </div>
-            <div style="flex:1"></div>
-            <div class="d2-kpi-foot">数据日期 {{ displayAnalysisDate || '-' }}</div>
-          </div>
-
-          <!-- KPI 4 · 综合转固率 -->
-          <div class="d2-kpi-card">
-            <div class="d2-kpi-head">
-              <div class="d2-kpi-label">综合转固率</div>
-              <div class="d2-kpi-ic">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8a5 5 0 105-5v5H3z M8 3a5 5 0 015 5h-5V3z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-              </div>
-            </div>
-            <div class="d2-kpi-val d2-accent">{{ formatPercent(dashboard?.metrics?.rate || 0) }}</div>
-            <div style="flex:1"></div>
-            <div class="d2-kpi-foot">目标 60% · <span :class="(dashboard?.metrics?.rate || 0) >= 0.6 ? 'd2-ok' : 'd2-warn-text'">{{ (dashboard?.metrics?.rate || 0) >= 0.6 ? '已达标' : '偏低' }}</span></div>
           </div>
         </div>
+      </div>
 
-        <!-- Mid row -->
-        <div class="d2-mid-row">
-          <!-- Trend chart -->
-          <div class="d2-panel">
-            <div class="d2-panel-head">
-              <h3>累计支出趋势</h3>
-              <div class="d2-legend-row">
-                <span class="d2-legend-item"><span class="d2-lsw d2-lsw-orange"></span>累计支出</span>
-                <span class="d2-legend-item"><span class="d2-lsw d2-lsw-green"></span>转固率</span>
-                <span class="d2-legend-item"><span class="d2-lsw d2-lsw-dashed"></span>年度目标</span>
-              </div>
+      <!-- History comparison (when available) -->
+      <div v-if="compareOverview" class="section">
+        <div class="section-head"><h2>历史对比概览</h2><span class="sub">当前版本与上一版相比</span></div>
+        <div class="card" style="padding:20px">
+          <div class="compare-cards-row">
+            <div class="compare-card">
+              <span class="compare-label">资本性支出进度</span>
+              <strong>{{ formatNum(compareOverview.capital.current) }} 万元</strong>
+              <span class="compare-detail">较上版 {{ formatDelta(compareOverview.capital.diff, '万元') }}</span>
+              <span class="compare-detail">完成率 {{ formatDelta(compareOverview.capital.progressDiff, 'pct', true) }}</span>
             </div>
-            <div class="d2-trend-wrap" v-if="trendData">
-              <svg :viewBox="`0 0 ${trendData.W} ${trendData.H}`" class="d2-trend-svg" preserveAspectRatio="none"
-                   @mouseleave="trendHover = null">
-                <defs>
-                  <linearGradient id="td2-grad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#F8C5A8" stop-opacity="0.55"/>
-                    <stop offset="100%" stop-color="#F8C5A8" stop-opacity="0"/>
-                  </linearGradient>
-                  <linearGradient id="td2-rate-grad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#6BBF8E" stop-opacity="0.4"/>
-                    <stop offset="100%" stop-color="#6BBF8E" stop-opacity="0"/>
-                  </linearGradient>
-                </defs>
-                <g class="d2-trend-grid">
-                  <line v-for="(y, i) in trendData.gridYs" :key="'g'+i" :x1="trendData.pl" :x2="trendData.W - trendData.pr" :y1="y" :y2="y"/>
-                </g>
-                <g class="d2-trend-axis">
-                  <text v-for="(lbl, i) in trendData.yLabels" :key="'yl'+i" :x="trendData.pl - 5" :y="trendData.gridYs[i] + 3" text-anchor="end">{{ lbl }}</text>
-                </g>
-                <g class="d2-trend-axis d2-trend-axis-r">
-                  <text v-for="(lbl, i) in trendData.yRateLabels" :key="'yr'+i" :x="trendData.W - trendData.pr + 5" :y="trendData.gridYs[i] + 3" text-anchor="start">{{ lbl }}</text>
-                </g>
-                <g class="d2-trend-axis">
-                  <text v-for="(lbl, i) in trendData.labels" :key="'xl'+i" :x="trendData.dots[i].x" :y="trendData.H - 4" text-anchor="middle">{{ lbl }}</text>
-                </g>
-                <line v-if="trendData.tgtY" class="d2-trend-target" :x1="trendData.pl" :x2="trendData.W - trendData.pr" :y1="trendData.tgtY" :y2="trendData.tgtY"/>
-                <polygon class="d2-trend-rate-area" :points="trendData.rateArea"/>
-                <polyline class="d2-trend-rate-line" :points="trendData.ratePts"/>
-                <polygon class="d2-trend-area" :points="trendData.capitalArea"/>
-                <polyline class="d2-trend-line" :points="trendData.capitalPts"/>
-                <line v-if="trendHover != null && trendData.dots[trendHover]"
-                  :x1="trendData.dots[trendHover].x" :x2="trendData.dots[trendHover].x"
-                  :y1="trendData.pt" :y2="trendData.pt + trendData.ih"
-                  class="d2-trend-hover-line"/>
-                <circle v-for="(d, i) in trendData.dots" :key="'cd'+i"
-                  :cx="d.x" :cy="d.cy" :r="trendHover === i ? 4.5 : 3"
-                  :class="trendHover === i ? 'd2-pt-active' : 'd2-pt'"
-                  @mouseenter="trendHover = i" style="cursor:pointer"/>
-                <circle v-for="(d, i) in trendData.rateDots" :key="'rd'+i"
-                  :cx="d.x" :cy="d.cy" r="2.5" class="d2-pt-rate"
-                  @mouseenter="trendHover = i" style="cursor:pointer"/>
-              </svg>
-              <div v-if="trendHover != null && trendData.dots[trendHover]" class="d2-trend-tip"
-                :style="{
-                  left: trendData.dots[trendHover].pctX > 65 ? 'calc(' + trendData.dots[trendHover].pctX + '% - 128px)' : 'calc(' + trendData.dots[trendHover].pctX + '% + 12px)',
-                  top: 'calc(' + trendData.dots[trendHover].pctY + '% - 36px)'
-                }">
-                <strong>{{ trendData.labels[trendHover] }}</strong>
-                <span>支出 {{ trendData.dots[trendHover].capital.toFixed(2) }} 万</span>
-                <em>转固率 {{ (trendData.dots[trendHover].rate * 100).toFixed(1) }}%</em>
-              </div>
-            </div>
-            <div v-else class="d2-trend-empty">暂无历史数据</div>
-          </div>
-
-          <!-- Funnel -->
-          <div class="d2-panel">
-            <div class="d2-panel-head">
-              <h3>项目阶段分布</h3>
-            </div>
-            <div class="d2-funnel">
-              <div v-for="(s, i) in funnelStages" :key="s.key" class="d2-funnel-row">
-                <div class="d2-funnel-bar-wrap">
-                  <div class="d2-funnel-bar" :class="'d2-funnel-l' + (i+1)"
-                    :style="{ '--fw': (funnelStages[0].count > 0 ? s.count / funnelStages[0].count * 100 : 0) + '%' }">
-                  </div>
-                </div>
-                <div class="d2-funnel-meta">
-                  <span class="d2-funnel-label">{{ s.label }}</span>
-                  <span class="d2-funnel-count">{{ s.count }}</span>
-                  <span class="d2-funnel-pct">{{ funnelStages[0].count > 0 ? (s.count / funnelStages[0].count * 100).toFixed(0) : 0 }}%</span>
-                </div>
-              </div>
+            <div class="compare-card">
+              <span class="compare-label">转固率</span>
+              <strong>{{ formatPercent(compareOverview.rate.current) }}</strong>
+              <span class="compare-detail">较上版 {{ formatDelta(compareOverview.rate.diff, 'pct', true) }}</span>
             </div>
           </div>
-
-          <!-- Manager ranking -->
-          <div class="d2-panel">
-            <div class="d2-panel-head">
-              <h3>管理员工作量排名 <span class="d2-sub">按本年累计支出</span></h3>
-              <button v-if="currentRecordId" class="d2-tbtn d2-tbtn-sm" @click="openTransferPriority">转固推进清单</button>
+          <div v-if="managerProgressTop5.length" class="compare-table-shell">
+            <div class="card-header compare-subheader">
+              <h4>管理员推进 Top 5</h4>
+              <span class="compare-caption">{{ managerProgressTop5.length }} 位管理员</span>
             </div>
-            <table class="d2-rank-tbl">
-              <thead>
-                <tr>
-                  <th>排名</th>
-                  <th>管理员</th>
-                  <th class="num">在管</th>
-                  <th class="num">本年支出(万元)</th>
-                  <th class="bar">转固率</th>
-                </tr>
-              </thead>
+            <table class="tbl" style="font-size:12.5px">
+              <thead><tr><th>工程管理员</th><th class="num">当前支出</th><th class="num">较上版变化</th></tr></thead>
               <tbody>
-                <tr v-for="m in rankedManagers.slice(0, 4)" :key="m.name" class="d2-rank-row" @click="openManagerModal(m.name)">
-                  <td><span class="d2-rank-badge" :class="m.rank === 1 ? 'r1' : m.rank === 2 ? 'r2' : m.rank === 3 ? 'r3' : ''">{{ m.rank }}</span></td>
-                  <td class="d2-rank-name">{{ m.name }}</td>
-                  <td class="num">{{ m.projects }}</td>
-                  <td class="num" :class="m.spendYTD < 0 ? 'd2-neg' : ''">{{ formatNum(m.spendYTD) }}</td>
-                  <td>
-                    <div class="d2-mini-bar-wrap">
-                      <div class="d2-mini-bar">
-                        <div class="d2-mini-fill" :style="{ width: Math.min(100, managerMaxSpend > 0 ? Math.abs(m.spendYTD) / managerMaxSpend * 100 : 0) + '%' }"></div>
-                      </div>
-                      <span class="d2-rate-text">{{ formatPercent(m.rate) }}</span>
-                    </div>
-                  </td>
+                <tr v-for="item in managerProgressTop5" :key="item.name">
+                  <td>{{ item.name }}</td>
+                  <td class="num mono">{{ formatNum(item.current) }}</td>
+                  <td class="num"><span :class="item.diff >= 0 ? 'delta-up' : 'delta-down'">{{ formatDelta(item.diff, '万元') }}</span></td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
+      </div>
 
-        <!-- Bot row -->
-        <div class="d2-bot-row">
+      <!-- — Warnings + manager ranking side by side — -->
+      <div class="section">
+        <div class="section-head">
+          <h2>预警 & 管理员负荷</h2>
+          <span class="sub">按真实数据规则推导 · 规则可在下方查看</span>
+        </div>
+        <div class="warning-manager-grid">
           <!-- Warnings -->
-          <div class="d2-panel">
-            <div class="d2-panel-head">
-              <h3>预警 &amp; 风险</h3>
-              <span class="d2-warn-count" v-if="d2WarningItems.length">共 <b>{{ d2WarningItems.length }}</b> 项</span>
+          <div class="card">
+            <div class="card-head">
+              <div><h3>四类工程预警</h3><div class="sub" style="margin-top:2">从数据中自动识别</div></div>
+              <button class="btn ghost" @click="showFourClassAllDetail" v-if="fourClassWarnings?.items?.length">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                查看全部
+              </button>
             </div>
-            <div class="d2-warn-list" v-if="d2WarningItems.length">
-              <div v-for="(w, i) in d2WarningItems" :key="i" class="d2-warn-item"
-                :class="{ 'clickable': w.key }"
-                @click="w.key ? showFourClassDetail(w.key) : undefined">
-                <div class="d2-warn-ic" :class="'sev-' + w.sev">
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                    <path v-if="w.sev === 'high'" d="M8 2l6 11H2L8 2zM8 6v4M8 11.5v.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-                    <path v-else d="M8 3a5 5 0 100 10 5 5 0 000-10zM8 5v3l2 2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-                  </svg>
+            <div class="card-body" style="padding:0">
+              <template v-if="fourClassWarnings?.summary">
+                <div v-for="(type, idx) in fourClassTypes" :key="type.name" class="warning-item" @click="showFourClassDetail(type.name)">
+                  <div style="min-width:0">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                      <span class="pill" :class="getWarningPillClass(type.key)"><span class="dot"></span>{{ type.name }}</span>
+                    </div>
+                    <div style="font-size:12px;color:var(--ink-3)">预警期 60 天</div>
+                  </div>
+                  <div style="font-family:var(--font-mono);font-size:24px;color:var(--ink);font-weight:500;letter-spacing:-0.02em">
+                    {{ (fourClassWarnings.summary?.[type.name]?.triggered || 0) + (fourClassWarnings.summary?.[type.name]?.warning || 0) }}
+                  </div>
+                  <div style="font-size:10.5px;color:var(--ink-4);font-family:var(--font-mono);min-width:80px;text-align:right">
+                    {{ fourClassWarnings.summary?.[type.name]?.triggered || 0 }} 已触发
+                  </div>
                 </div>
-                <div class="d2-warn-body">
-                  <div class="d2-warn-title">{{ w.title }}</div>
-                  <div class="d2-warn-desc">{{ w.desc }}</div>
-                </div>
-                <div class="d2-warn-sev" :class="'sev-' + w.sev">{{ w.sev === 'high' ? '严重' : w.sev === 'med' ? '中等' : '轻微' }}</div>
-              </div>
+              </template>
+              <div v-else class="empty" style="padding:32px 20px">暂无预警数据</div>
             </div>
-            <div v-else class="d2-warn-empty">
-              <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="12" stroke="currentColor" stroke-width="1.2" opacity="0.3"/><path d="M12 16l3 3 5-5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              <span>暂无预警</span>
-            </div>
-            <div v-if="fcWarnings?.items?.length" class="d2-warn-more" @click="showFourClassAllDetail">查看四类工程预警明细 →</div>
           </div>
 
-          <!-- Project table -->
-          <div class="d2-panel d2-panel-scroll">
-            <div class="d2-ptable-bar">
-              <h3>在建工程项目列表</h3>
-              <div class="d2-search">
-                <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M7 13a6 6 0 100-12 6 6 0 000 12zM11 11l4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-                <input v-model="ptSearch" placeholder="搜索项目名称" @input="ptPage = 1"/>
+          <!-- Manager ranking -->
+          <div class="card">
+            <div class="card-head">
+              <div><h3>管理员工作量排名</h3><div class="sub" style="margin-top:2">{{ summaryRows.length }} 人 · 按本年累计支出</div></div>
+              <div style="display:flex;gap:6px">
+                <button v-if="currentRecordId" class="btn ghost tp-btn" @click="openTransferPriority">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h8M2 12h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                  转固推进清单
+                </button>
               </div>
-              <select class="d2-sel" v-model="ptStageFilter" @change="ptPage = 1">
-                <option value="all">全部阶段</option>
-                <option value="lixiang">立项</option>
-                <option value="zaijian">在建</option>
-                <option value="daishouhuo">待收货</option>
-                <option value="zhuangu">已转固</option>
-              </select>
-              <select class="d2-sel" v-model="ptStatusFilter" @change="ptPage = 1">
-                <option value="all">全部状态</option>
-                <option value="ok">正常</option>
-                <option value="warn">预警</option>
-                <option value="bad">异常</option>
-              </select>
             </div>
-            <div class="d2-ptable-wrap">
-              <table class="d2-ptable">
-                <colgroup>
-                  <col style="width:28px"/>
-                  <col/>
-                  <col style="width:68px"/>
-                  <col style="width:54px"/>
-                  <col style="width:88px"/>
-                  <col style="width:74px"/>
-                  <col style="width:62px"/>
-                  <col style="width:52px"/>
-                </colgroup>
+            <div class="card-body" style="padding:0">
+              <table class="tbl">
                 <thead>
                   <tr>
-                    <th>#</th>
-                    <th>项目名称</th>
-                    <th>阶段</th>
-                    <th>管理员</th>
+                    <th style="width:36px">#</th>
+                    <th>工程管理员</th>
+                    <th class="num">在管</th>
                     <th class="num">本年支出</th>
-                    <th class="num">待到货</th>
-                    <th class="num">转固率</th>
-                    <th>状态</th>
+                    <th class="num">结转额</th>
+                    <th class="num">待收货</th>
+                    <th>转固率</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="p in ptPageRows" :key="p.name">
-                    <td class="d2-idx">{{ p.idx }}</td>
-                    <td class="d2-pname" :title="p.name">{{ p.name }}</td>
-                    <td><span class="d2-stage-tag" :class="'st-' + p.stage">{{ p.stageLabel }}</span></td>
-                    <td class="d2-mgr-link" @click.stop="openManagerModal(p.manager)">{{ p.manager }}</td>
-                    <td class="num" :class="p.spendYTD < 0 ? 'd2-neg' : ''">{{ formatNum(p.spendYTD) }}</td>
-                    <td class="num d2-muted">{{ formatNum(p.pending) }}</td>
-                    <td class="num">{{ (p.rate * 100).toFixed(1) }}%</td>
+                  <tr v-for="(row, index) in summaryRows" :key="row.manager || row['工程管理员']" @click="openManagerModal(row.manager || row['工程管理员'])" style="cursor:pointer">
+                    <td><span class="rank-num" :class="{ 'rank-top': index < 2 }">{{ index + 1 }}</span></td>
+                    <td class="col-name link">{{ row.manager || row['工程管理员'] }}</td>
+                    <td class="num mono muted">{{ getProjectCount(row.manager || row['工程管理员']) }}</td>
+                    <td class="num mono" :style="{ fontWeight: 500, color: (row.capital || row['本年累计资本性支出']) < 0 ? 'var(--bad)' : 'var(--ink)' }">{{ formatNum(row.capital || row['本年累计资本性支出']) }}</td>
+                    <td class="num mono muted">{{ formatNum(row.transfer || row['结转额']) }}</td>
+                    <td class="num mono muted">{{ formatNum(row.pending || row['已下单待收货']) }}</td>
                     <td>
-                      <span class="d2-status-dot" :class="'sd-' + p.status">
-                        <span class="d"></span>{{ p.statusLabel }}
-                      </span>
+                      <div class="cell-bar-wrap">
+                        <span class="cell-bar-pct">{{ ((row.rate || row['转固率'] || 0) * 100).toFixed(1) }}%</span>
+                        <div class="cell-bar-track">
+                          <div class="cell-bar-fill" :class="getRateBarClass(row.rate || row['转固率'] || 0)" :style="{ width: Math.min((row.rate || row['转固率'] || 0) * 100, 100) + '%' }"></div>
+                        </div>
+                      </div>
                     </td>
-                  </tr>
-                  <tr v-if="ptPageRows.length === 0">
-                    <td colspan="8" class="d2-empty-row">无匹配项目</td>
                   </tr>
                 </tbody>
               </table>
             </div>
-            <div class="d2-pager">
-              <span class="d2-pager-count">共 {{ ptFiltered.length }} 条</span>
-              <div class="d2-pager-ctrls">
-                <button :disabled="ptPage <= 1" @click="ptPage = Math.max(1, ptPage - 1)">‹</button>
-                <button v-for="n in Math.min(ptTotalPages, 5)" :key="n" :class="{ 'on': ptPage === n }" @click="ptPage = n">{{ n }}</button>
-                <button :disabled="ptPage >= ptTotalPages" @click="ptPage = Math.min(ptTotalPages, ptPage + 1)">›</button>
-              </div>
+            <div class="table-footnote">
+              <span>合计：累计支出 {{ formatNum(dashboard?.metrics?.capital || 0) }} 万 · 待收货 {{ formatNum(dashboard?.metrics?.pending || 0) }} 万</span>
+              <span>数据日期：{{ displayAnalysisDate || '-' }}</span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Upload overlay (triggered from topbar) -->
-      <div v-if="showUpload" class="upload-overlay" @click.self="showUpload = false">
-        <div class="upload-overlay-card">
-          <div class="upload-overlay-head">
-            <h3>上传数据</h3>
-            <button class="modal-close" @click="showUpload = false">
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-            </button>
-          </div>
-          <div class="upload-overlay-body">
-            <div class="overlay-target-row">
-              <span class="overlay-target-label">年度目标</span>
-              <div class="overlay-target-input-wrap">
-                <input type="number" v-model.number="targetValue" placeholder="如 503"/>
-                <span class="overlay-target-unit">万元</span>
-              </div>
-            </div>
-            <div class="overlay-divider"></div>
-            <div class="upload-zone" @dragover.prevent @drop.prevent="handleDrop; showUpload = false" @click="triggerFileInput">
-              <template v-if="selectedFileName">
-                <div class="selected-file-banner">
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="#047857" stroke-width="1.2"/><path d="M6 10l3 3 5-5" stroke="#047857" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  <div class="selected-file-copy">
-                    <div class="selected-file-name">{{ selectedFileName }}</div>
-                    <div class="selected-file-meta">已选择文件 · 等待上传</div>
-                  </div>
-                  <span class="selected-file-change" @click.stop="clearSelectedFile">更换</span>
-                </div>
-              </template>
-              <template v-else>
-                <div class="upload-icon-wrap">
-                  <svg class="upload-icon" viewBox="0 0 34 34" fill="none"><rect x="4" y="7" width="26" height="22" rx="3" stroke="currentColor" stroke-width="1.2"/><path d="M11 14h12M11 18.5h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M21.5 3v7M18 6l3.5-3.5L25 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </div>
-                <h2>拖拽文件到此处，或<span class="link">点击选择</span></h2>
-                <p class="upload-hint">支持 .xlsx 格式 · 在建工程明细总表</p>
-              </template>
-            </div>
-            <div v-if="uploadMessage" class="upload-feedback" :class="uploadMessageType">{{ uploadMessage }}</div>
-            <input ref="fileInput" type="file" accept=".xlsx,.xls" @change="handleFileChange; showUpload = false" hidden/>
+      <!-- — Top 8 projects by balance — -->
+      <div class="section">
+        <div class="section-head">
+          <h2>期末余额 · Top 8 项目</h2>
+          <div style="display:flex;align-items:center;gap:12px">
+            <span class="sub">按在建工程期末余额降序 · 单位：万元</span>
           </div>
         </div>
+        <div class="card">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th style="width:28px">#</th>
+                <th>工程名称</th>
+                <th>管理员</th>
+                <th class="num">期末余额</th>
+                <th class="num">本年支出</th>
+                <th class="num">待收货</th>
+                <th>转固率</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(p, i) in topByBalance" :key="'bal-' + i">
+                <td class="mono muted">{{ i + 1 }}</td>
+                <td class="col-name" :title="p.name">{{ p.name }}</td>
+                <td class="muted link" style="cursor:pointer;text-decoration:underline;text-decoration-color:var(--line-2);text-underline-offset:3px" @click.stop="openManagerModal(p.manager)">{{ p.manager }}</td>
+                <td class="num mono" style="font-weight:500">{{ formatNum(p.balance) }}</td>
+                <td class="num mono" :style="{ color: p.spendYTD < 0 ? 'var(--bad)' : 'var(--ink-2)' }">{{ formatNum(p.spendYTD) }}</td>
+                <td class="num mono muted">{{ formatNum(p.pending) }}</td>
+                <td>
+                  <div class="cell-bar-wrap">
+                    <span class="cell-bar-pct">{{ (p.rate * 100).toFixed(1) }}%</span>
+                    <div class="cell-bar-track">
+                      <div class="cell-bar-fill" :class="getRateBarClass(p.rate)" :style="{ width: Math.min(p.rate * 100, 100) + '%' }"></div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              <tr v-if="topByBalance.length === 0">
+                <td colspan="7" style="text-align:center;color:var(--ink-3);padding:24px">暂无数据</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
+
+      <!-- — Top 6 most active projects — -->
+      <div class="section">
+        <div class="section-head">
+          <h2>本年支出 · Top 6 最活跃</h2>
+          <span class="sub">资本性支出金额最高的 6 个项目</span>
+        </div>
+        <div class="card">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th style="width:28px">#</th>
+                <th>工程名称</th>
+                <th>管理员</th>
+                <th class="num">本年支出</th>
+                <th class="num">本月支出</th>
+                <th class="num">期末余额</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(p, i) in topBySpend" :key="'spend-' + i">
+                <td class="mono muted">{{ i + 1 }}</td>
+                <td class="col-name" :title="p.name">{{ p.name }}</td>
+                <td class="muted link" style="cursor:pointer;text-decoration:underline;text-decoration-color:var(--line-2);text-underline-offset:3px" @click.stop="openManagerModal(p.manager)">{{ p.manager }}</td>
+                <td class="num mono" style="font-weight:500">{{ formatNum(p.spendYTD) }}</td>
+                <td class="num mono" :style="{ color: p.spendMo < 0 ? 'var(--bad)' : p.spendMo > 0 ? 'var(--ok)' : 'var(--ink-3)' }">{{ formatNum(p.spendMo) }}</td>
+                <td class="num mono muted">{{ formatNum(p.balance) }}</td>
+              </tr>
+              <tr v-if="topBySpend.length === 0">
+                <td colspan="6" style="text-align:center;color:var(--ink-3);padding:24px">暂无数据</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
     </div>
 
     <!-- Loading overlay -->
@@ -1124,12 +991,14 @@ const metrics = computed(() => {
       label: '本月资本性支出',
       value: (m.monthSpend || 0).toFixed(2),
       unit: '万元',
+      valueClass: (m.monthSpend || 0) < 0 ? 'val-negative' : '',
     },
     {
       label: '综合转固率',
       value: formatPercent(m.rate || 0),
       badgeText: rateStatus.value.text,
       badgeClass: rateStatus.value.badgeClass,
+      valueClass: (m.rate || 0) < 0.6 ? 'val-negative' : '',
     },
   ]
 })
@@ -1166,180 +1035,6 @@ const displayManagers = computed(() => {
     ...m, projects: m.projects.map(p => ({ ...p, needed: null })), alreadyAchieved: false, reachable: true, managerRequired: 0, neededCount: 0, neededBalance: 0,
   }))
 })
-
-// ── d2 Dashboard additions ──────────────────────────────
-const trendHover = ref(null)
-const ptSearch = ref('')
-const ptStageFilter = ref('all')
-const ptStatusFilter = ref('all')
-const ptPage = ref(1)
-const ptPerPage = 6
-
-const healthCard = computed(() => {
-  const m = dashboard.value?.metrics
-  if (!m) return { label: '—', cls: '', desc: '暂无数据', slip: '' }
-  const rate = Number(m.rate || 0)
-  const deficit = Number(m.deficit || 0)
-  if (rate >= 0.6) return {
-    label: '健康', cls: 'd2-health-ok',
-    desc: `转固率 ${formatPercent(rate)}，已达年度目标`,
-    slip: deficit <= 0 ? `已超年度目标 ${formatNum(Math.abs(deficit))} 万元` : `还差 ${formatNum(deficit)} 万元达标`,
-  }
-  if (rate >= 0.3) return {
-    label: '偏低', cls: 'd2-health-warn',
-    desc: `转固率 ${formatPercent(rate)}，未达目标 60%`,
-    slip: deficit > 0 ? `较目标进度滞后 ${formatNum(deficit)} 万元` : '支出已达目标，待推进转固',
-  }
-  return {
-    label: '预警', cls: 'd2-health-bad',
-    desc: `转固率 ${formatPercent(rate)}，严重偏低`,
-    slip: `较目标进度滞后 ${formatNum(Math.max(0, deficit))} 万元`,
-  }
-})
-
-const funnelStages = computed(() => {
-  const projects = projectsList.value
-  let lixiang = 0, zaijian = 0, daishouhuo = 0, zhuangu = 0
-  for (const p of projects) {
-    if (p.rate >= 0.9 || (p.balance === 0 && p.spendYTD > 0)) zhuangu++
-    else if (p.pending > 0 && p.spendYTD > 0 && p.pending > p.spendYTD * 0.5) daishouhuo++
-    else if (p.spendYTD < 5 && p.balance > 0) lixiang++
-    else zaijian++
-  }
-  const total = projects.length
-  return [
-    { label: '在建工程', count: total, key: 'total' },
-    { label: '积极推进中', count: zaijian + daishouhuo, key: 'active' },
-    { label: '已下单待收货', count: daishouhuo, key: 'daishouhuo' },
-    { label: '已转固', count: zhuangu, key: 'zhuangu' },
-  ]
-})
-
-const rankedManagers = computed(() =>
-  summaryRows.value.map((row, i) => ({
-    name: row.manager || row['工程管理员'],
-    rank: i + 1,
-    projects: getProjectCount(row.manager || row['工程管理员']),
-    spendYTD: Number(row['本年累计资本性支出'] || row.capital || 0),
-    rate: Number(row['转固率'] || row.rate || 0),
-  }))
-)
-const managerMaxSpend = computed(() => Math.max(...rankedManagers.value.map(m => Math.abs(m.spendYTD)), 1))
-
-const d2WarningItems = computed(() => {
-  const warnings = fcWarnings.value
-  const items = []
-  if (warnings?.summary) {
-    for (const type of fourClassTypes) {
-      const triggered = warnings.summary?.[type.name]?.triggered || 0
-      const warning = warnings.summary?.[type.name]?.warning || 0
-      const count = triggered + warning
-      if (count > 0) items.push({
-        title: type.name,
-        desc: `${count} 项${triggered ? '（' + triggered + ' 项已触发）' : ''}`,
-        sev: triggered > 0 ? 'high' : 'med',
-        key: type.name,
-      })
-    }
-  }
-  if (!items.length) {
-    const m = dashboard.value?.metrics
-    if (m) {
-      const rate = Number(m.rate || 0)
-      if (rate < 0.3) items.push({ title: '转固率严重偏低', desc: `综合转固率 ${formatPercent(rate)}，低于目标 60%`, sev: 'high', key: null })
-      else if (rate < 0.6) items.push({ title: '转固率偏低', desc: `综合转固率 ${formatPercent(rate)}，低于目标 60%`, sev: 'med', key: null })
-      const deficit = Number(m.deficit || 0)
-      if (deficit > 50) items.push({ title: '支出进度滞后', desc: `距年度目标还差 ${formatNum(deficit)} 万元`, sev: 'med', key: null })
-      const reversed = projectsList.value.filter(p => p.spendYTD < 0).length
-      if (reversed) items.push({ title: '冲回超额项目', desc: `${reversed} 个项目存在资本性支出冲回`, sev: 'low', key: null })
-    }
-  }
-  return items
-})
-
-const trendData = computed(() => {
-  const W = 380, H = 140, pl = 38, pr = 36, pt = 10, pb = 22
-  const iw = W - pl - pr, ih = H - pt - pb
-  const sorted = [...historyRecords.value]
-    .filter(r => r.dashboard_snapshot?.metrics?.total_current != null || r.dashboard_snapshot?.metrics?.capital != null)
-    .sort((a, b) => String(a.file_date || a.uploaded_at || '') < String(b.file_date || b.uploaded_at || '') ? -1 : 1)
-    .slice(-8)
-  if (!sorted.length) {
-    const cur = dashboard.value?.metrics?.total_current || dashboard.value?.metrics?.capital
-    if (!cur) return null
-    sorted.push({ dashboard_snapshot: { metrics: { total_current: cur, total_rate: dashboard.value.metrics.total_rate || dashboard.value.metrics.rate } }, file_date: props.analysisDate || '' })
-  }
-  const capitals = sorted.map(r => Number(r.dashboard_snapshot?.metrics?.total_current || r.dashboard_snapshot?.metrics?.capital || 0))
-  const rates = sorted.map(r => Number(r.dashboard_snapshot?.metrics?.total_rate || r.dashboard_snapshot?.metrics?.rate || 0))
-  const target = Number(targetValue.value) || 0
-  const maxC = Math.max(target * 1.05, ...capitals, 10)
-  const n = sorted.length
-  const xAt = i => pl + (n > 1 ? (i / (n - 1)) * iw : iw / 2)
-  const yAtC = v => pt + ih - (Math.max(0, Math.min(v / maxC, 1)) * ih)
-  const yAtR = v => pt + ih - (Math.max(0, Math.min(v, 1)) * ih)
-  const capitalPts = capitals.map((v, i) => `${xAt(i).toFixed(1)},${yAtC(v).toFixed(1)}`).join(' ')
-  const capitalArea = `${xAt(0).toFixed(1)},${(pt+ih).toFixed(1)} ${capitalPts} ${xAt(n-1).toFixed(1)},${(pt+ih).toFixed(1)}`
-  const ratePts = rates.map((v, i) => `${xAt(i).toFixed(1)},${yAtR(v).toFixed(1)}`).join(' ')
-  const rateArea = `${xAt(0).toFixed(1)},${(pt+ih).toFixed(1)} ${ratePts} ${xAt(n-1).toFixed(1)},${(pt+ih).toFixed(1)}`
-  const tgtY = target > 0 ? +yAtC(target).toFixed(1) : null
-  const labels = sorted.map(r => {
-    const d = r.file_date ? String(r.file_date) : ''
-    const up = (r.uploaded_at || '').substring(0, 10)
-    // 8位数字格式：20260320
-    if (/^\d{8}$/.test(d)) {
-      const m = parseInt(d.slice(4, 6))
-      const day = parseInt(d.slice(6, 8))
-      return `${m}/${day}`
-    }
-    // 4位数字格式：0320
-    if (/^\d{4}$/.test(d)) {
-      const m = parseInt(d.slice(0, 2))
-      const day = parseInt(d.slice(2, 4))
-      return `${m}/${day}`
-    }
-    // 日期格式：2026-04-25 或 2026/04/25
-    if (up.length >= 10) {
-      const m = parseInt(up.slice(5, 7))
-      const day = parseInt(up.slice(8, 10))
-      return `${m}/${day}`
-    }
-    return '—'
-  })
-  const step = Math.ceil(maxC / 4 / 50) * 50 || 50
-  const yLabels = [0, 1, 2, 3, 4].map(i => { const v = step * i; return v > maxC ? '' : (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : String(v)) })
-  const yRateLabels = ['0%', '25%', '50%', '75%', '100%']
-  const gridYs = [0, 0.25, 0.5, 0.75, 1].map(p => +(pt + ih - p * ih).toFixed(1))
-  const dots = capitals.map((v, i) => ({
-    x: +xAt(i).toFixed(1), cy: +yAtC(v).toFixed(1),
-    capital: v, rate: rates[i],
-    pctX: +(xAt(i) / W * 100).toFixed(1), pctY: +(yAtC(v) / H * 100).toFixed(1),
-  }))
-  const rateDots = rates.map((v, i) => ({ x: +xAt(i).toFixed(1), cy: +yAtR(v).toFixed(1), v }))
-  return { W, H, pl, pr, pt, pb, iw, ih, capitalPts, capitalArea, ratePts, rateArea, tgtY, labels, dots, rateDots, yLabels, yRateLabels, gridYs, target, maxC }
-})
-
-const ptProjectRows = computed(() =>
-  projectsList.value.map((p, i) => {
-    let stage = 'zaijian', stageLabel = '在建'
-    if (p.rate >= 0.9 || (p.balance === 0 && p.spendYTD > 0)) { stage = 'zhuangu'; stageLabel = '已转固' }
-    else if (p.pending > 0 && p.spendYTD > 0 && p.pending > p.spendYTD * 0.5) { stage = 'daishouhuo'; stageLabel = '待收货' }
-    else if (p.spendYTD < 5 && p.balance > 0) { stage = 'lixiang'; stageLabel = '立项' }
-    let status = 'ok', statusLabel = '正常'
-    if (p.spendYTD < 0) { status = 'bad'; statusLabel = '异常' }
-    else if (p.balance > 0 && p.spendYTD < p.balance * 0.05) { status = 'warn'; statusLabel = '预警' }
-    return { ...p, stage, stageLabel, status, statusLabel, idx: i + 1 }
-  })
-)
-const ptFiltered = computed(() =>
-  ptProjectRows.value.filter(p => {
-    if (ptSearch.value && !p.name.includes(ptSearch.value)) return false
-    if (ptStageFilter.value !== 'all' && p.stage !== ptStageFilter.value) return false
-    if (ptStatusFilter.value !== 'all' && p.status !== ptStatusFilter.value) return false
-    return true
-  })
-)
-const ptPageRows = computed(() => ptFiltered.value.slice((ptPage.value - 1) * ptPerPage, ptPage.value * ptPerPage))
-const ptTotalPages = computed(() => Math.max(1, Math.ceil(ptFiltered.value.length / ptPerPage)))
 
 const sortedModalData = computed(() => {
   const data = [...modalData.value]
@@ -1569,10 +1264,15 @@ async function loadHistoryList() {
     const result = await getHistory(30)
     if (result.success) {
       const records = result.data || []
-      // 后端已返回metrics数据，直接使用
-      const enriched = records.map(record => ({
-        ...record,
-        dashboard_snapshot: { metrics: record.metrics || {} }
+      const enriched = await Promise.all(records.map(async (record, index) => {
+        if (index > 3) return record
+        try {
+          const snapshotResult = await getHistorySnapshot(record.id)
+          if (snapshotResult.success && snapshotResult.data?.current) {
+            return { ...record, dashboard_snapshot: snapshotResult.data.current.dashboard }
+          }
+        } catch (error) { console.error('获取历史快照摘要失败:', error) }
+        return record
       }))
       historyRecords.value = enriched
     }
@@ -1972,6 +1672,7 @@ onUnmounted(() => {})
 }
 .delta.up { color: var(--ok); }
 .delta.down { color: var(--bad); }
+.val-negative { color: var(--bad) !important; }
 .tri-up::before { content: '▲'; font-size: 8px; margin-right: 3px; }
 .tri-dn::before { content: '▼'; font-size: 8px; margin-right: 3px; }
 
@@ -2461,317 +2162,4 @@ onUnmounted(() => {})
   .upload-strip .up-icon { display: none; }
   .upload-strip .up-meter { display: none; }
 }
-
-/* ══ D2 Dashboard Layout ════════════════════════════════════ */
-.d2-page {
-  height: 100vh; overflow: hidden;
-  display: flex; flex-direction: column;
-  background: #F5F3ED; color: #1F1D18;
-  font-family: var(--font-sans);
-}
-
-/* Page head */
-.d2-head {
-  padding: 10px 20px 8px; flex-shrink: 0; background: #F5F3ED;
-}
-.d2-head-top {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 5px;
-}
-.d2-head-top h1 {
-  font-size: 20px; font-weight: 500; letter-spacing: -0.02em; color: #1F1D18; margin: 0;
-  display: flex; align-items: center; gap: 10px;
-}
-.d2-head-actions { display: flex; align-items: center; gap: 8px; }
-.d2-crumb-tag {
-  font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
-  color: #E86A33; background: #FBE6D9; padding: 2px 7px; border-radius: 4px;
-}
-.d2-tbtn {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 5px 11px; border-radius: 6px; font-size: 12px;
-  color: #5A5649; background: #FFFFFF; border: 1px solid rgba(31,29,24,0.14);
-  cursor: pointer; font-family: inherit; transition: all 120ms; white-space: nowrap;
-}
-.d2-tbtn:hover { background: #F5F3ED; color: #1F1D18; }
-.d2-tbtn-primary { background: #E86A33 !important; color: #fff !important; border-color: #E86A33 !important; }
-.d2-tbtn-primary:hover { background: #D45E28 !important; }
-.d2-tbtn-sm { font-size: 11px; padding: 3px 9px; }
-.d2-tbtn-xs { font-size: 11px; padding: 3px 8px; }
-.d2-head-meta {
-  display: flex; align-items: center; gap: 10px;
-  font-size: 12px; color: #7A7569; flex-wrap: wrap;
-}
-.d2-dot { width: 3px; height: 3px; background: #C0BAB0; border-radius: 50%; flex-shrink: 0; }
-.d2-head-meta b { color: #1F1D18; font-weight: 500; }
-.d2-edit-btn { background: none; border: none; color: #9E9A91; cursor: pointer; padding: 0 2px; display: inline-flex; align-items: center; }
-.d2-edit-btn:hover { color: #E86A33; }
-.d2-target-edit { display: flex; align-items: center; gap: 5px; }
-.d2-target-input { width: 70px; padding: 3px 6px; border: 1px solid #D0C9BF; border-radius: 5px; background: #fff; font-size: 13px; color: #1F1D18; font-family: var(--font-mono); outline: none; }
-.d2-target-input:focus { border-color: #E86A33; }
-.d2-target-unit { font-size: 12px; color: #9E9A91; }
-
-/* Main grid */
-.d2-main {
-  flex: 1; min-height: 0;
-  display: flex; flex-direction: column;
-  gap: 10px; padding: 0 12px 10px;
-  overflow: hidden;
-}
-
-/* KPI row */
-.d2-kpi-row {
-  display: grid; grid-template-columns: 1.25fr 1fr 1fr 1fr 1fr;
-  gap: 10px; flex-shrink: 0; height: 128px;
-}
-
-/* Health card */
-.d2-health {
-  background: linear-gradient(135deg, #FBE9DB 0%, #F6D4B9 100%);
-  border-radius: 10px; padding: 14px 16px;
-  display: flex; gap: 12px; align-items: flex-start;
-  border: 1px solid rgba(232,106,51,0.18); overflow: hidden;
-}
-.d2-health-icon { width: 44px; height: 44px; flex-shrink: 0; }
-.d2-health-icon svg { width: 44px; height: 44px; }
-.d2-health-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.d2-health-label { font-size: 11px; font-weight: 500; color: #9E6040; text-transform: uppercase; letter-spacing: 0.07em; }
-.d2-health-value { font-size: 22px; font-weight: 500; letter-spacing: -0.02em; color: #1F1D18; line-height: 1.2; }
-.d2-health-value.d2-health-ok { color: #2E7D32; }
-.d2-health-value.d2-health-warn { color: #E86A33; }
-.d2-health-value.d2-health-bad { color: #C0392B; }
-.d2-health-desc { font-size: 11.5px; color: #8A7060; line-height: 1.4; }
-.d2-health-footline { height: 1px; background: rgba(232,106,51,0.2); margin: 4px 0; }
-.d2-health-slip { font-size: 11px; color: #7A5A40; }
-
-/* KPI cards */
-.d2-kpi-card {
-  background: #FFFFFF; border-radius: 10px; padding: 12px 14px;
-  display: flex; flex-direction: column;
-  border: 1px solid rgba(31,29,24,0.08); overflow: hidden;
-}
-.d2-kpi-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-.d2-kpi-label { font-size: 11px; color: #9E9A91; letter-spacing: 0.02em; }
-.d2-kpi-ic {
-  width: 24px; height: 24px; background: #FBE6D9; border-radius: 6px;
-  display: flex; align-items: center; justify-content: center; color: #E86A33; flex-shrink: 0;
-}
-.d2-kpi-val {
-  font-size: 22px; font-weight: 500; color: #1F1D18;
-  letter-spacing: -0.025em; display: flex; align-items: baseline; gap: 3px; line-height: 1.1;
-}
-.d2-kpi-val.d2-accent { color: #E86A33; }
-.d2-kpi-unit { font-size: 11px; color: #9E9A91; font-weight: 400; }
-.d2-kpi-prog { height: 3px; background: #EBE7DD; border-radius: 2px; overflow: hidden; margin: 5px 0 3px; }
-.d2-kpi-prog-fill { height: 100%; background: #E86A33; border-radius: 2px; transition: width 0.6s ease; }
-.d2-kpi-prog-label { display: flex; justify-content: space-between; font-size: 10.5px; color: #9E9A91; }
-.d2-pct { font-weight: 500; color: #E86A33; font-family: var(--font-mono); }
-.d2-kpi-foot { font-size: 11px; color: #9E9A91; margin-top: auto; padding-top: 4px; }
-.d2-ok { color: #2E7D32; }
-.d2-warn-text { color: #E86A33; }
-.d2-neg { color: #C0392B !important; }
-
-/* Mid row */
-.d2-mid-row {
-  display: grid; grid-template-columns: 1.15fr 0.95fr 1.3fr;
-  gap: 10px; height: 200px; flex-shrink: 0;
-}
-
-/* Bot row */
-.d2-bot-row {
-  display: grid; grid-template-columns: 0.75fr 1.55fr;
-  gap: 10px; flex: 1; min-height: 0;
-}
-
-/* Panel */
-.d2-panel {
-  background: #FFFFFF; border-radius: 10px;
-  border: 1px solid rgba(31,29,24,0.08);
-  display: flex; flex-direction: column; overflow: hidden;
-}
-.d2-panel-scroll { overflow: hidden; }
-.d2-panel-head {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 14px 8px; border-bottom: 1px solid rgba(31,29,24,0.07);
-  flex-shrink: 0; gap: 8px; min-height: 38px;
-}
-.d2-panel-head h3 { font-size: 12.5px; font-weight: 500; color: #1F1D18; margin: 0; white-space: nowrap; }
-.d2-sub { font-size: 10.5px; color: #9E9A91; font-weight: 400; }
-
-/* Trend chart */
-.d2-trend-wrap { flex: 1; min-height: 0; position: relative; padding: 4px 6px 0; overflow: hidden; }
-.d2-trend-svg { width: 100%; height: 100%; display: block; }
-.d2-trend-grid line { stroke: rgba(31,29,24,0.06); stroke-width: 1; }
-.d2-trend-axis text { fill: #9E9A91; font-size: 9px; font-family: var(--font-mono); }
-.d2-trend-axis-r text { fill: #6BBF8E; }
-.d2-trend-target { stroke: #E86A33; stroke-width: 1; stroke-dasharray: 4 3; opacity: 0.7; }
-.d2-trend-area { fill: url(#td2-grad); }
-.d2-trend-rate-area { fill: url(#td2-rate-grad); }
-.d2-trend-line { fill: none; stroke: #E86A33; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.d2-trend-rate-line { fill: none; stroke: #6BBF8E; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.d2-pt { fill: #FFFFFF; stroke: #E86A33; stroke-width: 1.5; }
-.d2-pt-active { fill: #E86A33; stroke: #E86A33; stroke-width: 1.5; }
-.d2-pt-rate { fill: #6BBF8E; }
-.d2-trend-hover-line { stroke: #E86A33; stroke-width: 1; stroke-dasharray: 3 2; opacity: 0.4; }
-.d2-trend-tip {
-  position: absolute; background: #1F1D18; color: #fff;
-  padding: 6px 10px; border-radius: 6px; font-size: 11px; pointer-events: none;
-  display: flex; flex-direction: column; gap: 2px; white-space: nowrap; z-index: 10;
-}
-.d2-trend-tip strong { font-size: 11.5px; }
-.d2-trend-tip em { font-style: normal; color: #6BBF8E; }
-.d2-trend-empty { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #9E9A91; }
-.d2-legend-row { display: flex; align-items: center; gap: 10px; }
-.d2-legend-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: #9E9A91; white-space: nowrap; }
-.d2-lsw { width: 16px; height: 2px; border-radius: 1px; display: inline-block; }
-.d2-lsw-orange { background: #E86A33; }
-.d2-lsw-green { background: #6BBF8E; }
-.d2-lsw-dashed { background: none; border-top: 2px dashed #E86A33; opacity: 0.7; }
-
-/* Funnel */
-.d2-funnel { flex: 1; padding: 8px 14px; display: flex; flex-direction: column; justify-content: space-evenly; gap: 4px; overflow: hidden; }
-.d2-funnel-row { display: flex; align-items: center; gap: 8px; }
-.d2-funnel-bar-wrap { flex: 1; min-width: 0; }
-.d2-funnel-bar { height: 18px; border-radius: 3px; width: var(--fw, 100%); transition: width 0.5s ease; }
-.d2-funnel-l1 { background: #E86A33; }
-.d2-funnel-l2 { background: #F0A077; }
-.d2-funnel-l3 { background: #F5C2A0; }
-.d2-funnel-l4 { background: #88C988; }
-.d2-funnel-meta { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
-.d2-funnel-label { font-size: 10.5px; color: #7A7569; min-width: 68px; text-align: right; }
-.d2-funnel-count { font-size: 13px; font-weight: 500; color: #1F1D18; font-family: var(--font-mono); min-width: 22px; text-align: right; }
-.d2-funnel-pct { font-size: 10px; color: #9E9A91; font-family: var(--font-mono); min-width: 34px; }
-
-/* Manager ranking */
-.d2-rank-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
-.d2-rank-tbl thead th {
-  padding: 6px 12px; font-weight: 500; font-size: 10.5px; color: #9E9A91;
-  text-transform: uppercase; letter-spacing: 0.05em;
-  border-bottom: 1px solid rgba(31,29,24,0.07); text-align: left;
-}
-.d2-rank-tbl thead th.num { text-align: right; }
-.d2-rank-tbl tbody td { padding: 8px 12px; border-bottom: 1px solid rgba(31,29,24,0.05); vertical-align: middle; }
-.d2-rank-tbl tbody tr:last-child td { border-bottom: none; }
-.d2-rank-row { cursor: pointer; }
-.d2-rank-row:hover td { background: #F8F6F2; }
-.d2-rank-tbl .num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-.d2-rank-badge {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 20px; height: 20px; border-radius: 5px;
-  font-size: 10.5px; font-family: var(--font-mono); background: #EBE7DD; color: #7A7569;
-}
-.d2-rank-badge.r1 { background: #1F1D18; color: #fff; }
-.d2-rank-badge.r2 { background: #4A4740; color: #fff; }
-.d2-rank-badge.r3 { background: #7A7569; color: #fff; }
-.d2-rank-name { font-weight: 500; color: #1F1D18; }
-.d2-mini-bar-wrap { display: flex; align-items: center; gap: 6px; }
-.d2-mini-bar { flex: 1; height: 4px; background: #EBE7DD; border-radius: 2px; overflow: hidden; min-width: 30px; }
-.d2-mini-fill { height: 100%; background: #E86A33; border-radius: 2px; }
-.d2-rate-text { font-size: 10.5px; color: #7A7569; font-family: var(--font-mono); white-space: nowrap; min-width: 34px; text-align: right; }
-
-/* Warnings */
-.d2-warn-list { flex: 1; min-height: 0; overflow-y: auto; }
-.d2-warn-count { font-size: 11px; color: #9E9A91; }
-.d2-warn-count b { color: #E86A33; }
-.d2-warn-item {
-  display: grid; grid-template-columns: 28px 1fr auto;
-  align-items: flex-start; gap: 8px; padding: 10px 14px;
-  border-bottom: 1px solid rgba(31,29,24,0.05);
-}
-.d2-warn-item:last-child { border-bottom: none; }
-.d2-warn-item.clickable { cursor: pointer; }
-.d2-warn-item.clickable:hover { background: #F8F6F2; }
-.d2-warn-ic { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.d2-warn-ic.sev-high { background: rgba(192,57,43,0.1); color: #C0392B; }
-.d2-warn-ic.sev-med { background: rgba(232,106,51,0.1); color: #E86A33; }
-.d2-warn-ic.sev-low { background: rgba(122,117,105,0.1); color: #7A7569; }
-.d2-warn-body { min-width: 0; }
-.d2-warn-title { font-size: 12px; font-weight: 500; color: #1F1D18; }
-.d2-warn-desc { font-size: 11px; color: #7A7569; margin-top: 2px; }
-.d2-warn-sev { font-size: 10.5px; font-weight: 500; padding: 2px 6px; border-radius: 4px; white-space: nowrap; align-self: center; }
-.d2-warn-sev.sev-high { background: rgba(192,57,43,0.08); color: #C0392B; }
-.d2-warn-sev.sev-med { background: rgba(232,106,51,0.08); color: #E86A33; }
-.d2-warn-sev.sev-low { background: rgba(122,117,105,0.08); color: #7A7569; }
-.d2-warn-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #9E9A91; font-size: 12px; }
-.d2-warn-more { padding: 8px 14px; font-size: 11px; color: #E86A33; cursor: pointer; border-top: 1px solid rgba(31,29,24,0.07); text-align: center; flex-shrink: 0; }
-.d2-warn-more:hover { text-decoration: underline; }
-
-/* Project table */
-.d2-ptable-bar {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 12px; border-bottom: 1px solid rgba(31,29,24,0.07); flex-shrink: 0;
-}
-.d2-ptable-bar h3 { font-size: 12.5px; font-weight: 500; color: #1F1D18; margin: 0; white-space: nowrap; flex-shrink: 0; }
-.d2-search {
-  display: flex; align-items: center; gap: 5px;
-  background: #F5F3ED; border-radius: 6px; padding: 4px 8px;
-  border: 1px solid rgba(31,29,24,0.1); flex: 1; min-width: 80px; max-width: 160px;
-}
-.d2-search svg { opacity: 0.5; flex-shrink: 0; }
-.d2-search input { border: none; background: transparent; outline: none; font-size: 12px; color: #1F1D18; width: 100%; font-family: inherit; }
-.d2-search input::placeholder { color: #9E9A91; }
-.d2-sel {
-  padding: 4px 8px; border-radius: 6px;
-  border: 1px solid rgba(31,29,24,0.12); background: #FFFFFF;
-  font-size: 11.5px; color: #5A5649; font-family: inherit; cursor: pointer; outline: none;
-}
-.d2-ptable-wrap { flex: 1; min-height: 0; overflow-y: auto; overflow-x: auto; }
-.d2-ptable { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 520px; }
-.d2-ptable thead th {
-  padding: 7px 10px; text-align: left; font-weight: 500; font-size: 10.5px;
-  color: #9E9A91; text-transform: uppercase; letter-spacing: 0.05em;
-  background: #F8F6F2; border-bottom: 1px solid rgba(31,29,24,0.08);
-  position: sticky; top: 0; white-space: nowrap;
-}
-.d2-ptable thead th.num { text-align: right; }
-.d2-ptable tbody td { padding: 7px 10px; border-bottom: 1px solid rgba(31,29,24,0.05); vertical-align: middle; }
-.d2-ptable tbody tr:last-child td { border-bottom: none; }
-.d2-ptable tbody tr:hover td { background: #F8F6F2; }
-.d2-ptable .num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-.d2-idx { color: #9E9A91; font-family: var(--font-mono); font-size: 10.5px; }
-.d2-pname { font-weight: 500; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.d2-muted { color: #9E9A91; }
-.d2-mgr-link { color: #5A5649; cursor: pointer; }
-.d2-mgr-link:hover { color: #E86A33; text-decoration: underline; text-underline-offset: 2px; }
-.d2-stage-tag { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10.5px; font-weight: 500; white-space: nowrap; }
-.st-zaijian { background: #EBF4FF; color: #1D6FA4; }
-.st-lixiang { background: #F3EFF5; color: #7B5EA7; }
-.st-daishouhuo { background: #FFF4E5; color: #B45309; }
-.st-zhuangu { background: #EEFBEE; color: #2E7D32; }
-.d2-status-dot { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; white-space: nowrap; }
-.d2-status-dot .d { width: 5px; height: 5px; border-radius: 50%; }
-.sd-ok .d { background: #4CAF50; } .sd-ok { color: #2E7D32; }
-.sd-warn .d { background: #FF9800; } .sd-warn { color: #B45309; }
-.sd-bad .d { background: #F44336; } .sd-bad { color: #C0392B; }
-.d2-empty-row { text-align: center; padding: 24px; color: #9E9A91; font-size: 12px; }
-.d2-pager {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 7px 12px; border-top: 1px solid rgba(31,29,24,0.07); flex-shrink: 0;
-}
-.d2-pager-count { font-size: 11px; color: #9E9A91; }
-.d2-pager-ctrls { display: flex; align-items: center; gap: 3px; }
-.d2-pager-ctrls button {
-  min-width: 24px; height: 24px; padding: 0 6px; border-radius: 4px;
-  border: 1px solid transparent; background: transparent; font-size: 12px;
-  color: #5A5649; cursor: pointer; font-family: inherit;
-  display: flex; align-items: center; justify-content: center;
-}
-.d2-pager-ctrls button:hover:not(:disabled) { background: #F5F3ED; }
-.d2-pager-ctrls button.on { background: #E86A33; color: #fff; border-color: #E86A33; }
-.d2-pager-ctrls button:disabled { opacity: 0.3; cursor: not-allowed; }
-
-/* ds-pill / ds-btn for manager drawer (used inside d2-page) */
-.ds-pill {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 2px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 500;
-  background: var(--warn-soft); color: var(--warn); border: 1px solid transparent;
-}
-.ds-pill .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
-.ds-btn {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 6px 12px; border-radius: var(--r-md); font-size: 12px;
-  color: var(--ink-2); background: transparent; border: 1px solid var(--line-2);
-  cursor: pointer; font-family: inherit; transition: all 120ms;
-}
-.ds-btn:hover { background: var(--paper-2); color: var(--ink); }
 </style>
