@@ -836,6 +836,7 @@ async function handleNavPush() {
         :zaigong-date="zaigongDate"
         :budget-date="budgetDate"
         :four-class-warnings="zaigongFourClassWarnings"
+        :record-id="zaigongLatestRecordId"
         @presentation-change="onPresentationChange"
       />
       <Archive v-else-if="currentView === 'archive'" />

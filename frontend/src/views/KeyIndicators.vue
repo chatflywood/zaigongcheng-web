@@ -80,9 +80,6 @@
             <div class="ki-kpi-delta" :class="parseFloat(capitalProgress) >= 80 ? 'ok' : 'up'">
               <span class="tri-up"></span>缺口 {{ props.zaigongData?.metrics?.deficit?.toFixed(1) || '0.0' }} 万
             </div>
-            <div class="ki-kpi-narrative">
-              已完成目标的 {{ capitalProgress }}%，累计 {{ props.zaigongData?.metrics?.capital?.toFixed(1) || '0.0' }} 万元。
-            </div>
           </div>
 
           <!-- Card 2: 转固率 -->
@@ -107,9 +104,6 @@
             <div class="ki-kpi-delta" :class="parseFloat(transferRate) < 10 ? 'down' : 'flat'">
               <span v-if="parseFloat(transferRate) < 10" class="tri-dn"></span>
               {{ parseFloat(transferRate) < 10 ? '低位' : '—' }}
-            </div>
-            <div class="ki-kpi-narrative">
-              整体转固率 {{ transferRate }}%，{{ parseFloat(transferRate) < 60 ? '低于 60% 期望值。' : '已达标。' }}
             </div>
           </div>
 
@@ -137,9 +131,6 @@
               <span v-else class="tri-up"></span>
               {{ parseFloat(annualCapitalProgress) > 100 ? '超支' : `${(100 - parseFloat(annualCapitalProgress)).toFixed(1)}pp 待执行` }}
             </div>
-            <div class="ki-kpi-narrative">
-              全年支出占已下达预算 {{ annualCapitalProgress }}%。
-            </div>
           </div>
 
           <!-- Card 4: 立项进度 -->
@@ -163,9 +154,6 @@
             <div class="ki-kpi-sub mono">{{ props.budgetData?.occupied_total?.toFixed(1) || '0.0' }} / {{ props.budgetData?.budget_total?.toFixed(1) || '0.0' }} 万</div>
             <div class="ki-kpi-delta" :class="parseFloat(approvalProgress) < 90 ? 'up' : 'flat'">
               {{ parseFloat(approvalProgress) < 90 ? `${(90 - parseFloat(approvalProgress)).toFixed(1)}pp 未绑定` : '已达标' }}
-            </div>
-            <div class="ki-kpi-narrative">
-              预算占用率 {{ approvalProgress }}%。
             </div>
           </div>
 
@@ -192,17 +180,12 @@
               @click="showFourClassDetail(type.name)"
             >
               <div style="min-width:0">
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-                  <span class="pill" :class="getWarningPillClass(type.key)"><span class="dot"></span>{{ type.name }}</span>
-                </div>
-                <div style="font-size:12px;color:var(--ink-3)">预警期 60 天</div>
+                <span class="pill" :class="getWarningPillClass(type.key)"><span class="dot"></span>{{ type.name }}</span>
               </div>
-              <div style="font-family:var(--font-mono);font-size:24px;color:var(--ink);font-weight:500;letter-spacing:-0.02em">
+              <div class="warning-count">
                 {{ (fcWarnings.summary?.[type.name]?.triggered || 0) + (fcWarnings.summary?.[type.name]?.warning || 0) }}
               </div>
-              <div style="font-size:10.5px;color:var(--ink-4);font-family:var(--font-mono);min-width:80px;text-align:right">
-                已触发 {{ fcWarnings.summary?.[type.name]?.triggered || 0 }} · 预警 {{ fcWarnings.summary?.[type.name]?.warning || 0 }}
-              </div>
+              <div class="warning-mgr-text">{{ getManagerTextForType(type.name) }}</div>
             </div>
           </div>
           <div v-else class="ki-right-empty">暂无预警数据</div>
@@ -241,90 +224,63 @@
     <div v-if="fourClassDetailVisible" class="four-class-modal-overlay" @click.self="fourClassDetailVisible = false">
       <div class="four-class-modal">
         <div class="modal-header">
-          <div>
-            <h3 style="margin:0;font-size:16px;font-weight:600;color:var(--ink)">{{ fourClassDetailType }}</h3>
-            <div style="font-size:12px;color:var(--ink-3);margin-top:2px">{{ fcWarnings?.summary?.analysis_date || currentDate }}</div>
+          <div class="modal-title-wrap">
+            <h3>{{ fourClassDetailType }}</h3>
+            <span v-if="fcWarnings?.summary?.analysis_date" class="modal-date">数据日期：{{ fcWarnings.summary.analysis_date }}</span>
           </div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <button class="ki-modal-close" @click="fourClassDetailVisible = false">×</button>
+          <div class="modal-header-actions">
+            <button class="export-btn-primary" @click="exportFourClassWarnings" :disabled="!props.recordId">
+              <span>↓</span> 导出预警清单
+            </button>
+            <button class="modal-close" @click="fourClassDetailVisible = false">✕</button>
           </div>
         </div>
-        <div class="modal-body" style="overflow:auto;flex:1;padding:0">
+        <div class="modal-body">
           <!-- Grouped view -->
           <template v-if="fourClassDetailType === '四类工程预警明细'">
-            <div v-for="type in fourClassTypes" :key="type.name" class="four-class-group" :class="'group-' + type.key">
-              <div class="group-header" :style="{ display: 'flex', justifyContent: 'space-between', padding: '10px 20px', fontSize: '13px', fontWeight: '500' }">
-                <span>{{ type.name }}</span>
-                <span style="font-family:var(--font-mono);font-size:12px">
-                  已触发 {{ getGroupStats(type.name).triggered }} / 预警 {{ getGroupStats(type.name).warning }}
-                </span>
+            <template v-for="type in fourClassTypes" :key="type.name">
+              <div v-if="getGroupItems(type.name).length > 0" class="four-class-group" :class="'group-' + type.key">
+                <div class="group-header">
+                  <span class="group-title">{{ type.name }}</span>
+                  <span class="group-count">已触发 {{ getGroupStats(type.name).triggered }} / 预警 {{ getGroupStats(type.name).warning }}</span>
+                </div>
+                <table class="data-table four-class-modal-table">
+                  <thead><tr><th class="col-status">状态</th><th class="col-name">工程名称</th><th class="col-accept">验收类型</th><th class="col-manager">管理员</th><th class="col-date">关键日期</th><th class="col-date">截止日期</th><th class="col-project-status">工程状态</th><th class="col-days">天数</th><th class="col-suggestion">处置建议</th></tr></thead>
+                  <tbody>
+                    <tr v-for="item in getGroupItems(type.name)" :key="item.id" :class="'row-' + item.status">
+                      <td class="col-status"><span class="status-tag" :class="item.status">{{ item.status }}</span></td>
+                      <td class="col-name" :title="item.name">{{ item.name }}</td>
+                      <td class="col-accept">{{ item.acceptType }}</td>
+                      <td class="col-manager">{{ item.manager }}</td>
+                      <td class="col-date">{{ item.keyDate }}</td>
+                      <td class="col-date">{{ item.deadline || '-' }}</td>
+                      <td class="col-project-status">{{ item.projectStatus || '—' }}</td>
+                      <td class="col-days" :class="getDaysClass(item.daysLabel, item.status)"><span v-if="item.status === '预警' && parseInt(item.daysLabel?.match(/\d+/)?.[0]) <= 30" style="margin-right:2px">⚠️</span>{{ item.daysLabel }}</td>
+                      <td class="col-suggestion">{{ item.suggestion }}</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
-              <table class="four-class-table" v-if="getGroupItems(type.name).length">
-                <thead>
-                  <tr>
-                    <th class="col-status">状态</th>
-                    <th class="col-name">工程名称</th>
-                    <th class="col-accept">验收类型</th>
-                    <th class="col-mgr">管理员</th>
-                    <th class="col-date">关键日期</th>
-                    <th class="col-deadline">截止日期</th>
-                    <th class="col-pstatus">工程状态</th>
-                    <th class="col-days">天数</th>
-                    <th class="col-suggestion">处置建议</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="item in getGroupItems(type.name)" :key="item.id" :class="'row-' + item.status">
-                    <td class="col-status"><span class="status-tag" :class="item.status">{{ item.status }}</span></td>
-                    <td class="col-name" :title="item.name">{{ item.name }}</td>
-                    <td class="col-accept">{{ item.acceptType }}</td>
-                    <td class="col-mgr">{{ item.manager }}</td>
-                    <td class="col-date mono">{{ item.keyDate }}</td>
-                    <td class="col-deadline mono">{{ item.deadline }}</td>
-                    <td class="col-pstatus">{{ item.projectStatus }}</td>
-                    <td class="col-days mono" :class="getDaysClass(item.daysLabel, item.status)">
-                      <span v-if="item.status === '预警' && parseInt(item.daysLabel) <= 30">⚠️ </span>{{ item.daysLabel }}
-                    </td>
-                    <td class="col-suggestion">{{ item.suggestion }}</td>
-                  </tr>
-                </tbody>
-              </table>
-              <div v-else style="padding:16px 20px;font-size:13px;color:var(--ink-3)">无相关项目</div>
-            </div>
+            </template>
           </template>
           <!-- Single-type view -->
           <template v-else>
-            <table class="four-class-table" v-if="fourClassDetailItems.length">
-              <thead>
-                <tr>
-                  <th class="col-status">状态</th>
-                  <th class="col-name">工程名称</th>
-                  <th class="col-accept">验收类型</th>
-                  <th class="col-mgr">管理员</th>
-                  <th class="col-date">关键日期</th>
-                  <th class="col-deadline">截止日期</th>
-                  <th class="col-pstatus">工程状态</th>
-                  <th class="col-days">天数</th>
-                  <th class="col-suggestion">处置建议</th>
-                </tr>
-              </thead>
+            <table class="data-table four-class-modal-table">
+              <thead><tr><th class="col-status">状态</th><th class="col-name">工程名称</th><th class="col-accept">验收类型</th><th class="col-manager">管理员</th><th class="col-date">关键日期</th><th class="col-date">截止日期</th><th class="col-project-status">工程状态</th><th class="col-days">天数</th><th class="col-suggestion">处置建议</th></tr></thead>
               <tbody>
                 <tr v-for="item in fourClassDetailItems" :key="item.id" :class="'row-' + item.status">
                   <td class="col-status"><span class="status-tag" :class="item.status">{{ item.status }}</span></td>
                   <td class="col-name" :title="item.name">{{ item.name }}</td>
                   <td class="col-accept">{{ item.acceptType }}</td>
-                  <td class="col-mgr">{{ item.manager }}</td>
-                  <td class="col-date mono">{{ item.keyDate }}</td>
-                  <td class="col-deadline mono">{{ item.deadline }}</td>
-                  <td class="col-pstatus">{{ item.projectStatus }}</td>
-                  <td class="col-days mono" :class="getDaysClass(item.daysLabel, item.status)">
-                    <span v-if="item.status === '预警' && parseInt(item.daysLabel) <= 30">⚠️ </span>{{ item.daysLabel }}
-                  </td>
+                  <td class="col-manager">{{ item.manager }}</td>
+                  <td class="col-date">{{ item.keyDate }}</td>
+                  <td class="col-date">{{ item.deadline || '-' }}</td>
+                  <td class="col-project-status">{{ item.projectStatus || '—' }}</td>
+                  <td class="col-days" :class="getDaysClass(item.daysLabel, item.status)"><span v-if="item.status === '预警' && parseInt(item.daysLabel?.match(/\d+/)?.[0]) <= 30" style="margin-right:2px">⚠️</span>{{ item.daysLabel }}</td>
                   <td class="col-suggestion">{{ item.suggestion }}</td>
                 </tr>
               </tbody>
             </table>
-            <div v-else style="padding:40px;text-align:center;color:var(--ink-3);font-size:13px">无相关项目</div>
           </template>
         </div>
       </div>
@@ -342,7 +298,8 @@ const props = defineProps({
   budgetData: Object,
   zaigongDate: String,
   budgetDate: String,
-  fourClassWarnings: Object
+  fourClassWarnings: Object,
+  recordId: { type: [Number, String], default: null },
 })
 
 const emit = defineEmits(['presentation-change'])
@@ -498,6 +455,22 @@ function showFourClassAllDetail() {
   fourClassDetailVisible.value = true
 }
 
+async function exportFourClassWarnings() {
+  if (!props.recordId) return
+  try {
+    const { exportFourClassExcel } = await import('../api')
+    const blob = await exportFourClassExcel(props.recordId)
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `四类工程预警_${currentDate.value}.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    console.error('导出失败', e)
+  }
+}
+
 function getGroupItems(typeName) {
   return (fcWarnings.value?.items || []).filter(i => i.type === typeName)
 }
@@ -508,6 +481,34 @@ function getGroupStats(typeName) {
     triggered: items.filter(i => i.status === '已触发' || i.status === '已触发(超期完成)').length,
     warning: items.filter(i => i.status === '预警').length,
   }
+}
+
+const MGR_COLORS = ['var(--info)', 'var(--ok)', 'var(--accent)', 'var(--warn)']
+const mgrColorIndex = {}
+let mgrColorSeq = 0
+function getMgrChipColor(name) {
+  if (mgrColorIndex[name] === undefined) mgrColorIndex[name] = mgrColorSeq++ % MGR_COLORS.length
+  return MGR_COLORS[mgrColorIndex[name]]
+}
+
+function getManagersForType(typeName) {
+  const items = getGroupItems(typeName)
+  if (!items.length) return []
+  const map = {}
+  items.forEach(item => {
+    const mgr = item.manager || '未知'
+    map[mgr] = (map[mgr] || 0) + 1
+  })
+  return Object.entries(map)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3)
+}
+
+function getManagerTextForType(typeName) {
+  const mgrs = getManagersForType(typeName)
+  if (!mgrs.length) return '—'
+  return mgrs.map(m => `${m.name} ${m.count}`).join(' · ')
 }
 
 function getDaysClass(daysLabel, status) {
@@ -602,9 +603,9 @@ onUnmounted(() => {
 .ki-fullscreen .ki-kpi-label { font-size: 15px; }
 .ki-fullscreen .ki-summary-text { font-size: 15px; line-height: 1.75; }
 .ki-fullscreen .page-title-h1 { font-size: 28px; }
-.ki-fullscreen .ki-right-section-head { padding: 18px 22px; }
-.ki-fullscreen .warning-item { padding: 18px 22px; }
-.ki-fullscreen .mgr-row { padding: 12px 22px; }
+.ki-fullscreen .ki-right-section-head { padding: 10px 22px; }
+.ki-fullscreen .warning-item { padding: 0 22px; }
+.ki-fullscreen .mgr-row { padding: 0 22px; }
 
 /* ── Presentation nav ── */
 .ki-pres-nav {
@@ -749,11 +750,6 @@ onUnmounted(() => {
 .ki-kpi-delta.up { background: var(--info-soft); color: var(--info); }
 .ki-kpi-delta.down { background: var(--bad-soft); color: var(--bad); }
 .ki-kpi-delta.flat { background: var(--paper-2); color: var(--ink-3); }
-.ki-kpi-narrative {
-  font-size: 11px; color: var(--ink-2); line-height: 1.5;
-  padding-top: 8px; border-top: 1px dashed var(--line);
-  width: 100%;
-}
 .tri-up::before { content: '▲'; font-size: 7px; margin-right: 2px; }
 .tri-dn::before { content: '▼'; font-size: 7px; margin-right: 2px; }
 
@@ -768,25 +764,29 @@ onUnmounted(() => {
 }
 .ki-right-section {
   border-bottom: 1px solid var(--line);
+  flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden;
 }
-.ki-right-section:last-child { border-bottom: none; flex: 1; display: flex; flex-direction: column; }
+.ki-right-section:last-child { border-bottom: none; }
 .ki-right-section-head {
   padding: 10px 16px; display: flex; align-items: center; justify-content: space-between;
-  gap: 12px;
+  gap: 12px; flex-shrink: 0;
 }
 .ki-right-section-head h3 { font-size: 13px; font-weight: 500; color: var(--ink); margin: 0; letter-spacing: -0.005em; }
 .ki-right-section-head .sub { font-size: 11px; color: var(--ink-3); }
-.ki-right-section-body { padding: 0; }
+.ki-right-section-body { padding: 0; flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .ki-right-empty { padding: 28px 20px; text-align: center; color: var(--ink-3); font-size: 13px; }
 
 .warning-item {
-  padding: 14px 18px;
+  flex: 1; padding: 0 18px;
   border-bottom: 1px solid var(--line);
-  display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 12px;
+  display: grid; grid-template-columns: 1fr auto 88px; align-items: center; gap: 12px;
   cursor: pointer; transition: background 120ms;
 }
 .warning-item:last-child { border-bottom: none; }
 .warning-item:hover { background: var(--surface-2); }
+
+.warning-count { font-family: var(--font-mono); font-size: 24px; color: var(--ink); font-weight: 500; letter-spacing: -0.02em; flex-shrink: 0; }
+.warning-mgr-text { font-size: 10.5px; color: var(--ink-4); font-family: var(--font-mono); min-width: 80px; text-align: right; white-space: nowrap; }
 
 /* Pill badges */
 .pill {
@@ -803,10 +803,10 @@ onUnmounted(() => {
 /* ── Manager view rows ── */
 .mgr-header, .mgr-row {
   display: grid;
-  grid-template-columns: 22px 1fr 40px 72px 88px;
-  column-gap: 16px;
+  grid-template-columns: 22px 1fr 44px 76px 90px;
+  column-gap: 10px;
   align-items: center;
-  padding: 8px 16px;
+  padding: 7px 16px;
 }
 .mgr-header {
   border-bottom: 1px solid var(--line);
@@ -814,7 +814,7 @@ onUnmounted(() => {
   background: var(--surface-2);
 }
 .mgr-row {
-  border-bottom: 1px solid var(--line);
+  flex: 1; border-bottom: 1px solid var(--line);
   font-size: 12px; transition: background 100ms;
 }
 .mgr-row:last-child { border-bottom: none; }
@@ -825,7 +825,7 @@ onUnmounted(() => {
 .mgr-name-hd { min-width: 0; }
 .mgr-count-hd { text-align: right; }
 .mgr-capital-hd { text-align: right; }
-.mgr-rate-hd { }
+.mgr-rate-hd { padding-left: 36px; }
 
 /* Rank badge */
 .mgr-rank {
@@ -856,11 +856,11 @@ onUnmounted(() => {
   width: 36px; text-align: right; flex-shrink: 0;
 }
 .mgr-rate-track {
-  flex: 1; height: 4px; border-radius: 2px;
+  flex: 1; height: 6px; border-radius: 3px;
   background: var(--paper-2); overflow: hidden;
   min-width: 0;
 }
-.mgr-rate-fill { height: 100%; border-radius: 2px; }
+.mgr-rate-fill { height: 100%; border-radius: 3px; }
 .mgr-rate-fill.ok { background: var(--ok); }
 .mgr-rate-fill.warn { background: var(--warn); }
 .mgr-rate-fill.bad { background: var(--bad); }
@@ -868,82 +868,45 @@ onUnmounted(() => {
 .mono { font-family: var(--font-mono); }
 .muted { color: var(--ink-3); }
 
-/* ── Modal (unchanged) ── */
-.four-class-modal-overlay {
-  position: fixed; inset: 0; background: rgba(31,29,24,0.45);
-  display: flex; align-items: center; justify-content: center; z-index: 9999;
-}
-.four-class-modal {
-  background: var(--surface); width: 98%; max-width: 1400px;
-  max-height: 84vh; display: flex; flex-direction: column;
-  border-radius: var(--r-xl); border: 1px solid var(--line-2);
-  box-shadow: var(--shadow-pop); overflow: hidden;
-}
-.modal-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 16px 20px; border-bottom: 1px solid var(--line);
-}
-.modal-body {
-  overflow: auto; flex: 1; padding: 0;
-}
-.ki-modal-close {
-  width: 28px; height: 28px; border: 1px solid var(--line);
-  background: var(--surface); border-radius: var(--r-md);
-  color: var(--ink-2); font-size: 18px; cursor: pointer; font-family: inherit;
-  display: grid; place-items: center;
-}
-.ki-modal-close:hover { background: var(--paper-2); }
-
-/* Warning table (from Dashboard) */
-.four-class-group { border-bottom: 1px solid var(--line); }
-.four-class-group:last-child { border-bottom: none; }
+/* ── Modal ── */
+.four-class-modal-overlay { position: fixed; inset: 0; background: rgba(31,29,24,0.45); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+.four-class-modal { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); width: 98%; max-width: 1400px; max-height: 84vh; display: flex; flex-direction: column; box-shadow: var(--shadow-pop); }
+.four-class-modal .modal-header { padding: 14px 18px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; }
+.four-class-modal .modal-title-wrap { display: flex; align-items: baseline; gap: 12px; }
+.four-class-modal .modal-title-wrap h3 { font-size: 15px; font-weight: 600; color: var(--ink); margin: 0; }
+.four-class-modal .modal-date { font-size: 11px; color: var(--ink-3); }
+.four-class-modal .modal-header-actions { display: flex; align-items: center; gap: 8px; }
+.four-class-modal .export-btn-primary { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: var(--info); color: #fff; border: none; border-radius: var(--r-md); font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.15s; }
+.four-class-modal .export-btn-primary:hover { background: #145293; }
+.four-class-modal .export-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.four-class-modal .modal-body { flex: 1; overflow: auto; padding: 14px 20px 18px; }
+.four-class-modal .modal-close { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r-md); color: var(--ink-2); cursor: pointer; font-size: 14px; font-family: inherit; transition: 0.15s; }
+.four-class-modal .modal-close:hover { background: var(--paper-2); color: var(--ink); }
+.four-class-modal-table { width: 100%; border-collapse: collapse; min-width: 1000px; table-layout: fixed; }
+.four-class-modal-table th { background: var(--paper-2); color: var(--ink-3); font-weight: 500; font-size: 11px; padding: 7px 6px; text-align: left; border-bottom: 1px solid var(--line); position: sticky; top: 0; word-break: break-word; }
+.four-class-modal-table td { padding: 5px 6px; border-bottom: 1px solid var(--paper-2); color: var(--ink); font-size: 11px; }
+.four-class-modal-table tr:hover td { background: var(--paper); }
+.four-class-modal-table .col-status { width: 48px; white-space: nowrap; }
+.four-class-modal-table .col-name { width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.four-class-modal-table .col-accept { width: 64px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.four-class-modal-table .col-manager { width: 52px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.four-class-modal-table .col-date { width: 76px; white-space: nowrap; font-size: 10px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; }
+.four-class-modal-table .col-project-status { width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.four-class-modal-table .col-days { width: 72px; white-space: nowrap; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.four-class-modal-table .col-days.days-overdue { color: var(--bad); font-weight: 700; }
+.four-class-modal-table .col-days.days-warning { color: var(--ink); font-weight: 700; }
+.four-class-modal-table .col-suggestion { color: var(--ink-3); font-size: 11px; white-space: normal; line-height: 1.4; width: 140px; word-break: break-word; }
+.four-class-modal-table .status-tag { display: inline-block; padding: 2px 7px; border-radius: var(--r-sm); font-size: 11px; font-weight: 600; }
+.four-class-modal-table .status-tag.已触发, .four-class-modal-table .row-已触发 td { background: var(--bad-soft); color: var(--bad); }
+.four-class-modal-table .status-tag.预警, .four-class-modal-table .row-预警 td { color: var(--ink); }
+.four-class-group { margin-bottom: 20px; }
+.four-class-group .group-header { display: flex; align-items: center; gap: 12px; padding: 6px 10px; border-radius: var(--r-sm); margin-bottom: 6px; }
 .four-class-group.group-liezhang .group-header { background: var(--info-soft); color: #1F497D; }
 .four-class-group.group-yuzhuang .group-header { background: var(--warn-soft); color: #7B3F00; }
 .four-class-group.group-guanbi   .group-header { background: var(--bad-soft);  color: #843C0C; }
-.four-class-group.group-guazhang .group-header { background: #dde5ee;         color: #244062; }
-
-.four-class-table {
-  width: 100%; border-collapse: collapse;
-  table-layout: fixed; min-width: 1000px;
-}
-.four-class-table th {
-  padding: 8px 12px; font-size: 11px; font-weight: 500;
-  color: var(--ink-3); text-align: left; border-bottom: 1px solid var(--line);
-  background: var(--surface-2); white-space: nowrap;
-}
-.four-class-table td {
-  padding: 8px 12px; font-size: 12px; color: var(--ink);
-  border-bottom: 1px solid var(--line);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.four-class-table tr:last-child td { border-bottom: none; }
-.col-status { width: 72px; }
-.col-name { width: auto; min-width: 160px; }
-.col-accept { width: 80px; }
-.col-mgr { width: 72px; }
-.col-date { width: 90px; }
-.col-deadline { width: 90px; }
-.col-pstatus { width: 80px; }
-.col-days { width: 60px; }
-.col-suggestion { width: 140px; }
-
-.status-tag {
-  display: inline-block; padding: 1px 6px; border-radius: 4px;
-  font-size: 10px; font-weight: 500;
-}
-.status-tag.已触发,
-.status-tag.已触发超期完成 {
-  background: var(--bad-soft); color: var(--bad);
-}
-.status-tag.预警 { color: var(--ink); }
-
-.row-已触发,
-.row-已触发超期完成 {
-  background: rgba(220, 38, 38, 0.04);
-}
-
-.col-days.days-overdue { color: var(--bad); font-weight: 700; }
-.col-days.days-warning { color: var(--ink); font-weight: 700; }
+.four-class-group.group-guazhang .group-header { background: #dde5ee;          color: #244062; }
+.group-title { font-weight: 700; font-size: 13px; }
+.group-count { font-size: 11px; opacity: 0.8; }
 
 /* ── Responsive ── */
 @media (max-width: 960px) {
