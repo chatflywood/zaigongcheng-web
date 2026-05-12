@@ -462,7 +462,7 @@ async def export_transfer_priority(record_id: int, target_rate: float = Query(No
         ws.title = "转固推进清单"
 
         # ── 第1行：总标题 ──
-        COLS = 9
+        COLS = 11
         ws.merge_cells(f"A1:{get_column_letter(COLS)}1")
         ws["A1"].value = "中国电信股份有限公司仙桃分公司  在建工程转固推进清单"
         ws["A1"].font = Font(name="微软雅黑", size=15, bold=True, color=C_WHITE)
@@ -510,51 +510,34 @@ async def export_transfer_priority(record_id: int, target_rate: float = Query(No
         ws.row_dimensions[legend_row].height = 20
 
         # ── 列宽 ──
-        col_widths = [5, 46, 14, 12, 10, 14, 16, 14, 36]
+        col_widths = [5, 10, 46, 16, 14, 12, 10, 14, 16, 14, 36]
         for i, w in enumerate(col_widths, 1):
             ws.column_dimensions[get_column_letter(i)].width = w
 
-        # ── 列标题（每个管理员块前复用，此处写一个通用函数）──
-        COL_HEADERS = ["序", "工程名称", "在建余额(万)", "转固贡献率", "紧迫度",
+        # ── 列标题（单一表头）──
+        COL_HEADERS = ["序", "工程管理员", "工程名称", "施工单位", "在建余额(万)", "转固贡献率", "紧迫度",
                        "完成后转固率", "累计提升(pct)", "任务标记" if target_rate else "完成建议", "紧迫说明"]
 
         current_row = 4
+        for col, hdr in enumerate(COL_HEADERS, 1):
+            c = ws.cell(row=current_row, column=col, value=hdr)
+            c.font = Font(name="微软雅黑", size=9, bold=True, color="595959")
+            c.fill = PatternFill("solid", fgColor=C_HEAD_BG)
+            c.alignment = Alignment(horizontal="center", vertical="center")
+            c.border = border
+        ws.row_dimensions[current_row].height = 20
+        current_row += 1
 
+        # ── 项目明细行（扁平化，所有管理员连续排列）──
+        global_idx = 0
         for mgr in priority_list:
             needed_flags = compute_needed(mgr)
             current_rate = mgr["current_rate"]
             projects     = mgr["projects"]
 
-            # ── 管理员组头 ──
-            ws.merge_cells(f"A{current_row}:{get_column_letter(COLS)}{current_row}")
-            mgr_label = f"▌ {mgr['manager']}    当前转固率：{current_rate * 100:.1f}%    待转固余额：{mgr['total_balance']:,.2f} 万元"
-            if target_rate and current_rate < target_rate:
-                needed_cnt = sum(1 for f in needed_flags if f is True)
-                mgr_label += f"    目标 {target_rate*100:.1f}% → 需完成 {needed_cnt} 个项目"
-            elif target_rate and current_rate >= target_rate:
-                mgr_label += f"    ✓ 已达目标 {target_rate*100:.1f}%"
-            c = ws[f"A{current_row}"]
-            c.value = mgr_label
-            c.font = Font(name="微软雅黑", size=10, bold=True, color=C_MGR_FG)
-            c.fill = PatternFill("solid", fgColor=C_MGR_BG)
-            c.alignment = Alignment(horizontal="left", vertical="center")
-            c.border = border
-            ws.row_dimensions[current_row].height = 22
-            current_row += 1
-
-            # ── 列标题行 ──
-            for col, hdr in enumerate(COL_HEADERS, 1):
-                c = ws.cell(row=current_row, column=col, value=hdr)
-                c.font = Font(name="微软雅黑", size=9, bold=True, color="595959")
-                c.fill = PatternFill("solid", fgColor=C_HEAD_BG)
-                c.alignment = Alignment(horizontal="center", vertical="center")
-                c.border = border
-            ws.row_dimensions[current_row].height = 20
-            current_row += 1
-
-            # ── 项目明细行 ──
-            for idx, (proj, needed) in enumerate(zip(projects, needed_flags), 1):
-                urgency   = proj.get("紧迫度", "正常")
+            for proj, needed in zip(projects, needed_flags):
+                global_idx += 1
+                urgency    = proj.get("紧迫度", "正常")
                 after_rate = proj.get("累计后转固率", current_rate)
                 delta_pct  = (after_rate - current_rate) * 100
 
@@ -574,7 +557,6 @@ async def export_transfer_priority(record_id: int, target_rate: float = Query(No
                 elif needed is False:
                     task_mark = "可选缓冲"
                 else:
-                    # 无目标时，用紧迫度作为建议
                     task_mark = {"已逾期": "立即推进", "即将到期": "尽快推进", "正常": "按序推进"}.get(urgency, "")
 
                 # 紧迫说明（取第一条）
@@ -586,8 +568,10 @@ async def export_transfer_priority(record_id: int, target_rate: float = Query(No
                     break
 
                 row_data = [
-                    idx,
+                    global_idx,
+                    mgr["manager"],
                     proj.get("工程名称", ""),
+                    proj.get("施工单位", ""),
                     proj.get("在建余额", 0),
                     proj.get("转固贡献率", 0),
                     urgency,
@@ -601,8 +585,8 @@ async def export_transfer_priority(record_id: int, target_rate: float = Query(No
                     c = ws.cell(row=current_row, column=col, value=val)
                     c.fill = PatternFill("solid", fgColor=row_bg)
                     c.alignment = Alignment(
-                        horizontal="center" if col not in (2, 9) else "left",
-                        vertical="center", wrap_text=(col == 9)
+                        horizontal="center" if col not in (2, 3, 4, 11) else "left",
+                        vertical="center", wrap_text=(col == 11)
                     )
                     c.border = border
 
@@ -611,26 +595,25 @@ async def export_transfer_priority(record_id: int, target_rate: float = Query(No
                     bold = False
                     num_fmt = None
 
-                    if col == 3:   # 在建余额
+                    if col == 5:   # 在建余额
                         num_fmt = '#,##0.00'
-                    elif col == 4: # 转固贡献率
-                        val_pct = val * 100
-                        c.value = val_pct / 100
+                    elif col == 6: # 转固贡献率
+                        c.value = val * 100 / 100
                         num_fmt = '0.0%'
-                    elif col == 5: # 紧迫度
+                    elif col == 7: # 紧迫度
                         if urgency == "已逾期":   fg = C_OVER
                         elif urgency == "即将到期": fg = C_WARN
                         else:                    fg = "595959"
                         bold = True
-                    elif col == 6: # 完成后转固率
+                    elif col == 8: # 完成后转固率
                         c.value = val
                         num_fmt = '0.0%'
                         fg = C_GREEN
                         bold = True
-                    elif col == 7: # 累计提升
+                    elif col == 9: # 累计提升
                         num_fmt = '+0.0;-0.0;0.0'
                         fg = "1A56A4"
-                    elif col == 8: # 任务标记
+                    elif col == 10: # 任务标记
                         if needed is True: fg, bold = "7B5200", True
                         elif needed is False: fg = "AAAAAA"
 
@@ -640,33 +623,6 @@ async def export_transfer_priority(record_id: int, target_rate: float = Query(No
 
                 ws.row_dimensions[current_row].height = 36
                 current_row += 1
-
-            # ── 管理员小计行 ──
-            total_balance = mgr["total_balance"]
-            ws.merge_cells(f"A{current_row}:B{current_row}")
-            c = ws[f"A{current_row}"]
-            c.value = f"{mgr['manager']} 合计"
-            c.font = Font(name="微软雅黑", size=9, bold=True, color=C_MGR_FG)
-            c.fill = PatternFill("solid", fgColor=C_MGR_BG)
-            c.alignment = Alignment(horizontal="left", vertical="center")
-            c.border = border
-
-            c3 = ws.cell(row=current_row, column=3, value=total_balance)
-            c3.font = Font(name="微软雅黑", size=9, bold=True, color=C_MGR_FG)
-            c3.fill = PatternFill("solid", fgColor=C_MGR_BG)
-            c3.alignment = Alignment(horizontal="center", vertical="center")
-            c3.border = border
-            c3.number_format = '#,##0.00'
-
-            for col in range(4, COLS + 1):
-                c = ws.cell(row=current_row, column=col, value="")
-                c.fill = PatternFill("solid", fgColor=C_MGR_BG)
-                c.border = border
-            ws.row_dimensions[current_row].height = 18
-            current_row += 1
-
-            # 管理员之间空一行
-            current_row += 1
 
         ws.freeze_panes = "A5"
 

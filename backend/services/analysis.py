@@ -221,9 +221,15 @@ def build_dashboard_data(summary: pd.DataFrame, metrics: dict, month_label: str,
                 "在建工程期末余额": round(float(row["在建工程期末余额"]) / 10000, 4),
                 "转固率": round(float(row["转固率"]), 4),
             }
+            # 保留工程状态（若存在），用于漏斗阶段分组
+            if "工程状态" in row.index and pd.notna(row["工程状态"]):
+                entry["工程状态"] = str(row["工程状态"]).strip()
             # 保留一级专业，用于与预算数据关联计算全年支出
             if "一级专业" in row.index and pd.notna(row["一级专业"]):
                 entry["一级专业"] = str(row["一级专业"]).strip()
+            # 保留施工单位，用于转固推进清单展示
+            if "施工单位" in row.index and pd.notna(row["施工单位"]):
+                entry["施工单位"] = str(row["施工单位"]).strip()
             detail_list.append(entry)
 
     return {
@@ -676,6 +682,7 @@ def build_transfer_priority(summary_records: list, detail_records: list, four_cl
 
         manager_projects.setdefault(manager, []).append({
             '工程名称':     name,
+            '施工单位':     project.get('施工单位', ''),
             '在建余额':     round(balance, 2),
             '_urgency':    urgency_level,
             'urgency_detail': urgency_items,

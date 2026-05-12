@@ -734,6 +734,7 @@
                     <tr>
                       <th class="tp-col-rank">优先</th>
                       <th class="tp-col-name">工程名称</th>
+                      <th class="tp-col-contractor">施工单位</th>
                       <th class="tp-col-balance">在建余额(万)</th>
                       <th class="tp-col-contrib">转固贡献率</th>
                       <th class="tp-col-urgency">紧迫度</th>
@@ -745,7 +746,7 @@
                     <template v-for="(proj, idx) in managerGroup.projects" :key="proj['工程名称']">
                       <tr v-if="computedTarget && proj.needed === false && idx > 0 && managerGroup.projects[idx-1].needed !== false"
                           class="tp-divider-row">
-                        <td colspan="7">
+                        <td colspan="8">
                           <div class="tp-divider-line">
                             <span>以下为缓冲项目（完成上方任务后已达标）</span>
                           </div>
@@ -759,6 +760,7 @@
                         <span v-if="proj.needed === true" class="tp-needed-mark">必</span>
                         {{ proj['工程名称'] }}
                       </td>
+                      <td class="tp-col-contractor" :title="proj['施工单位']">{{ proj['施工单位'] || '—' }}</td>
                       <td class="tp-col-balance">{{ formatNum(proj['在建余额']) }}</td>
                       <td class="tp-col-contrib">
                         <div class="tp-contrib-bar-wrap">
@@ -2067,7 +2069,7 @@ onUnmounted(() => {})
 
 /* ── TP modal (转固推进清单) ───────────────────── */
 .tp-overlay { position: fixed; inset: 0; background: rgba(31,29,24,0.38); z-index: 1000; display: flex; align-items: flex-start; justify-content: center; padding: 28px 16px; overflow-y: auto; }
-.tp-modal { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); width: 100%; max-width: 1100px; box-shadow: var(--shadow-pop); display: flex; flex-direction: column; }
+.tp-modal { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); width: 100%; max-width: 1240px; box-shadow: var(--shadow-pop); display: flex; flex-direction: column; }
 .tp-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 18px 24px 14px; border-bottom: 1px solid var(--line); }
 .tp-header-left h3 { margin: 0 0 3px; font-size: 16px; font-weight: 600; color: var(--ink); }
 .tp-subtitle { font-size: 12px; color: var(--ink-3); }
@@ -2118,6 +2120,7 @@ onUnmounted(() => {})
 .tp-row.urgency-即将到期 { background: var(--warn-soft); }
 .tp-col-rank { width: 42px; text-align: center; }
 .tp-col-name { max-width: 240px; }
+.tp-col-contractor { max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tp-col-balance, .tp-col-contrib, .tp-col-urgency, .tp-col-action { white-space: nowrap; }
 .tp-col-hint { font-size: 11px; color: var(--ink-3); min-width: 160px; }
 .tp-rank-badge { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; font-size: 11px; font-weight: 600; background: var(--paper-2); color: var(--ink-3); font-family: var(--font-mono); }
