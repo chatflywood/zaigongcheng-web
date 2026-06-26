@@ -58,7 +58,7 @@ cd backend && uvicorn main:app --reload
 - **Budget.vue**：预算分析看板
 - **KeyIndicators.vue**：关键指标页面
 - **Archive.vue**：数据档案库，支持三类年度文档上传存储与在线预览（SheetJS + mammoth.js）
-- **routers/analysis.py**：在建工程数据分析接口
+- **routers/analysis.py**：在建工程数据分析接口（上传时保存原始数据全字段到 `raw_data`）
 - **routers/notify.py**：飞书/企业微信消息推送
 - **routers/report.py**：月报生成
 - **routers/ai.py**：AI 分析接口（MiniMax）
@@ -70,3 +70,4 @@ cd backend && uvicorn main:app --reload
 - CORS 只允许 `http://localhost:5173`，本地开发需前后端同时运行
 - Excel 导出功能依赖 OpenPyXL，修改导出逻辑时注意列宽、样式兼容性
 - Electron 打包前需先执行 `npm run build`
+- `zaigong_records.raw_data` 存储原始 Excel 全部字段（JSON），用于回溯查询；旧记录该字段为空
