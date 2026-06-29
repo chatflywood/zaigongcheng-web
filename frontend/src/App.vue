@@ -6,7 +6,7 @@ import KeyIndicators from './views/KeyIndicators.vue'
 import Archive from './views/Archive.vue'
 import { getHistory, getHistorySnapshot, getBudgetHistory, getBudgetHistorySnapshot, getNotifyConfig, saveNotifyConfig, clearNotifyConfig, testNotifyWebhook, pushNotify, generateBriefImage, uploadExcel, uploadBudget, refreshBudgetSpend } from './api'
 
-const currentView = ref('zaigong')
+const currentView = ref('key-indicators')
 const isAnalystMode = computed(() => currentView.value !== 'key-indicators')
 
 const zaigongLatestData = ref(null)
@@ -49,14 +49,20 @@ const dmBudgetLoading = ref(false)
 const dmTargetValue = ref(null)
 const dmZaigongInput = ref(null)
 const dmBudgetInput = ref(null)
-
 function openDataManager() {
   dmTargetValue.value = Number(localStorage.getItem('zaigong_target_value')) || null
   dmZaigongFileName.value = ''
   dmZaigongMsg.value = ''
+  dmZaigongMsgType.value = 'info'
   dmBudgetFileName.value = ''
   dmBudgetMsg.value = ''
+  dmBudgetMsgType.value = 'info'
   showDataManager.value = true
+}
+
+function dmAnalyze(view) {
+  showDataManager.value = false
+  currentView.value = view
 }
 
 function daysSince(dateStr) {
@@ -102,7 +108,10 @@ async function dmUploadZaigong() {
     const result = await uploadExcel(dmZaigongFile.value, dmTargetValue.value)
     if (result.success) {
       localStorage.setItem('zaigong_target_value', dmTargetValue.value)
-      onZaigongDataUpdate(result.data)
+      const dashData = result.data?.dashboard || result.data
+      onZaigongDataUpdate(dashData)
+      zaigongFourClassWarnings.value = result.data?.four_class_warnings || null
+      zaigongLatestFourClassWarnings.value = result.data?.four_class_warnings || null
       dmZaigongFileName.value = ''
       dmZaigongFile.value = null
       dmZaigongMsg.value = '上传成功'
@@ -747,21 +756,20 @@ async function handleNavPush() {
       <nav class="sidebar-nav">
         <div class="side-section">
           <div class="side-label">分析</div>
-          <div class="side-link" :class="{ active: currentView === 'zaigong' }" @click="switchView('zaigong')">
-            <svg class="side-icn" viewBox="0 0 16 16" fill="none"><path d="M8 2l6 3-6 3-6-3 6-3zM2 8l6 3 6-3M2 11l6 3 6-3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
-            <span>在建工程</span>
-            <span v-if="zaigongData" class="side-badge">24</span>
-          </div>
-          <div class="side-link" :class="{ active: currentView === 'budget' }" @click="switchView('budget')">
-            <svg class="side-icn" viewBox="0 0 16 16" fill="none"><path d="M2 13h12M4 10v3M7 6v7M10 8v5M13 4v9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-            <span>预算立项</span>
-          </div>
           <div class="side-link"
             :class="{ active: currentView === 'key-indicators', disabled: !canShowKeyIndicators }"
             @click="canShowKeyIndicators && switchView('key-indicators')"
           >
             <svg class="side-icn" viewBox="0 0 16 16" fill="none"><path d="M3 11a5 5 0 0110 0M8 11l3-3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
             <span>关键指标</span>
+          </div>
+          <div class="side-link" :class="{ active: currentView === 'zaigong' }" @click="switchView('zaigong')">
+            <svg class="side-icn" viewBox="0 0 16 16" fill="none"><path d="M8 2l6 3-6 3-6-3 6-3zM2 8l6 3 6-3M2 11l6 3 6-3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+            <span>在建工程</span>
+          </div>
+          <div class="side-link" :class="{ active: currentView === 'budget' }" @click="switchView('budget')">
+            <svg class="side-icn" viewBox="0 0 16 16" fill="none"><path d="M2 13h12M4 10v3M7 6v7M10 8v5M13 4v9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            <span>预算立项</span>
           </div>
         </div>
         <div class="side-section">
@@ -861,8 +869,11 @@ async function handleNavPush() {
                 <span class="dm-card-icon">①</span>
                 在建工程明细总表
               </div>
-              <div class="dm-status" :class="zaigongLatestData ? 'status-ok' : 'status-none'">
-                {{ zaigongLatestData ? '已加载' : '未上传' }}
+              <div class="dm-card-header-r">
+                <div class="dm-status" :class="zaigongLatestData ? 'status-ok' : 'status-none'">
+                  {{ zaigongLatestData ? '已加载' : '未上传' }}
+                </div>
+                <button class="dm-analyze-btn" :disabled="!zaigongData && !zaigongLatestData" @click="dmAnalyze('zaigong')">分析</button>
               </div>
             </div>
             <div v-if="zaigongLatestDate" class="dm-freshness" :class="dmFreshClass(daysSince(zaigongLatestDate))">
@@ -902,8 +913,11 @@ async function handleNavPush() {
                 <span class="dm-card-icon">②</span>
                 预算执行情况（预算占用）
               </div>
-              <div class="dm-status" :class="budgetLatestData ? 'status-ok' : 'status-none'">
-                {{ budgetLatestData ? '已加载' : '未上传' }}
+              <div class="dm-card-header-r">
+                <div class="dm-status" :class="budgetLatestData ? 'status-ok' : 'status-none'">
+                  {{ budgetLatestData ? '已加载' : '未上传' }}
+                </div>
+                <button class="dm-analyze-btn" :disabled="!budgetData && !budgetLatestData" @click="dmAnalyze('budget')">分析</button>
               </div>
             </div>
             <div v-if="budgetLatestDate" class="dm-freshness" :class="dmFreshClass(daysSince(budgetLatestDate))">
@@ -929,6 +943,7 @@ async function handleNavPush() {
           </div>
 
         </div>
+
       </div>
     </div>
 
@@ -1152,6 +1167,10 @@ async function handleNavPush() {
 .dm-eyebrow { font-size: 10.5px; font-family: var(--font-mono); color: var(--ink-3); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }
 .dm-title { font-size: 16px; font-weight: 600; color: var(--ink); margin: 0; }
 .dm-body { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 20px 24px 24px; overflow-y: auto; }
+.dm-card-header-r { display: flex; align-items: center; gap: 8px; }
+.dm-analyze-btn { padding: 4px 10px; border-radius: var(--r-sm); background: var(--ink); color: var(--paper); font-size: 12px; font-weight: 500; border: none; cursor: pointer; transition: background 0.15s; white-space: nowrap; }
+.dm-analyze-btn:hover:not(:disabled) { background: var(--accent); }
+.dm-analyze-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .dm-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 18px; display: flex; flex-direction: column; gap: 12px; }
 .dm-card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .dm-card-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--ink); }

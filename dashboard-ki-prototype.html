@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>全局看板 · v3</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:     #F5F3ED;
+    --card:   #FFFFFF;
+    --border: rgba(31,29,24,0.08);
+    --ink:    #1F1D18;
+    --ink-2:  #5A5750;
+    --ink-3:  #9E9A91;
+    --blue:   #3B82F6;  --blue-bg:   #DBEAFE;
+    --green:  #2E7D32;  --green-mid: #6BBF8E; --green-bg: #DCFCE7;
+    --orange: #E86A33;  --orange-bg: rgba(232,106,51,0.08);
+    --red:    #C0392B;  --red-bg:    rgba(192,57,43,0.08);
+    --amber:  #B45309;  --amber-bg:  rgba(180,83,9,0.08);
+    --purple: #7B5EA7;  --purple-bg: #EDE9FE;
+    --sans: -apple-system,'PingFang SC','Helvetica Neue',sans-serif;
+    --mono: 'SF Mono','Fira Code','Courier New',monospace;
+    --r: 10px; --rs: 6px;
+  }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg); color: var(--ink);
+    height: 100vh; overflow: hidden;
+    display: flex; font-size: 13px; line-height: 1.4;
+  }
+
+  /* ── Sidebar ── */
+  .sb {
+    width: 186px; flex-shrink: 0;
+    background: #fff; border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+  }
+  .sb-brand { padding: 14px 14px 11px; border-bottom: 1px solid var(--border); }
+  .sb-logo {
+    width: 30px; height: 30px; background: var(--orange); border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 12px; font-weight: 700; margin-bottom: 7px;
+  }
+  .sb-name { font-size: 12.5px; font-weight: 500; }
+  .sb-sub  { font-size: 10px; color: var(--ink-3); margin-top: 1px; }
+  .sb-sec  { padding: 10px 6px 4px; }
+  .sb-lbl  { font-size: 9.5px; color: var(--ink-3); letter-spacing: .06em; text-transform: uppercase; padding: 0 8px; margin-bottom: 3px; }
+  .nav {
+    display: flex; align-items: center; gap: 7px;
+    padding: 6px 8px; border-radius: var(--rs);
+    font-size: 12px; color: var(--ink-2); cursor: pointer; transition: background 120ms;
+  }
+  .nav:hover { background: var(--bg); }
+  .nav.active { background: rgba(232,106,51,0.08); color: var(--orange); font-weight: 500; }
+  .nav-badge { margin-left: auto; font-size: 9.5px; background: var(--orange); color: #fff; padding: 1px 5px; border-radius: 10px; font-weight: 600; }
+  .nav-dot   { margin-left: auto; width: 5px; height: 5px; border-radius: 50%; background: var(--orange); }
+  .sb-foot {
+    margin-top: auto; padding: 10px 14px; border-top: 1px solid var(--border);
+    font-size: 10px; color: var(--ink-3); line-height: 1.6;
+  }
+  .sb-foot strong { color: var(--ink-2); font-weight: 500; }
+
+  /* ── Main ── */
+  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+
+  .topbar {
+    background: #fff; border-bottom: 1px solid var(--border);
+    height: 48px; padding: 0 18px;
+    display: flex; align-items: center; gap: 14px; flex-shrink: 0;
+  }
+  .tb-bc   { font-size: 11px; color: var(--ink-3); }
+  .tb-sep  { color: rgba(31,29,24,0.2); font-size: 11px; }
+  .tb-cur  { font-size: 12px; font-weight: 500; }
+  .tb-chips { display: flex; align-items: center; gap: 8px; margin-left: 10px; }
+  .tb-chip  { font-size: 10.5px; color: var(--ink-3); display: flex; align-items: center; gap: 3px; }
+  .tb-chip strong { color: var(--ink-2); font-weight: 500; }
+  .tb-dot   { width: 2.5px; height: 2.5px; border-radius: 50%; background: rgba(31,29,24,0.2); }
+  .tb-r     { margin-left: auto; display: flex; gap: 7px; align-items: center; }
+  .btn-g {
+    display: flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: var(--rs);
+    font-size: 11px; color: var(--ink-2);
+    border: 1px solid var(--border); background: transparent; cursor: pointer; transition: background 120ms;
+  }
+  .btn-g:hover { background: var(--bg); }
+  .btn-p {
+    display: flex; align-items: center; gap: 4px;
+    padding: 5px 12px; border-radius: var(--rs);
+    font-size: 11px; font-weight: 500; color: #fff;
+    background: var(--orange); border: none; cursor: pointer; transition: opacity 120ms;
+  }
+  .btn-p:hover { opacity: .88; }
+
+  /* ── Content ── */
+  .content {
+    flex: 1; min-height: 0;
+    padding: 12px 14px;
+    display: flex; flex-direction: column; gap: 10px;
+    overflow: hidden;
+  }
+
+  /* Row 1 – gauges */
+  .gauge-row {
+    display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; flex-shrink: 0;
+  }
+  .g-card {
+    background: var(--card); border-radius: var(--r); border: 1px solid var(--border);
+    padding: 13px 14px; display: flex; align-items: center; gap: 12px;
+    transition: transform 150ms, box-shadow 150ms;
+  }
+  .g-card:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(31,29,24,0.06); }
+  .g-svg  { flex-shrink: 0; }
+  .g-info { flex: 1; min-width: 0; }
+  .g-lbl  { font-size: 10.5px; color: var(--ink-3); margin-bottom: 3px; }
+  .g-val  { font-size: 21px; font-weight: 500; font-family: var(--mono); letter-spacing: -.03em; line-height: 1; }
+  .g-desc { font-size: 10.5px; margin-top: 3px; }
+  .g-tgt  { font-size: 10px; color: var(--ink-3); margin-top: 2px; }
+
+  /* Row 2 – body: 3-column */
+  .body-row {
+    flex: 1; min-height: 0;
+    display: grid; grid-template-columns: 1.45fr 0.95fr 0.82fr; gap: 10px;
+  }
+
+  /* Card base */
+  .card {
+    background: var(--card); border-radius: var(--r); border: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden;
+    transition: transform 150ms, box-shadow 150ms;
+  }
+  .card:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(31,29,24,0.06); }
+  .ch {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 9px 14px 8px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .ch h3  { font-size: 12px; font-weight: 500; color: var(--ink); }
+  .ch sub { font-size: 10px; color: var(--ink-3); font-style: normal; }
+  .ch-link { font-size: 10.5px; color: var(--ink-3); cursor: pointer; }
+  .ch-link:hover { color: var(--orange); }
+
+  /* ── Col 1: Trend chart ── */
+  .trend-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .trend-legend { display: flex; gap: 10px; align-items: center; }
+  .tleg { display: flex; align-items: center; gap: 4px; font-size: 9.5px; color: var(--ink-3); }
+  .tleg-line { width: 14px; height: 2px; border-radius: 1px; display: inline-block; }
+  .trend-wrap { flex: 1; min-height: 0; padding: 8px 10px 6px; }
+  .trend-svg { width: 100%; height: 100%; display: block; }
+
+  /* ── Col 2: Middle column ── */
+  .mid-col { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+
+  /* Compact manager list */
+  .mgr-list { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .mgr-items { flex: 1; overflow: hidden; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+  .mgr-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: var(--rs);
+    background: var(--bg); border: 1px solid var(--border);
+    cursor: pointer; transition: background 120ms;
+  }
+  .mgr-item:hover { background: #EDE9E0; }
+
+  /* Avatar with rank tint */
+  .mi-avatar {
+    width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; letter-spacing: -.01em;
+  }
+  .av1 { background: #1F1D18; color: #fff; }
+  .av2 { background: #4A4740; color: #fff; }
+  .av3 { background: #9E9A91; color: #fff; }
+  .av4 { background: #C8C3BA; color: var(--ink); }
+
+  .mi-body { flex: 1; min-width: 0; }
+  .mi-top { display: flex; align-items: baseline; gap: 5px; }
+  .mi-name { font-size: 12px; font-weight: 500; }
+  .mi-cnt  { font-size: 9.5px; color: var(--ink-3); }
+
+  /* Spend bar inline */
+  .mi-bar-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+  .mi-bar { flex: 1; height: 3px; background: rgba(31,29,24,0.1); border-radius: 2px; overflow: hidden; }
+  .mi-fill { height: 100%; border-radius: 2px; background: var(--orange); }
+  .mi-spend { font-size: 10px; font-family: var(--mono); color: var(--ink-2); white-space: nowrap; }
+
+  /* Rate badge */
+  .mi-rate {
+    flex-shrink: 0;
+    font-size: 11px; font-weight: 600; font-family: var(--mono);
+    padding: 3px 7px; border-radius: 5px; letter-spacing: -.01em;
+  }
+  .rate-ok  { background: var(--green-bg);   color: var(--green); }
+  .rate-mid { background: var(--amber-bg);   color: var(--amber); }
+  .rate-bad { background: var(--red-bg);     color: var(--red); }
+
+  /* Manager footer summary */
+  .mgr-foot {
+    padding: 6px 10px; border-top: 1px solid var(--border);
+    background: #FAFAF8; flex-shrink: 0;
+    display: flex; justify-content: space-between;
+    font-size: 10px; color: var(--ink-3);
+  }
+  .mgr-foot strong { font-family: var(--mono); font-weight: 500; color: var(--ink-2); }
+  .mgr-foot .bad   { color: var(--red); font-family: var(--mono); }
+
+  /* Batch card */
+  .batch-card { flex-shrink: 0; }
+  .batch-kpis { display: grid; grid-template-columns: repeat(3,1fr); gap: 0; padding: 0; }
+  .bk {
+    padding: 10px 12px; text-align: center;
+    border-right: 1px solid var(--border);
+  }
+  .bk:last-child { border-right: none; }
+  .bk-num { font-size: 18px; font-weight: 500; font-family: var(--mono); letter-spacing: -.02em; line-height: 1; }
+  .bk-lbl { font-size: 9.5px; color: var(--ink-3); margin-top: 3px; }
+  .batch-tags { display: flex; gap: 5px; padding: 8px 12px 10px; flex-wrap: wrap; }
+  .btag { font-size: 10px; padding: 2px 7px; border-radius: 4px; font-weight: 500; }
+  .bt-done { background: var(--green-bg); color: var(--green); }
+  .bt-ing  { background: var(--purple-bg); color: var(--purple); }
+
+  /* ── Col 3: Warnings ── */
+  .warn-col { display: flex; flex-direction: column; }
+  .warn-list { flex: 1; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
+  .wrow {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 10px; border-radius: var(--rs); cursor: pointer; transition: filter 120ms;
+    flex-shrink: 0;
+  }
+  .wrow:hover { filter: brightness(.94); }
+  .wrow-red    { background: rgba(192,57,43,0.06); }
+  .wrow-orange { background: rgba(232,106,51,0.06); }
+  .wrow-amber  { background: rgba(180,83,9,0.06); }
+  .wrow-purple { background: rgba(123,94,167,0.06); }
+  .wi {
+    width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .wi-r { background: rgba(192,57,43,0.12);  color: var(--red); }
+  .wi-o { background: rgba(232,106,51,0.12); color: var(--orange); }
+  .wi-a { background: rgba(180,83,9,0.12);   color: var(--amber); }
+  .wi-p { background: rgba(123,94,167,0.12); color: var(--purple); }
+  .wb { flex: 1; min-width: 0; }
+  .wb-name { font-size: 11.5px; font-weight: 500; }
+  .wb-days { font-size: 9.5px; color: var(--ink-3); margin-top: 1.5px; }
+  .wnum { font-size: 20px; font-weight: 500; font-family: var(--mono); letter-spacing: -.04em; flex-shrink: 0; }
+  .wunit { font-size: 10px; font-family: var(--sans); font-weight: 400; margin-left: 1px; color: var(--ink-3); }
+  .wn-r { color: var(--red); }
+  .wn-o { color: var(--orange); }
+  .wn-a { color: var(--amber); }
+  .wn-p { color: var(--purple); }
+
+  /* Warn footer */
+  .warn-foot {
+    padding: 6px 10px; border-top: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 10px; color: var(--ink-3); flex-shrink: 0;
+  }
+  .warn-total { font-family: var(--mono); color: var(--ink-2); font-weight: 500; }
+
+  .proto-note {
+    position: fixed; bottom: 10px; right: 14px;
+    font-size: 9.5px; color: rgba(31,29,24,0.22);
+    font-family: var(--mono); pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<div class="sb">
+  <div class="sb-brand">
+    <div class="sb-logo">CTC</div>
+    <div class="sb-name">工程数据分析</div>
+    <div class="sb-sub">仙桃 · 云网运营部</div>
+  </div>
+  <div class="sb-sec">
+    <div class="sb-lbl">分析</div>
+    <div class="nav active">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.2"/><path d="M8 5v3l2 2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      全局看板
+    </div>
+    <div class="nav">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 12V6l6-4 6 4v6l-6 4-6-4z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      在建工程<span class="nav-badge">24</span>
+    </div>
+    <div class="nav">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.2"/><path d="M5 8h6M5 5h3M5 11h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      预算立项
+    </div>
+  </div>
+  <div class="sb-sec">
+    <div class="sb-lbl">档案</div>
+    <div class="nav">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 2h7l3 3v9H3V2z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 2v3h3" stroke="currentColor" stroke-width="1.2"/></svg>
+      数据档案库
+    </div>
+  </div>
+  <div class="sb-sec">
+    <div class="sb-lbl">工具</div>
+    <div class="nav">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="2" stroke="currentColor" stroke-width="1.2"/><path d="M5 7h6M5 10h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      手机简报
+    </div>
+    <div class="nav">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M13 3L6 10M13 3H9M13 3v4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 13h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.4"/></svg>
+      推送播报<span class="nav-dot"></span>
+    </div>
+  </div>
+  <div class="sb-foot"><strong>2026.04 · 第2季度</strong><br>v0.3 · 内部预览</div>
+</div>
+
+<!-- Main -->
+<div class="main">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <span class="tb-bc">在建工程</span><span class="tb-sep">/</span><span class="tb-cur">全局看板</span>
+    <div class="tb-chips">
+      <span class="tb-chip">
+        <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><rect x="1" y="2" width="10" height="9" rx="1.5" stroke="currentColor" stroke-width="1"/><path d="M1 5h10M4 2V1M8 2V1" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
+        <strong>在建工程分析.xlsx</strong>
+      </span>
+      <span class="tb-dot"></span>
+      <span class="tb-chip">共 <strong>24</strong> 个工程</span>
+      <span class="tb-dot"></span>
+      <span class="tb-chip">年度目标 <strong>650</strong> 万</span>
+      <span class="tb-dot"></span>
+      <span class="tb-chip">2026-04-23</span>
+    </div>
+    <div class="tb-r">
+      <button class="btn-g">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><rect x="1" y="2" width="10" height="9" rx="1.5" stroke="currentColor" stroke-width="1"/><path d="M1 5h10M4 2V1M8 2V1" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
+        历史记录
+      </button>
+      <button class="btn-p">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M6 1v7M3 5l3-4 3 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M1 9h10v1.5H1V9z" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>
+        上传数据
+      </button>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+
+    <!-- Row 1: 4 gauges -->
+    <div class="gauge-row">
+
+      <div class="g-card" style="border-color:rgba(59,130,246,0.18);background:linear-gradient(140deg,#EFF6FF 0%,#fff 55%)">
+        <div class="g-svg">
+          <svg width="56" height="56" viewBox="0 0 56 56">
+            <circle cx="28" cy="28" r="22" fill="none" stroke="#DBEAFE" stroke-width="5"/>
+            <circle cx="28" cy="28" r="22" fill="none" stroke="#3B82F6" stroke-width="5"
+              stroke-dasharray="112.8 138.2" stroke-dashoffset="34.6"
+              stroke-linecap="round" transform="rotate(-90 28 28)"/>
+            <text x="28" y="25" text-anchor="middle" font-size="10" font-weight="600" fill="#3B82F6" font-family="'SF Mono',monospace">81.3</text>
+            <text x="28" y="34" text-anchor="middle" font-size="7" fill="#9E9A91">%</text>
+          </svg>
+        </div>
+        <div class="g-info">
+          <div class="g-lbl">资本支出进度</div>
+          <div class="g-val" style="color:var(--blue)">528.76<span style="font-size:11px;font-family:var(--sans);color:var(--ink-3);font-weight:400"> 万</span></div>
+          <div class="g-desc" style="color:var(--red)">差 121.24 万</div>
+          <div class="g-tgt">目标 650 万元</div>
+        </div>
+      </div>
+
+      <div class="g-card" style="border-color:rgba(192,57,43,0.16);background:linear-gradient(140deg,#FEF2F2 0%,#fff 55%)">
+        <div class="g-svg">
+          <svg width="56" height="56" viewBox="0 0 56 56">
+            <circle cx="28" cy="28" r="22" fill="none" stroke="#F9DADA" stroke-width="5"/>
+            <circle cx="28" cy="28" r="22" fill="none" stroke="#C0392B" stroke-width="5"
+              stroke-dasharray="6.5 138.2" stroke-dashoffset="34.6"
+              stroke-linecap="round" transform="rotate(-90 28 28)"/>
+            <text x="28" y="25" text-anchor="middle" font-size="10" font-weight="600" fill="#C0392B" font-family="'SF Mono',monospace">4.7</text>
+            <text x="28" y="34" text-anchor="middle" font-size="7" fill="#9E9A91">%</text>
+          </svg>
+        </div>
+        <div class="g-info">
+          <div class="g-lbl">综合转固率</div>
+          <div class="g-val" style="color:var(--red)">4.7<span style="font-size:11px;font-family:var(--sans);color:var(--ink-3);font-weight:400"> %</span></div>
+          <div class="g-desc" style="color:var(--red)">严重偏低</div>
+          <div class="g-tgt">目标 ≥60%</div>
+        </div>
+      </div>
+
+      <div class="g-card" style="border-color:rgba(123,94,167,0.16);background:linear-gradient(140deg,#F5F3FF 0%,#fff 55%)">
+        <div class="g-svg">
+          <svg width="56" height="56" viewBox="0 0 56 56">
+            <circle cx="28" cy="28" r="22" fill="none" stroke="#EDE9FE" stroke-width="5"/>
+            <circle cx="28" cy="28" r="22" fill="none" stroke="#7B5EA7" stroke-width="5"
+              stroke-dasharray="94.7 138.2" stroke-dashoffset="34.6"
+              stroke-linecap="round" transform="rotate(-90 28 28)"/>
+            <text x="28" y="25" text-anchor="middle" font-size="10" font-weight="600" fill="#7B5EA7" font-family="'SF Mono',monospace">68.5</text>
+            <text x="28" y="34" text-anchor="middle" font-size="7" fill="#9E9A91">%</text>
+          </svg>
+        </div>
+        <div class="g-info">
+          <div class="g-lbl">预算执行率</div>
+          <div class="g-val" style="color:var(--purple)">68.5<span style="font-size:11px;font-family:var(--sans);color:var(--ink-3);font-weight:400"> %</span></div>
+          <div class="g-desc" style="color:var(--amber)">差 11.5% 达标</div>
+          <div class="g-tgt">目标 ≥80%</div>
+        </div>
+      </div>
+
+      <div class="g-card" style="border-color:rgba(46,125,50,0.14);background:linear-gradient(140deg,#F0FDF4 0%,#fff 55%)">
+        <div class="g-svg">
+          <svg width="56" height="56" viewBox="0 0 56 56">
+            <circle cx="28" cy="28" r="22" fill="none" stroke="#DCFCE7" stroke-width="5"/>
+            <circle cx="28" cy="28" r="22" fill="none" stroke="#2E7D32" stroke-width="5"
+              stroke-dasharray="102.3 138.2" stroke-dashoffset="34.6"
+              stroke-linecap="round" transform="rotate(-90 28 28)"/>
+            <text x="28" y="25" text-anchor="middle" font-size="10" font-weight="600" fill="#2E7D32" font-family="'SF Mono',monospace">74</text>
+            <text x="28" y="34" text-anchor="middle" font-size="7" fill="#9E9A91">%</text>
+          </svg>
+        </div>
+        <div class="g-info">
+          <div class="g-lbl">立项进度</div>
+          <div class="g-val" style="color:var(--green)">74<span style="font-size:11px;font-family:var(--sans);color:var(--ink-3);font-weight:400"> %</span></div>
+          <div class="g-desc" style="color:var(--green)">推进正常</div>
+          <div class="g-tgt">共 18 项立项</div>
+        </div>
+      </div>
+
+    </div><!-- /gauge-row -->
+
+    <!-- Row 2: 3-column body -->
+    <div class="body-row">
+
+      <!-- ── Col 1: Trend chart ── -->
+      <div class="card trend-card">
+        <div class="ch">
+          <div>
+            <h3>近7日趋势</h3>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px">
+            <span style="font-size:10.5px;color:var(--ink-3)">累计 <span style="color:var(--blue);font-family:var(--mono);font-weight:500">528.76</span> 万</span>
+            <span style="font-size:10.5px;color:var(--ink-3)">转固率 <span style="color:var(--red);font-family:var(--mono);font-weight:500">4.7%</span></span>
+            <div class="trend-legend">
+              <span class="tleg"><span class="tleg-line" style="background:var(--blue)"></span>支出</span>
+              <span class="tleg"><span class="tleg-line" style="background:var(--green-mid)"></span>转固率</span>
+              <span class="tleg"><span class="tleg-line" style="background:none;border-top:1.5px dashed var(--orange);opacity:.65;width:14px;display:inline-block"></span>目标</span>
+            </div>
+          </div>
+        </div>
+        <div class="trend-wrap">
+          <svg viewBox="0 0 400 148" class="trend-svg" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="tg-blue" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#3B82F6" stop-opacity="0.14"/>
+                <stop offset="100%" stop-color="#3B82F6" stop-opacity="0"/>
+              </linearGradient>
+              <linearGradient id="tg-green" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#6BBF8E" stop-opacity="0.18"/>
+                <stop offset="100%" stop-color="#6BBF8E" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+
+            <!-- Layout: pl=36 pr=32 pt=10 pb=20, ih=118 -->
+            <!-- Y-left: capital 400–700, 300 range → 1unit=118/300=0.393px -->
+            <!-- Y-right: rate 0–10%, 1%=11.8px -->
+            <!-- X: 7 points, step=(400-36-32)/6=55.3 -->
+            <!-- X positions: 36, 91.3, 146.7, 202, 257.3, 312.7, 368 -->
+
+            <!-- Grid lines -->
+            <g stroke="rgba(31,29,24,0.06)" stroke-width="1">
+              <line x1="36" x2="368" y1="10"    y2="10"/>
+              <line x1="36" x2="368" y1="49.3"  y2="49.3"/>
+              <line x1="36" x2="368" y1="88.7"  y2="88.7"/>
+              <line x1="36" x2="368" y1="128"   y2="128"/>
+            </g>
+
+            <!-- Left Y labels (capital 万元) -->
+            <g font-size="8" fill="#9E9A91" font-family="'SF Mono',monospace" text-anchor="end">
+              <text x="32" y="13">700</text>
+              <text x="32" y="52">600</text>
+              <text x="32" y="92">500</text>
+              <text x="32" y="131">400</text>
+            </g>
+
+            <!-- Right Y labels (rate %) -->
+            <g font-size="8" fill="#6BBF8E" font-family="'SF Mono',monospace" text-anchor="start">
+              <text x="372" y="13">10%</text>
+              <text x="372" y="52">6.7%</text>
+              <text x="372" y="92">3.3%</text>
+              <text x="372" y="131">0%</text>
+            </g>
+
+            <!-- Target dashed line: 650万 → y=10+(700-650)/300*118=29.7 -->
+            <line x1="36" x2="368" y1="29.7" y2="29.7"
+              stroke="#E86A33" stroke-width="1" stroke-dasharray="5 3" opacity="0.55"/>
+            <text x="370" y="28" font-size="7" fill="#E86A33" opacity="0.65">目标</text>
+
+            <!--
+              Capital (万元→y): range 400–700, offset 10
+              510 → 10+(700-510)/300*118 = 10+74.7 = 84.7
+              515 → 82.8  518 → 81.6  522 → 80.0
+              525 → 78.8  527 → 78.0  528.76 → 77.3
+              X: 36, 91.3, 146.7, 202, 257.3, 312.7, 368
+            -->
+
+            <!-- Capital area -->
+            <path d="M36,84.7 L91.3,82.8 L146.7,81.6 L202,80.0 L257.3,78.8 L312.7,78.0 L368,77.3 L368,128 L36,128 Z"
+              fill="url(#tg-blue)"/>
+            <!-- Capital line -->
+            <path d="M36,84.7 L91.3,82.8 L146.7,81.6 L202,80.0 L257.3,78.8 L312.7,78.0 L368,77.3"
+              fill="none" stroke="#3B82F6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <!-- Capital dots -->
+            <circle cx="36"    cy="84.7" r="2.5" fill="#fff" stroke="#3B82F6" stroke-width="1.5"/>
+            <circle cx="91.3"  cy="82.8" r="2.5" fill="#fff" stroke="#3B82F6" stroke-width="1.5"/>
+            <circle cx="146.7" cy="81.6" r="2.5" fill="#fff" stroke="#3B82F6" stroke-width="1.5"/>
+            <circle cx="202"   cy="80.0" r="2.5" fill="#fff" stroke="#3B82F6" stroke-width="1.5"/>
+            <circle cx="257.3" cy="78.8" r="2.5" fill="#fff" stroke="#3B82F6" stroke-width="1.5"/>
+            <circle cx="312.7" cy="78.0" r="2.5" fill="#fff" stroke="#3B82F6" stroke-width="1.5"/>
+            <circle cx="368"   cy="77.3" r="3"   fill="#3B82F6"/>
+
+            <!-- Tooltip callout on last point -->
+            <rect x="350" y="58" width="40" height="16" rx="4" fill="#3B82F6"/>
+            <text x="370" y="69" text-anchor="middle" font-size="8" fill="#fff" font-family="'SF Mono',monospace">528.76</text>
+            <line x1="370" x2="368" y1="74" y2="77.3" stroke="#3B82F6" stroke-width="1"/>
+
+            <!--
+              Rate (% → y): 0–10% maps y=128..10
+              3.8% → 128-44.8=83.2  4.0% → 80.8  4.2% → 78.4
+              4.3% → 77.3  4.5% → 74.9  4.6% → 73.7  4.7% → 72.5
+            -->
+
+            <!-- Rate area -->
+            <path d="M36,83.2 L91.3,80.8 L146.7,78.4 L202,77.3 L257.3,74.9 L312.7,73.7 L368,72.5 L368,128 L36,128 Z"
+              fill="url(#tg-green)"/>
+            <!-- Rate line -->
+            <path d="M36,83.2 L91.3,80.8 L146.7,78.4 L202,77.3 L257.3,74.9 L312.7,73.7 L368,72.5"
+              fill="none" stroke="#6BBF8E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <!-- Rate dots -->
+            <circle cx="36"    cy="83.2" r="2.5" fill="#6BBF8E"/>
+            <circle cx="91.3"  cy="80.8" r="2.5" fill="#6BBF8E"/>
+            <circle cx="146.7" cy="78.4" r="2.5" fill="#6BBF8E"/>
+            <circle cx="202"   cy="77.3" r="2.5" fill="#6BBF8E"/>
+            <circle cx="257.3" cy="74.9" r="2.5" fill="#6BBF8E"/>
+            <circle cx="312.7" cy="73.7" r="2.5" fill="#6BBF8E"/>
+            <circle cx="368"   cy="72.5" r="3"   fill="#6BBF8E"/>
+
+            <!-- X labels -->
+            <g font-size="8" fill="#9E9A91" font-family="'SF Mono',monospace" text-anchor="middle">
+              <text x="36"    y="144">4/17</text>
+              <text x="91.3"  y="144">4/18</text>
+              <text x="146.7" y="144">4/19</text>
+              <text x="202"   y="144">4/20</text>
+              <text x="257.3" y="144">4/21</text>
+              <text x="312.7" y="144">4/22</text>
+              <text x="368"   y="144" fill="#3B82F6">4/23</text>
+            </g>
+
+          </svg>
+        </div>
+      </div><!-- /trend chart -->
+
+      <!-- ── Col 2: Manager list + Batch ── -->
+      <div class="mid-col">
+
+        <!-- Compact manager list -->
+        <div class="card mgr-list">
+          <div class="ch">
+            <h3>管理员分布</h3>
+            <sub>支出 · 转固率</sub>
+            <span class="ch-link">明细 →</span>
+          </div>
+          <div class="mgr-items">
+
+            <!-- 魏东 -->
+            <div class="mgr-item">
+              <div class="mi-avatar av1">魏</div>
+              <div class="mi-body">
+                <div class="mi-top">
+                  <span class="mi-name">魏东</span>
+                  <span class="mi-cnt">41个工程</span>
+                </div>
+                <div class="mi-bar-row">
+                  <div class="mi-bar"><div class="mi-fill" style="width:100%"></div></div>
+                  <span class="mi-spend">241.69万</span>
+                </div>
+              </div>
+              <span class="mi-rate rate-bad">2.2%</span>
+            </div>
+
+            <!-- 张文 -->
+            <div class="mgr-item">
+              <div class="mi-avatar av2">张</div>
+              <div class="mi-body">
+                <div class="mi-top">
+                  <span class="mi-name">张文</span>
+                  <span class="mi-cnt">31个工程</span>
+                </div>
+                <div class="mi-bar-row">
+                  <div class="mi-bar"><div class="mi-fill" style="width:73.6%"></div></div>
+                  <span class="mi-spend">177.92万</span>
+                </div>
+              </div>
+              <span class="mi-rate rate-mid">5.2%</span>
+            </div>
+
+            <!-- 伍建勋 -->
+            <div class="mgr-item">
+              <div class="mi-avatar av3">伍</div>
+              <div class="mi-body">
+                <div class="mi-top">
+                  <span class="mi-name">伍建勋</span>
+                  <span class="mi-cnt">22个工程</span>
+                </div>
+                <div class="mi-bar-row">
+                  <div class="mi-bar"><div class="mi-fill" style="width:44.6%"></div></div>
+                  <span class="mi-spend">107.87万</span>
+                </div>
+              </div>
+              <span class="mi-rate rate-mid">7.6%</span>
+            </div>
+
+            <!-- 袁爱平 -->
+            <div class="mgr-item">
+              <div class="mi-avatar av4">袁</div>
+              <div class="mi-body">
+                <div class="mi-top">
+                  <span class="mi-name">袁爱平</span>
+                  <span class="mi-cnt">3个工程</span>
+                </div>
+                <div class="mi-bar-row">
+                  <div class="mi-bar"><div class="mi-fill" style="width:0.5%"></div></div>
+                  <span class="mi-spend">1.27万</span>
+                </div>
+              </div>
+              <span class="mi-rate rate-ok">100%</span>
+            </div>
+
+          </div>
+          <div class="mgr-foot">
+            <span>合计 <strong>528.76</strong> 万元</span>
+            <span>综合转固 <span class="bad">4.7%</span></span>
+          </div>
+        </div>
+
+        <!-- Batch release -->
+        <div class="card batch-card">
+          <div class="ch">
+            <h3>批次下达状态</h3>
+            <span class="ch-link">台账 →</span>
+          </div>
+          <div class="batch-kpis">
+            <div class="bk">
+              <div class="bk-num">3</div>
+              <div class="bk-lbl">已下达批次</div>
+            </div>
+            <div class="bk">
+              <div class="bk-num" style="color:var(--purple)">890</div>
+              <div class="bk-lbl">合计万元</div>
+            </div>
+            <div class="bk">
+              <div class="bk-num" style="color:var(--green)">410</div>
+              <div class="bk-lbl">本批剩余万元</div>
+            </div>
+          </div>
+          <div class="batch-tags">
+            <span class="btag bt-done">第一批 · 已完成</span>
+            <span class="btag bt-done">第二批 · 已完成</span>
+            <span class="btag bt-ing">第三批 · 进行中</span>
+          </div>
+        </div>
+
+      </div><!-- /mid-col -->
+
+      <!-- ── Col 3: Four-class warnings ── -->
+      <div class="card warn-col">
+        <div class="ch">
+          <h3>四类工程预警</h3>
+          <sub>60天内</sub>
+          <span class="ch-link">明细 →</span>
+        </div>
+        <div class="warn-list">
+
+          <div class="wrow wrow-red">
+            <div class="wi wi-r">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="wb">
+              <div class="wb-name">列账不及时</div>
+              <div class="wb-days">最长超期 23 天</div>
+            </div>
+            <div class="wnum wn-r">3<span class="wunit">项</span></div>
+          </div>
+
+          <div class="wrow wrow-orange">
+            <div class="wi wi-o">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 12c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M20 12c0 4.4-3.6 8-8 8s-8-3.6-8-8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M17 9l3-5 1 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="wb">
+              <div class="wb-name">预转固不及时</div>
+              <div class="wb-days">最长超期 18 天</div>
+            </div>
+            <div class="wnum wn-o">5<span class="wunit">项</span></div>
+          </div>
+
+          <div class="wrow wrow-amber">
+            <div class="wi wi-a">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 12l3 3 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="wb">
+              <div class="wb-name">关闭不及时</div>
+              <div class="wb-days">最长超期 15 天</div>
+            </div>
+            <div class="wnum wn-a">2<span class="wunit">项</span></div>
+          </div>
+
+          <div class="wrow wrow-purple">
+            <div class="wi wi-p">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="2" y="6" width="20" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M2 10h20" stroke="currentColor" stroke-width="1.5"/><circle cx="17" cy="15" r="2" stroke="currentColor" stroke-width="1.5"/></svg>
+            </div>
+            <div class="wb">
+              <div class="wb-name">长期挂账</div>
+              <div class="wb-days">最长超期 62 天</div>
+            </div>
+            <div class="wnum wn-p">4<span class="wunit">项</span></div>
+          </div>
+
+        </div>
+        <div class="warn-foot">
+          <span>共 <span class="warn-total">14</span> 项预警</span>
+          <span class="ch-link">推送通知 →</span>
+        </div>
+      </div><!-- /warn-col -->
+
+    </div><!-- /body-row -->
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<div class="proto-note">原型预览 v3 · 数据为示例</div>
+</body>
+</html>

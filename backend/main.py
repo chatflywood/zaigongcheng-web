@@ -2,16 +2,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import analysis, budget, ai, notify, report, archive, budget_batch
 from models import init_db
+import os
 
 app = FastAPI(title="在建工程分析系统", version="1.0.0")
 
 # 初始化数据库
 init_db()
 
-# 允许前端跨域访问
+# 允许前端跨域访问（通过环境变量 CORS_ORIGINS 配置，逗号分隔，默认 localhost:5173）
+origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=origins,
     allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],

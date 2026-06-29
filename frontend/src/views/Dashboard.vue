@@ -117,7 +117,19 @@
           <div class="page-meta">
             <span>在建工程分析.xlsx</span>
             <span class="sep"></span>
-            <span>共 {{ summaryRows.length }} 人 · 年度目标 {{ targetValue || '—' }} 万</span>
+            <span>共 {{ summaryRows.length }} 人 · 年度目标
+              <template v-if="!editingTarget">
+                {{ targetValue || '—' }} 万
+                <button v-if="currentRecordId" class="target-edit-btn" @click="startEditTarget" title="修改目标">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5l2 2L5 13H3v-2l8.5-8.5z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+              </template>
+              <template v-else>
+                <input ref="targetEditInput" type="number" v-model.number="targetEditValue" class="target-inline-input" @keyup.enter="confirmEditTarget" @keyup.escape="cancelEditTarget" />
+                <button class="target-save-btn" @click="confirmEditTarget" :disabled="targetSaving">{{ targetSaving ? '…' : '✓' }}</button>
+                <button class="target-cancel-btn" @click="cancelEditTarget">✕</button>
+              </template>
+            </span>
             <template v-if="displayAnalysisDate">
               <span class="sep"></span>
               <span>{{ displayAnalysisDate }}</span>
@@ -236,7 +248,7 @@
                     <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
                       <span class="pill" :class="getWarningPillClass(type.key)"><span class="dot"></span>{{ type.name }}</span>
                     </div>
-                    <div style="font-size:12px;color:var(--ink-3)">预警期 60 天</div>
+                    <div v-if="type.key !== 'liezhang'" style="font-size:12px;color:var(--ink-3)">预警期 90 天</div>
                   </div>
                   <div style="font-family:var(--font-mono);font-size:24px;color:var(--ink);font-weight:500;letter-spacing:-0.02em">
                     {{ (fourClassWarnings.summary?.[type.name]?.triggered || 0) + (fourClassWarnings.summary?.[type.name]?.warning || 0) }}
@@ -253,7 +265,7 @@
           <!-- Manager ranking -->
           <div class="card">
             <div class="card-head">
-              <div><h3>管理员工作量排名</h3><div class="sub" style="margin-top:2">{{ summaryRows.length }} 人 · 按本年累计支出</div></div>
+              <div><h3>管理员视图</h3><div class="sub" style="margin-top:2">数据日期：{{ displayAnalysisDate || '-' }}</div></div>
               <div style="display:flex;gap:6px">
                 <button v-if="currentRecordId" class="btn ghost tp-btn" @click="openTransferPriority">
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h8M2 12h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
@@ -271,6 +283,7 @@
                     <th class="num">本年支出</th>
                     <th class="num">结转额</th>
                     <th class="num">待收货</th>
+                    <th class="num">支出变化</th>
                     <th>转固率</th>
                   </tr>
                 </thead>
@@ -282,7 +295,11 @@
                     <td class="num mono" :style="{ fontWeight: 500, color: (row.capital || row['本年累计资本性支出']) < 0 ? 'var(--bad)' : 'var(--ink)' }">{{ formatNum(row.capital || row['本年累计资本性支出']) }}</td>
                     <td class="num mono muted">{{ formatNum(row.transfer || row['结转额']) }}</td>
                     <td class="num mono muted">{{ formatNum(row.pending || row['已下单待收货']) }}</td>
-                    <td>
+                    <td class="num mono" :style="{ color: getTrendDiff(row) > 0 ? 'var(--bad)' : getTrendDiff(row) < 0 ? 'var(--ok)' : 'var(--muted)' }">
+                      <template v-if="getTrendDiff(row) !== null">{{ getTrendDiff(row) > 0 ? '↑' : getTrendDiff(row) < 0 ? '↓' : '—' }}{{ getTrendDiff(row) !== 0 ? Math.abs(getTrendDiff(row)).toFixed(1) : '' }}</template>
+                      <template v-else>—</template>
+                    </td>
+                    <td style="overflow:hidden">
                       <div class="cell-bar-wrap">
                         <span class="cell-bar-pct">{{ ((row.rate || row['转固率'] || 0) * 100).toFixed(1) }}%</span>
                         <div class="cell-bar-track">
@@ -294,9 +311,59 @@
                 </tbody>
               </table>
             </div>
-            <div class="table-footnote">
-              <span>合计：累计支出 {{ formatNum(dashboard?.metrics?.capital || 0) }} 万 · 待收货 {{ formatNum(dashboard?.metrics?.pending || 0) }} 万</span>
-              <span>数据日期：{{ displayAnalysisDate || '-' }}</span>
+            <div class="progress-summary">
+              <div class="ps-card">
+                <div class="ps-head">
+                  <span class="ps-label">支出进度</span>
+                  <span class="ps-target" v-if="!editingSpendTarget">
+                    当期目标 <b>{{ targetValue ? formatNum(targetValue) : '—' }}</b> 万
+                    <button class="ps-edit-btn" @click="startEditSpendTarget" title="修改目标">
+                      <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5l2 2L5 13H3v-2l8.5-8.5z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                  </span>
+                  <span class="ps-target" v-else>
+                    当期目标 <input ref="spendTargetInput" type="number" v-model.number="spendTargetEdit" class="ps-inline-input" @keyup.enter="confirmEditSpendTarget" @keyup.escape="cancelEditSpendTarget" />
+                    <button class="ps-save-btn" @click="confirmEditSpendTarget">✓</button>
+                    <button class="ps-cancel-btn" @click="cancelEditSpendTarget">✕</button>
+                  </span>
+                </div>
+                <div class="ps-body">
+                  <div class="ps-value">{{ formatNum(dashboard?.metrics?.capital || 0) }} <span class="ps-unit">万元</span></div>
+                  <div class="ps-bar-wrap">
+                    <div class="ps-bar-track">
+                      <div class="ps-bar-fill" :class="getProgressClass(spendProgress)" :style="{ width: Math.min(spendProgress, 100) + '%' }"></div>
+                    </div>
+                    <span class="ps-pct" :class="getProgressClass(spendProgress)">{{ spendProgress.toFixed(1) }}%</span>
+                  </div>
+                  <div class="ps-hint">{{ spendHint }}</div>
+                </div>
+              </div>
+              <div class="ps-card">
+                <div class="ps-head">
+                  <span class="ps-label">转固进度</span>
+                  <span class="ps-target" v-if="!editingRateTarget">
+                    当期目标 <b>{{ rateTarget ? rateTarget + '%' : '—' }}</b>
+                    <button class="ps-edit-btn" @click="startEditRateTarget" title="修改目标">
+                      <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5l2 2L5 13H3v-2l8.5-8.5z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                  </span>
+                  <span class="ps-target" v-else>
+                    当期目标 <input ref="rateTargetInput" type="number" v-model.number="rateTargetEdit" class="ps-inline-input" min="0" max="100" @keyup.enter="confirmEditRateTarget" @keyup.escape="cancelEditRateTarget" /> %
+                    <button class="ps-save-btn" @click="confirmEditRateTarget">✓</button>
+                    <button class="ps-cancel-btn" @click="cancelEditRateTarget">✕</button>
+                  </span>
+                </div>
+                <div class="ps-body">
+                  <div class="ps-value">{{ ((dashboard?.metrics?.rate || 0) * 100).toFixed(1) }}<span class="ps-unit">%</span></div>
+                  <div class="ps-bar-wrap">
+                    <div class="ps-bar-track">
+                      <div class="ps-bar-fill" :class="getProgressClass(rateProgress)" :style="{ width: Math.min(rateProgress, 100) + '%' }"></div>
+                    </div>
+                    <span class="ps-pct" :class="getProgressClass(rateProgress)">{{ rateProgress.toFixed(1) }}%</span>
+                  </div>
+                  <div class="ps-hint">{{ rateHint }}</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -521,7 +588,7 @@
                       本年支出 <span class="sort-icon" :class="getSortClass('本年累计资本性支出')">{{ getSortIcon('本年累计资本性支出') }}</span>
                     </th>
                     <th class="num sortable" title="已下单待收货" @click="toggleSort('已下单待收货')">
-                      已下单 <span class="sort-icon" :class="getSortClass('已下单待收货')">{{ getSortIcon('已下单待收货') }}</span>
+                      已下单待收货 <span class="sort-icon" :class="getSortClass('已下单待收货')">{{ getSortIcon('已下单待收货') }}</span>
                     </th>
                     <th class="num sortable" title="本月资本性支出" @click="toggleSort('本月资本性支出')">
                       本月支出 <span class="sort-icon" :class="getSortClass('本月资本性支出')">{{ getSortIcon('本月资本性支出') }}</span>
@@ -561,9 +628,9 @@
 
         <footer class="mgr-drawer-foot">
           <span class="muted" style="font-size:11.5px">Esc 关闭 · 点击其他姓名可跳转</span>
-          <button class="ds-btn ghost">
+          <button class="ds-btn ghost" @click="exportAllManagerDetails" :disabled="modalLoading || !sortedModalData.length">
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 12v1.5h10V12M5 8l3 3 3-3M8 3v8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            导出此人明细
+            导出明细
           </button>
         </footer>
 
@@ -846,6 +913,8 @@ const dashboard = ref(null)
 const summaryRows = ref([])
 const maxCapital = ref(0)
 const targetValue = ref(null)
+const rateTarget = ref(null)
+const editingRateTarget = ref(false)
 const previousData = ref(null)
 const selectedFile = ref(null)
 const selectedFileName = ref('')
@@ -952,6 +1021,25 @@ const managerProgressTop5 = computed(() => {
   }).filter(item => item.diff !== 0).sort((a, b) => b.diff - a.diff).slice(0, 5)
 })
 
+// ── Per-manager trend (较上期) ──
+const managerTrendMap = computed(() => {
+  const source = previousData.value
+  if (!source) return new Map()
+  const prevSummary = source.dashboard?.summary || source.summary || []
+  return new Map(prevSummary.map(item =>
+    [item.manager || item['工程管理员'], Number(item.capital || item['本年累计资本性支出'] || 0)]
+  ))
+})
+
+function getTrendDiff(row) {
+  if (!managerTrendMap.value.size) return null
+  const name = row.manager || row['工程管理员']
+  const prev = managerTrendMap.value.get(name)
+  if (prev === undefined) return null
+  const curr = Number(row.capital || row['本年累计资本性支出'] || 0)
+  return +(curr - prev).toFixed(2)
+}
+
 const recentHistoryCards = computed(() => historyRecords.value.slice(0, 4))
 
 // ── Computed: KPI metrics ──
@@ -970,6 +1058,80 @@ const rateStatus = computed(() => {
   if (rate >= 0.6) return { text: '达标，目标 60%', badgeClass: 'ok' }
   return { text: '偏低，目标 60%', badgeClass: 'warn' }
 })
+
+// ── Progress summary (管理员视图底部) ──
+const spendProgress = computed(() => {
+  const capital = Number(dashboard.value?.metrics?.capital || 0)
+  const target = Number(targetValue.value)
+  if (!target || target <= 0) return 0
+  return (capital / target) * 100
+})
+
+const spendHint = computed(() => {
+  const capital = Number(dashboard.value?.metrics?.capital || 0)
+  const target = Number(targetValue.value)
+  if (!target || target <= 0) return '请设置年度目标'
+  const diff = target - capital
+  if (diff <= 0) return `已超额完成 ${formatNum(Math.abs(diff))} 万`
+  return `距目标还差 ${formatNum(diff)} 万`
+})
+
+const rateProgress = computed(() => {
+  const rate = Number(dashboard.value?.metrics?.rate || 0) * 100
+  const target = Number(rateTarget.value)
+  if (!target || target <= 0) return 0
+  return (rate / target) * 100
+})
+
+const rateHint = computed(() => {
+  const rate = Number(dashboard.value?.metrics?.rate || 0) * 100
+  const target = Number(rateTarget.value)
+  if (!target || target <= 0) return '请设置转固率目标'
+  const diff = target - rate
+  if (diff <= 0) return `已超过目标 ${Math.abs(diff).toFixed(1)} 个百分点`
+  return `距目标还差 ${diff.toFixed(1)} 个百分点`
+})
+
+function getProgressClass(pct) {
+  if (pct >= 90) return 'ok'
+  if (pct >= 60) return 'warn'
+  return 'bad'
+}
+
+// spend target inline edit
+const editingSpendTarget = ref(false)
+const spendTargetEdit = ref(null)
+const spendTargetInput = ref(null)
+function startEditSpendTarget() {
+  spendTargetEdit.value = targetValue.value || null
+  editingSpendTarget.value = true
+  nextTick(() => spendTargetInput.value?.focus())
+}
+async function confirmEditSpendTarget() {
+  const newTarget = Number(spendTargetEdit.value)
+  if (newTarget && newTarget > 0 && newTarget !== targetValue.value) {
+    targetEditValue.value = newTarget
+    await confirmEditTarget()
+  }
+  editingSpendTarget.value = false
+}
+function cancelEditSpendTarget() { editingSpendTarget.value = false }
+
+// rate target inline edit
+const rateTargetEdit = ref(null)
+const rateTargetInput = ref(null)
+function startEditRateTarget() {
+  rateTargetEdit.value = rateTarget.value || null
+  editingRateTarget.value = true
+  nextTick(() => rateTargetInput.value?.focus())
+}
+function confirmEditRateTarget() {
+  if (rateTargetEdit.value && rateTargetEdit.value > 0 && rateTargetEdit.value <= 100) {
+    rateTarget.value = Number(rateTargetEdit.value)
+  }
+  editingRateTarget.value = false
+}
+function cancelEditRateTarget() { editingRateTarget.value = false }
 
 const metrics = computed(() => {
   if (!dashboard.value?.metrics) return []
@@ -1133,6 +1295,26 @@ function getWarningPillClass(key) {
   const map = { liezhang: 'info', yuzhuang: 'warn', guanbi: 'bad', guazhang: 'info' }
   return map[key] || 'info'
 }
+async function exportAllManagerDetails() {
+  try {
+    if (!currentRecordId.value) return
+    const { exportAllManagerDetailsExcel } = await import('../api')
+    const blob = await exportAllManagerDetailsExcel(currentRecordId.value)
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    const dateStr = displayAnalysisDate.value?.replace(/-/g, '') || ''
+    link.download = `全部管理员工程明细_${dateStr}.xlsx`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    console.error('导出明细失败:', error)
+    alert('导出失败，请重试')
+  }
+}
+
 async function exportFourClassWarnings() {
   try {
     const { exportFourClassExcel } = await import('../api')
@@ -1163,8 +1345,22 @@ async function confirmEditTarget() {
   targetSaving.value = true
   try {
     await updateTargetValue(currentRecordId.value, newTarget)
-    targetValue.value = newTarget
-    if (dashboard.value?.metrics) { dashboard.value.metrics.deficit = (dashboard.value.metrics.capital || 0) - newTarget }
+    // Refetch snapshot from backend to get recalculated deficit and all derived fields
+    const snapshot = await getHistorySnapshot(currentRecordId.value)
+    if (snapshot.success && snapshot.data?.current) {
+      const cur = snapshot.data.current
+      applyDashboardData(cur.dashboard)
+      currentRecordId.value = cur.id
+      emit('dataUpdate', cur.dashboard)
+    } else {
+      // Fallback: local update if refetch fails
+      targetValue.value = newTarget
+      if (dashboard.value?.metrics) {
+        const newDeficit = newTarget - (dashboard.value.metrics.capital || 0)
+        dashboard.value = { ...dashboard.value, metrics: { ...dashboard.value.metrics, deficit: newDeficit, yearTarget: newTarget } }
+      }
+      emit('dataUpdate', dashboard.value)
+    }
     editingTarget.value = false
   } catch (e) { console.error('更新目标失败', e) }
   finally { targetSaving.value = false }
@@ -1703,7 +1899,7 @@ onUnmounted(() => {})
 .sort-icon.active { opacity: 1; color: var(--accent); }
 
 /* ── Cell bar ──────────────────────────────────── */
-.cell-bar-wrap { display: flex; align-items: center; gap: 10px; min-width: 120px; }
+.cell-bar-wrap { display: flex; align-items: center; gap: 6px; min-width: 90px; overflow: hidden; }
 .cell-bar-track { flex: 1; height: 4px; background: var(--paper-2); border-radius: 2px; overflow: hidden; min-width: 50px; }
 .cell-bar-fill { height: 100%; border-radius: 2px; }
 .cell-bar-fill.ok { background: var(--ok); }
@@ -1733,6 +1929,79 @@ onUnmounted(() => {})
 .pill.bad { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
 .pill.info { background: var(--info-soft); color: var(--info); border-color: transparent; }
 .pill .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+/* ── Progress summary ──────────────────────────── */
+.progress-summary {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 1px; background: var(--line); border-top: 1px solid var(--line);
+}
+.ps-card {
+  background: var(--surface); padding: 20px 22px 18px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.ps-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.ps-label {
+  font-size: 12px; font-weight: 600; color: var(--ink-2); letter-spacing: 0.03em;
+}
+.ps-target {
+  font-size: 12px; color: var(--ink-3); display: flex; align-items: center; gap: 4px;
+}
+.ps-target b { color: var(--ink-2); font-weight: 600; font-family: var(--font-mono); }
+.ps-edit-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 4px; border: none;
+  background: transparent; color: var(--ink-4); cursor: pointer; transition: all 120ms;
+}
+.ps-edit-btn:hover { background: var(--paper-2); color: var(--ink-2); }
+.ps-inline-input {
+  width: 72px; border: 1px solid var(--accent); border-radius: 4px;
+  padding: 2px 6px; font-size: 12px; font-family: var(--font-mono);
+  color: var(--ink); background: var(--paper); outline: none;
+  font-variant-numeric: tabular-nums;
+}
+.ps-save-btn, .ps-cancel-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 4px; border: none;
+  font-size: 11px; cursor: pointer; transition: all 120ms;
+}
+.ps-save-btn { background: var(--ok-soft); color: var(--ok); }
+.ps-save-btn:hover { background: var(--ok); color: #fff; }
+.ps-cancel-btn { background: transparent; color: var(--ink-4); }
+.ps-cancel-btn:hover { background: var(--paper-2); color: var(--ink-2); }
+.ps-body {
+  display: flex; flex-direction: column; gap: 10px;
+}
+.ps-value {
+  font-size: 16px; font-weight: 500; color: var(--ink); line-height: 1;
+  font-family: var(--font-mono); letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.ps-unit { font-size: 13px; color: var(--ink-3); font-weight: 400; margin-left: 2px; }
+.ps-bar-wrap {
+  display: flex; align-items: center; gap: 10px;
+}
+.ps-bar-track {
+  flex: 1; height: 8px; background: var(--paper-2); border-radius: 4px; overflow: hidden;
+}
+.ps-bar-fill {
+  height: 100%; border-radius: 4px; transition: width 500ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.ps-bar-fill.ok { background: var(--ok); }
+.ps-bar-fill.warn { background: var(--warn); }
+.ps-bar-fill.bad { background: var(--bad); }
+.ps-pct {
+  font-size: 11px; font-weight: 600; font-family: var(--font-mono);
+  min-width: 52px; text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ps-pct.ok { color: var(--ok); }
+.ps-pct.warn { color: var(--warn); }
+.ps-pct.bad { color: var(--bad); }
+.ps-hint {
+  font-size: 11.5px; color: var(--ink-3);
+}
 
 /* ── Table footnote ────────────────────────────── */
 .table-footnote {
@@ -2024,8 +2293,14 @@ onUnmounted(() => {})
 .history-item-meta { display: flex; gap: 10px; flex-wrap: wrap; color: var(--ink-4); font-size: 11px; }
 
 /* ── Target edit inline ──────────────────────── */
-.target-edit-btn { display: inline-flex; align-items: center; padding: 2px; border: none; background: transparent; color: var(--ink-4); cursor: pointer; border-radius: var(--r-sm); transition: color 0.15s; font-family: inherit; }
-.target-edit-btn:hover { color: var(--ink-3); }
+.target-edit-btn { display: inline-flex; align-items: center; padding: 2px; border: none; background: transparent; color: var(--ink-4); cursor: pointer; border-radius: var(--r-sm); transition: color 0.15s; font-family: inherit; vertical-align: middle; }
+.target-edit-btn:hover { color: var(--accent); }
+.target-inline-input { width: 80px; height: 24px; padding: 0 6px; border: 1px solid var(--line-2); border-radius: var(--r-sm); font-size: 12px; font-family: var(--font-mono); background: var(--surface); color: var(--ink); outline: none; vertical-align: middle; }
+.target-inline-input:focus { border-color: var(--accent); }
+.target-save-btn, .target-cancel-btn { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border: 1px solid var(--line-2); border-radius: var(--r-sm); background: var(--surface); color: var(--ink-2); font-size: 12px; cursor: pointer; font-family: inherit; vertical-align: middle; margin-left: 2px; transition: all 0.15s; }
+.target-save-btn:hover { background: var(--ok); color: #fff; border-color: var(--ok); }
+.target-cancel-btn:hover { background: var(--paper-2); color: var(--ink); }
+.target-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ── Four-class modal ────────────────────────── */
 .four-class-modal-overlay { position: fixed; inset: 0; background: rgba(31,29,24,0.45); display: flex; align-items: center; justify-content: center; z-index: 9999; }
@@ -2053,7 +2328,7 @@ onUnmounted(() => {})
 .four-class-modal-table .col-project-status { width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .four-class-modal-table .col-days { width: 72px; white-space: nowrap; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
 .four-class-modal-table .col-days.days-overdue { color: var(--bad); font-weight: 700; }
-.four-class-modal-table .col-days.days-warning { color: var(--ink); font-weight: 700; }
+.four-class-modal-table .col-days.days-warning { color: var(--bad); font-weight: 700; }
 .four-class-modal-table .col-suggestion { color: var(--ink-3); font-size: 11px; white-space: normal; line-height: 1.4; width: 140px; word-break: break-word; }
 .four-class-modal-table .status-tag { display: inline-block; padding: 2px 7px; border-radius: var(--r-sm); font-size: 11px; font-weight: 600; }
 .four-class-modal-table .status-tag.已触发, .four-class-modal-table .row-已触发 td { background: var(--bad-soft); color: var(--bad); }

@@ -5,9 +5,8 @@ from io import BytesIO
 import math
 import re
 import json
-from pathlib import Path
 from services.budget import analyze_budget
-from models import ZaigongRecord, BudgetRecord, SessionLocal
+from models import ZaigongRecord, BudgetRecord, get_db
 
 router = APIRouter()
 
@@ -43,7 +42,7 @@ def load_budget_sheets(contents: bytes):
 
 
 def build_zaigong_spend_summary_from_record(record):
-    """从最近一次在建工程记录或源文件构建一级专业年度支出汇总。"""
+    """从最近一次在建工程记录（detail_data 或 raw_data）构建一级专业年度支出汇总。"""
     detail_data = json.loads(record.detail_data) if record and record.detail_data else []
     if detail_data and any("一级专业" in item for item in detail_data):
         summary = {}
@@ -54,55 +53,35 @@ def build_zaigong_spend_summary_from_record(record):
             summary[category] = summary.get(category, 0) + float(item.get("本年累计资本性支出") or 0)
         return {key: round(value / 10000, 2) for key, value in summary.items()}
 
-    if not record or not record.source_filename:
+    if not record:
         return {}
 
-    downloads_dir = Path.home() / "Downloads"
-    import re as _re
+    # 从 raw_data 提取（v1.29.0+ 存储了全字段原始数据，无需回退到硬盘搜索 Excel）
+    raw_data = json.loads(record.raw_data) if record.raw_data else []
+    if raw_data:
+        df = pd.DataFrame(raw_data)
+        required_columns = {"一级专业", "本年累计资本性支出"}
+        if required_columns.issubset(set(df.columns)):
+            grouped = (
+                df.assign(
+                    一级专业=df["一级专业"].fillna("").astype(str).str.strip(),
+                    本年累计资本性支出=pd.to_numeric(df["本年累计资本性支出"], errors="coerce").fillna(0),
+                )
+                .groupby("一级专业", dropna=False)["本年累计资本性支出"]
+                .sum()
+            )
+            return {
+                str(key): round(float(value) / 10000, 2)
+                for key, value in grouped.items()
+                if str(key).strip()
+            }
 
-    def _valid_xlsx(p):
-        return p.suffix.lower() == ".xlsx" and not p.name.startswith(".")
-
-    # 先精确匹配，失败则按文件名关键词模糊匹配（兼容日期略有不同的情况）
-    matches = [p for p in downloads_dir.rglob(record.source_filename) if _valid_xlsx(p)]
-    if not matches:
-        base = _re.sub(r'\(\d+\)', '', Path(record.source_filename).stem).strip()
-        matches = sorted(
-            [p for p in downloads_dir.rglob("*.xlsx") if _valid_xlsx(p) and base in p.stem],
-            key=lambda p: p.stat().st_mtime,
-            reverse=True,
-        )
-    if not matches:
-        return {}
-
-    try:
-        df = pd.read_excel(matches[0])
-    except Exception:
-        return {}
-
-    required_columns = {"一级专业", "本年累计资本性支出"}
-    if not required_columns.issubset(set(df.columns)):
-        return {}
-
-    grouped = (
-        df.assign(
-            一级专业=df["一级专业"].fillna("").astype(str).str.strip(),
-            本年累计资本性支出=pd.to_numeric(df["本年累计资本性支出"], errors="coerce").fillna(0),
-        )
-        .groupby("一级专业", dropna=False)["本年累计资本性支出"]
-        .sum()
-    )
-
-    return {
-        str(key): round(float(value) / 10000, 2)
-        for key, value in grouped.items()
-        if str(key).strip()
-    }
+    return {}
 
 
 def get_latest_zaigong_spend_summary():
     """获取最近一次在建工程上传数据的一级专业年度支出汇总。"""
-    db = SessionLocal()
+    db = get_db()
     try:
         latest = db.query(ZaigongRecord).order_by(ZaigongRecord.uploaded_at.desc()).first()
         if not latest:
@@ -137,7 +116,7 @@ async def upload_budget(file: UploadFile = File(...)):
         # 清理 NaN 值
         cleaned_data = clean_nan(result)
 
-        db = SessionLocal()
+        db = get_db()
         try:
             existing = db.query(BudgetRecord).filter(
                 BudgetRecord.source_filename == file.filename
@@ -178,7 +157,7 @@ async def refresh_budget_spend():
     用最新在建工程数据重新计算预算的全年支出，无需重新上传预算文件。
     在建工程数据更新后自动调用此接口同步 Budget / KeyIndicators 页面数据。
     """
-    db = SessionLocal()
+    db = get_db()
     try:
         record = db.query(BudgetRecord).order_by(BudgetRecord.uploaded_at.desc()).first()
         if not record or not record.budget_data:
@@ -214,7 +193,7 @@ async def refresh_budget_spend():
 @router.get("/history")
 async def get_budget_history(limit: int = 10):
     """获取预算分析历史记录。"""
-    db = SessionLocal()
+    db = get_db()
     try:
         records = db.query(BudgetRecord).order_by(
             BudgetRecord.uploaded_at.desc()
@@ -238,7 +217,7 @@ async def get_budget_history(limit: int = 10):
 @router.get("/history/{record_id}")
 async def get_budget_history_snapshot(record_id: int):
     """获取指定预算历史快照。"""
-    db = SessionLocal()
+    db = get_db()
     try:
         all_records = db.query(BudgetRecord).order_by(
             BudgetRecord.uploaded_at.desc()

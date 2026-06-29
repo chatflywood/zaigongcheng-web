@@ -43,7 +43,7 @@
     <!-- ── Summary banner ── -->
     <div class="ki-summary-banner" v-if="props.zaigongData?.metrics">
       <p class="ki-summary-text">
-        当期资本性支出 <strong class="mono">{{ props.zaigongData?.metrics?.capital?.toFixed(2) || '—' }} 万元</strong>（当期目标 {{ displayTargetValue }} 万，进度 <strong style="color:var(--accent)">{{ capitalProgress }}%</strong>），缺口 <strong class="mono" style="color:var(--warn)">{{ props.zaigongData?.metrics?.deficit?.toFixed(2) || '—' }} 万</strong>。全年支出进度 <strong style="color:var(--accent)">{{ annualCapitalProgress }}%</strong>，立项进度 {{ approvalProgress }}%。整体转固率仅 <strong class="mono" :style="{ color: parseFloat(transferRate) < 60 ? 'var(--bad)' : 'var(--ok)' }">{{ transferRate }}%</strong>{{ parseFloat(transferRate) < 60 ? '，低于60%期望值，需在下一周期集中推进转固。' : '，已达标。' }}
+        当期资本性支出 <strong class="mono">{{ props.zaigongData?.metrics?.capital?.toFixed(2) || '—' }} 万元</strong>（当期目标 {{ displayTargetValue }} 万，进度 <strong style="color:var(--accent)">{{ capitalProgress }}%</strong>），{{ deficitLabel }}。全年支出进度 <strong style="color:var(--accent)">{{ annualCapitalProgress }}%</strong>，立项进度 {{ approvalProgress }}%。整体转固率仅 <strong class="mono" :style="{ color: parseFloat(transferRate) < 60 ? 'var(--bad)' : 'var(--ok)' }">{{ transferRate }}%</strong>{{ parseFloat(transferRate) < 60 ? '，低于60%期望值，需在下一周期集中推进转固。' : '，已达标。' }}
       </p>
       <div class="ki-summary-foot">
         <span>AUTO-DRAFTED · 基于上传数据</span>
@@ -75,10 +75,10 @@
                 <div class="ki-kpi-target">目标 100%</div>
               </div>
             </div>
-            <div class="ki-kpi-label">资本性支出进度</div>
+            <div class="ki-kpi-label">当期资本性支出进度</div>
             <div class="ki-kpi-sub mono">{{ props.zaigongData?.metrics?.capital?.toFixed(1) || '0.0' }} / {{ displayTargetValue }} 万</div>
-            <div class="ki-kpi-delta" :class="parseFloat(capitalProgress) >= 80 ? 'ok' : 'up'">
-              <span class="tri-up"></span>缺口 {{ props.zaigongData?.metrics?.deficit?.toFixed(1) || '0.0' }} 万
+            <div class="ki-kpi-delta" :class="deficitIsExceeded ? 'ok' : 'up'">
+              <span class="tri-up"></span>{{ deficitLabel }}
             </div>
           </div>
 
@@ -166,7 +166,7 @@
         <!-- 四类工程预警 -->
         <div class="ki-right-section">
           <div class="ki-right-section-head">
-            <div><h3>四类工程预警</h3><div class="sub">预警期 60 天</div></div>
+            <div style="display:flex;align-items:baseline;gap:8px"><h3 style="margin:0">四类工程预警</h3><span class="sub">预警期 90 天</span></div>
             <button class="ki-btn ghost" v-if="fcWarnings?.items?.length" @click="showFourClassAllDetail">
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
               全部
@@ -341,6 +341,19 @@ const capitalProgress = computed(() => {
   return ((props.zaigongData.metrics.capital / targetValue.value) * 100).toFixed(1)
 })
 
+const deficitIsExceeded = computed(() => {
+  const d = props.zaigongData?.metrics?.deficit
+  return typeof d === 'number' && d < 0
+})
+
+const deficitLabel = computed(() => {
+  const d = props.zaigongData?.metrics?.deficit
+  if (typeof d !== 'number') return '—'
+  if (d < 0) return `已超额 ${Math.abs(d).toFixed(2)} 万`
+  if (d === 0) return '恰好达标'
+  return `缺口 ${d.toFixed(2)} 万`
+})
+
 const annualCapitalProgress = computed(() => {
   const annualSpend = Number(props.budgetData?.annual_spend_total || 0)
   const budgetTotal = Number(props.budgetData?.budget_total || 0)
@@ -512,8 +525,12 @@ function getManagerTextForType(typeName) {
 }
 
 function getDaysClass(daysLabel, status) {
-  const days = parseInt(daysLabel)
-  if (status === '已触发' || status === '已触发(超期完成)' || days <= 10) return 'days-overdue'
+  if (!daysLabel) return ''
+  const match = daysLabel.match(/\d+/)
+  if (!match) return ''
+  const days = parseInt(match[0])
+  if (status === '已触发' || status === '已触发(超期完成)') return 'days-overdue'
+  if (days <= 10) return 'days-overdue'
   if (days <= 30) return 'days-warning'
   return ''
 }
@@ -547,7 +564,7 @@ function handleFullscreenChange() {
 }
 
 function copyNarrative() {
-  const text = `当期资本性支出 ${props.zaigongData?.metrics?.capital?.toFixed(2) || '—'} 万元（当期目标 ${displayTargetValue.value} 万，进度 ${capitalProgress.value}%），缺口 ${props.zaigongData?.metrics?.deficit?.toFixed(2) || '—'} 万。全年支出进度 ${annualCapitalProgress.value}%，立项进度 ${approvalProgress.value}%。整体转固率仅 ${transferRate.value}%，需在下一周期集中推进转固。`
+  const text = `当期资本性支出 ${props.zaigongData?.metrics?.capital?.toFixed(2) || '—'} 万元（当期目标 ${displayTargetValue.value} 万，进度 ${capitalProgress.value}%），${deficitLabel.value}。全年支出进度 ${annualCapitalProgress.value}%，立项进度 ${approvalProgress.value}%。整体转固率仅 ${transferRate.value}%，需在下一周期集中推进转固。`
   navigator.clipboard.writeText(text).catch(() => {})
 }
 
@@ -650,7 +667,7 @@ onUnmounted(() => {
 .page-head-l { flex: 1; }
 .eyebrow {
   font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--ink-3); font-family: var(--font-mono);
+  color: var(--accent); font-family: var(--font-mono);
   display: inline; gap: 0; font-weight: 400;
 }
 .eyebrow::after { display: none; }
@@ -894,7 +911,7 @@ onUnmounted(() => {
 .four-class-modal-table .col-project-status { width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .four-class-modal-table .col-days { width: 72px; white-space: nowrap; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
 .four-class-modal-table .col-days.days-overdue { color: var(--bad); font-weight: 700; }
-.four-class-modal-table .col-days.days-warning { color: var(--ink); font-weight: 700; }
+.four-class-modal-table .col-days.days-warning { color: var(--bad); font-weight: 700; }
 .four-class-modal-table .col-suggestion { color: var(--ink-3); font-size: 11px; white-space: normal; line-height: 1.4; width: 140px; word-break: break-word; }
 .four-class-modal-table .status-tag { display: inline-block; padding: 2px 7px; border-radius: var(--r-sm); font-size: 11px; font-weight: 600; }
 .four-class-modal-table .status-tag.已触发, .four-class-modal-table .row-已触发 td { background: var(--bad-soft); color: var(--bad); }

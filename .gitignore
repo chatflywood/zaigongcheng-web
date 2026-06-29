@@ -28,3 +28,10 @@ __pycache__/
 
 # Backend data
 backend/data/
+
+# Backend uploads
+backend/uploads/
+
+# AI assistant config
+.claude/
+frontend/.claude/

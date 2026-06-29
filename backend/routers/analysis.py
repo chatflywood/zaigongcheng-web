@@ -815,7 +815,7 @@ async def export_transfer_priority(record_id: int, target_rate: float = Query(No
         ws[f"A{legend_row}"].alignment = Alignment(horizontal="center", vertical="center")
 
         ws.merge_cells(f"D{legend_row}:F{legend_row}")
-        ws[f"D{legend_row}"].value = "即将到期：距截止日期不足60天"
+        ws[f"D{legend_row}"].value = "即将到期：距截止日期不足90天"
         ws[f"D{legend_row}"].font = Font(name="微软雅黑", size=9, bold=True, color="7B3F00")
         ws[f"D{legend_row}"].fill = PatternFill("solid", fgColor="FFF3C8")
         ws[f"D{legend_row}"].alignment = Alignment(horizontal="center", vertical="center")
@@ -1079,7 +1079,7 @@ async def export_four_class_excel(record_id: int):
         hit = four_class.get("hit_count", 0)
         warn = four_class.get("warn_count", 0)
         ws1.merge_cells("A2:M2")
-        ws1["A2"].value = f"数据截止：{today_str}  |  排除局房类  |  预警窗口60天  |  共{total}项（已触发{hit}项/预警{warn}项）"
+        ws1["A2"].value = f"数据截止：{today_str}  |  排除局房类  |  预警窗口90天  |  共{total}项（已触发{hit}项/预警{warn}项）"
         ws1["A2"].font = Font(name="微软雅黑", size=9, color="D9E8F5")
         ws1["A2"].fill = PatternFill("solid", fgColor=C_BLUE)
         ws1["A2"].alignment = Alignment(horizontal="center", vertical="center")
@@ -1093,7 +1093,7 @@ async def export_four_class_excel(record_id: int):
         ws1["A3"].alignment = Alignment(horizontal="center", vertical="center")
 
         ws1.merge_cells("E3:H3")
-        ws1["E3"].value = "🟡 预警：距红线不足60天，需重点跟进"
+        ws1["E3"].value = "🟡 预警：距红线不足90天，需重点跟进"
         ws1["E3"].font = Font(name="微软雅黑", size=9, bold=True, color="7B5200")
         ws1["E3"].fill = PatternFill("solid", fgColor="FFF3C8")
         ws1["E3"].alignment = Alignment(horizontal="center", vertical="center")
@@ -1236,11 +1236,11 @@ async def export_four_class_excel(record_id: int):
 
         def_content = [
             ("① 列账不及时", "初验批复后，累计收货金额÷累计订单金额<85%则触发；85%~90%预警。"),
-            ("② 预转固不及时", "初验批复起60天内须完成预转固（取预转固日期，无则取决算转固日期）；截止前60天内未完成则预警。"),
-            ("③ 关闭不及时", "一次验收终验批复后150天、两次验收90天内须完成正式转固（工程关闭）；截止前60天内预警。优先取系统字段「应关闭日期」。"),
-            ("④ 长期挂账", "实际工期超建议工期2倍（有线接入9月/无线1年/省内1.5年/一干2年）；系统字段「长期挂账建议关闭日期」直接使用，距此日期60天内预警。"),
+            ("② 预转固不及时", "初验批复起60天内须完成预转固（取预转固日期，无则取决算转固日期）；截止前90天内未完成则预警。"),
+            ("③ 关闭不及时", "一次验收终验批复后150天、两次验收90天内须完成正式转固（工程关闭）；截止前90天内预警。优先取系统字段「应关闭日期」。"),
+            ("④ 长期挂账", "实际工期超建议工期2倍（有线接入9月/无线1年/省内1.5年/一干2年）；系统字段「长期挂账建议关闭日期」直接使用，距此日期90天内预警。"),
             ("排除范围", "局房及基础设施类工程、保密项目不纳入四类工程考核范围，在过滤阶段排除。"),
-            ("预警窗口", "本清单预警窗口设定为60天，即距截止日期不足60天纳入预警提示。"),
+            ("预警窗口", "本清单预警窗口设定为90天，即距截止日期不足90天纳入预警提示。"),
             ("数据说明", "数据来源：在建工程明细总表（实时）。分析对象：排除局房类和已关闭工程后的全部在建工程。"),
         ]
 

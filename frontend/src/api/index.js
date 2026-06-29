@@ -58,6 +58,22 @@ export async function getManagerDetails(recordId, manager) {
   return response.data
 }
 
+export async function exportManagerDetailsExcel(recordId, manager) {
+  const response = await axios.get(
+    `${API_BASE}/zaigong/manager-details/${recordId}/export`,
+    { params: { manager }, responseType: 'blob' }
+  )
+  return response.data
+}
+
+export async function exportAllManagerDetailsExcel(recordId) {
+  const response = await axios.get(
+    `${API_BASE}/zaigong/manager-details/${recordId}/export-all`,
+    { responseType: 'blob' }
+  )
+  return response.data
+}
+
 export async function getTransferPriority(recordId) {
   const response = await axios.get(`${API_BASE}/zaigong/transfer-priority/${recordId}`)
   return response.data

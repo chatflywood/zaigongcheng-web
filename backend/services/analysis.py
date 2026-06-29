@@ -317,7 +317,7 @@ def build_four_class_warnings(df: pd.DataFrame) -> dict:
     按照Agent规范构建四类工程预警数据
     """
     # ========== 配置参数 ==========
-    WARN_DAYS = 60        # 预警窗口（天）
+    WARN_DAYS = 90        # 预警窗口（天）
     PRETRANSFER_DAYS = 60  # 预转固截止天数
     ONE_VERIFY_DAYS = 150 # 一次验收关闭截止天数
     TWO_VERIFY_DAYS = 90  # 两次验收关闭截止天数
@@ -419,7 +419,7 @@ def build_four_class_warnings(df: pd.DataFrame) -> dict:
     # 前提：初验批复日期不为空
     # 已触发（未完成）：actualTransferDate为空 && preTransferDeadline < TODAY
     # 已触发（超期完成）：actualTransferDate不为空 && actualTransferDate > preTransferDeadline
-    # 预警：actualTransferDate为空 && (preTransferDeadline - TODAY) <= 60天
+    # 预警：actualTransferDate为空 && (preTransferDeadline - TODAY) <= 90天
     df_b = df_work[df_work["初验批复日期"].notna()].copy()
     for _, row in df_b.iterrows():
         key_date = row["初验批复日期"]
@@ -477,7 +477,7 @@ def build_four_class_warnings(df: pd.DataFrame) -> dict:
     # ========== TYPE C: 关闭不及时 ==========
     # 前提：终验批复日期不为空
     # 已触发：closeDeadline < TODAY
-    # 预警：(closeDeadline - TODAY) <= 60天
+    # 预警：(closeDeadline - TODAY) <= 90天
     df_c = df_work[df_work["终验批复日期"].notna()].copy()
     for _, row in df_c.iterrows():
         key_date = row["终验批复日期"]
@@ -531,7 +531,7 @@ def build_four_class_warnings(df: pd.DataFrame) -> dict:
     # ========== TYPE D: 长期挂账 ==========
     # 前提：长期挂账建议关闭日期不为空
     # 已触发：长期挂账建议关闭日期 < TODAY
-    # 预警：(长期挂账建议关闭日期 - TODAY) <= 60天
+    # 预警：(长期挂账建议关闭日期 - TODAY) <= 90天
     df_d = df_work[df_work["长期挂账建议关闭日期"].notna()].copy()
     for _, row in df_d.iterrows():
         key_date = row["立项批复日期"]
