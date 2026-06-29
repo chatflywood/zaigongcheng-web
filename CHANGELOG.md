@@ -1,5 +1,33 @@
 # 功能更新日志
 
+## v1.30.0 (2026-06-29)
+
+### 后端质量提升 — 部署可靠性 + 安全收敛
+
+- **补全 `requirements.txt`**：新增 `pandas==2.2.0` 和 `Pillow==10.2.0`，此前这两个包被 7 个文件引用但未声明，新环境 `pip install -r requirements.txt` 必然崩溃
+- **消除 `~/Downloads` 回退逻辑**：`build_zaigong_spend_summary_from_record()` 原先在数据库 `detail_data` 缺字段时会回退到硬编码 `~/Downloads` 搜索原始 Excel，服务器部署时静默失败。现已改为从 v1.29.0 新增的 `raw_data`（202 列全字段）中提取
+- **统一 Session 管理**：`routers/budget.py` 中 5 处 `SessionLocal()` 改为 `get_db()`，全局一致
+- **CORS 改为环境变量配置**：`main.py` 中 `allow_origins` 由硬编码 `localhost:5173` 改为读取 `CORS_ORIGINS` 环境变量（逗号分隔，默认不变）
+
+### 前端测试体系建立 — 0 → 93 个用例
+
+- **后端单测**：新增 `tests/test_analysis_services.py`，37 个用例覆盖核心算法：
+  - `safe_float`（6）、`load_dataframe`（6）、`calculate_total_rate`（3）、`build_summary`（3）、`build_metrics`（4）、四类预警 TYPE A/B/C/D（11）、转固推进优先级（4）
+- **前端单测**：基于 Vitest + @vue/test-utils 建立前端测试体系：
+  - `Dashboard.test.js`（26 个）：初始状态、数据加载、目标值输入、上传区、管理员表、四类预警、转固推进、计算属性
+  - `Budget.test.js`（29 个）：初始状态、数据加载、KPI 动画、标签切换、上传区、计算属性、历史面板、工具函数
+  - `App.test.js`（38 个）：视图切换、数据管理器、历史中心、投屏模式、状态管理
+- **新增 npm scripts**：`npm run test`（一次性运行）、`npm run test:watch`（持续监听）
+- **安装测试依赖**：`vitest`、`@vue/test-utils`、`jsdom`
+
+### 文档同步
+
+- 修正 README.md 中过时的设计语言描述（暗色玻璃拟态 → Editorial 暖纸色调）
+- 补充 `.gitignore`：`backend/uploads/`、`.claude/`、`frontend/.claude/`
+- 删除脚手架残留 `frontend/src/components/HelloWorld.vue`
+
+---
+
 ## v1.29.0 (2026-06-26)
 
 ### 原始数据全字段存储 — 支持回溯查询
@@ -766,6 +794,7 @@
 
 | 版本号 | 日期 | 主要内容 |
 |---|---|---|
+| v1.30.0 | 2026-06-29 | 后端质量提升（requirements 补全、Downloads 回退消除、CORS 环境变量）、前端测试体系建立（93 个用例）、文档同步 |
 | v1.29.0 | 2026-06-26 | 原始数据全字段存储（raw_data 202列入库，支持回溯查询，前端无影响） |
 | v1.28.0 | 2026-05-12 | 转固推进清单新增施工单位列、导出扁平化、导出新增工程管理员列 |
 | v1.27.0 | 2026-04-27 | 关键指标页精细化（KPI 卡精简、右栏均衡布局、预警弹窗对齐、投屏修复、管理员信息替换、数字对齐） |
@@ -799,4 +828,4 @@
 
 ---
 
-*最后更新：2026-06-26*
+*最后更新：2026-06-29*
