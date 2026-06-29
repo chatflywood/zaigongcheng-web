@@ -239,7 +239,7 @@
           <!-- Grouped view -->
           <template v-if="fourClassDetailType === '四类工程预警明细'">
             <template v-for="type in fourClassTypes" :key="type.name">
-              <div v-if="getGroupItems(type.name).length > 0" class="four-class-group" :class="'group-' + type.key">
+              <div class="four-class-group" :class="'group-' + type.key">
                 <div class="group-header">
                   <span class="group-title">{{ type.name }}</span>
                   <span class="group-count">已触发 {{ getGroupStats(type.name).triggered }} / 预警 {{ getGroupStats(type.name).warning }}</span>
@@ -437,11 +437,17 @@ const fourClassTypes = [
 ]
 
 const fourClassWarningsLocal = ref(null)
+// 统一的可响应数据源：本地 > prop > composable 全局
+const fcWarnings = ref(null)
+watch(
+  [fourClassWarningsLocal, () => _props.fourClassWarnings, () => globalData.zaigongFourClassWarnings.value],
+  ([local, propVal, globalVal]) => { fcWarnings.value = local ?? propVal ?? globalVal ?? null },
+  { immediate: true }
+)
+
 const fourClassDetailVisible = ref(false)
 const fourClassDetailType = ref('')
 const fourClassDetailItems = ref([])
-
-const fcWarnings = computed(() => fourClassWarningsLocal.value || props.fourClassWarnings)
 
 // Manager view (管理员视图)
 const managerViewRows = computed(() => {

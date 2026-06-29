@@ -236,13 +236,15 @@
           <div class="card">
             <div class="card-head">
               <div><h3>四类工程预警</h3><div class="sub" style="margin-top:2">从数据中自动识别</div></div>
-              <button class="btn ghost" @click="showFourClassAllDetail" v-if="fourClassWarnings?.items?.length">
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-                查看全部
-              </button>
+              <div style="display:flex;gap:6px">
+                <button class="btn ghost tp-btn" @click="showFourClassAllDetail">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                  查看全部
+                </button>
+              </div>
             </div>
             <div class="card-body" style="padding:0">
-              <template v-if="fourClassWarnings?.summary">
+              <template v-if="fcWarnings?.summary">
                 <div v-for="(type, idx) in fourClassTypes" :key="type.name" class="warning-item" @click="showFourClassDetail(type.name)">
                   <div style="min-width:0">
                     <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
@@ -251,10 +253,10 @@
                     <div v-if="type.key !== 'liezhang'" style="font-size:12px;color:var(--ink-3)">预警期 90 天</div>
                   </div>
                   <div style="font-family:var(--font-mono);font-size:24px;color:var(--ink);font-weight:500;letter-spacing:-0.02em">
-                    {{ (fourClassWarnings.summary?.[type.name]?.triggered || 0) + (fourClassWarnings.summary?.[type.name]?.warning || 0) }}
+                    {{ (fcWarnings.summary?.[type.name]?.triggered || 0) + (fcWarnings.summary?.[type.name]?.warning || 0) }}
                   </div>
                   <div style="font-size:10.5px;color:var(--ink-4);font-family:var(--font-mono);min-width:80px;text-align:right">
-                    {{ fourClassWarnings.summary?.[type.name]?.triggered || 0 }} 已触发
+                    {{ fcWarnings.summary?.[type.name]?.triggered || 0 }} 已触发
                   </div>
                 </div>
               </template>
@@ -643,7 +645,7 @@
         <div class="modal-header">
           <div class="modal-title-wrap">
             <h3>{{ fourClassDetailType }}</h3>
-            <span v-if="fourClassWarnings?.analysis_date" class="modal-date">数据日期：{{ fourClassWarnings.analysis_date }}</span>
+            <span v-if="fcWarnings?.analysis_date" class="modal-date">数据日期：{{ fcWarnings.analysis_date }}</span>
           </div>
           <div class="modal-header-actions">
             <button class="export-btn-primary" @click="exportFourClassWarnings" :disabled="!currentRecordId">
@@ -655,7 +657,7 @@
         <div class="modal-body">
           <template v-if="fourClassDetailType === '四类工程预警明细'">
             <template v-for="type in fourClassTypes" :key="type.name">
-              <div v-if="getGroupItems(type.name).length > 0" class="four-class-group" :class="'group-' + type.key">
+              <div class="four-class-group" :class="'group-' + type.key">
                 <div class="group-header">
                   <span class="group-title">{{ type.name }}</span>
                   <span class="group-count">已触发 {{ getGroupStats(type.name).triggered }} / 预警 {{ getGroupStats(type.name).warning }}</span>
@@ -956,6 +958,13 @@ const historyRecords = ref([])
 
 // ── Four-class warnings ──
 const fourClassWarningsLocal = ref(null)
+// 统一的可响应数据源：本地 > prop > composable 全局
+const fcWarnings = ref(null)
+watch(
+  [fourClassWarningsLocal, () => _props.fourClassWarnings, () => globalData.zaigongFourClassWarnings.value],
+  ([local, propVal, globalVal]) => { fcWarnings.value = local ?? propVal ?? globalVal ?? null },
+  { immediate: true }
+)
 const fourClassDetailVisible = ref(false)
 const fourClassDetailType = ref('')
 const fourClassDetailItems = ref([])
@@ -1002,13 +1011,10 @@ const projectsList = computed(() => {
 const topByBalance = computed(() => [...projectsList.value].sort((a, b) => b.balance - a.balance).slice(0, 8))
 const topBySpend = computed(() => [...projectsList.value].filter(p => p.spendYTD > 0).sort((a, b) => b.spendYTD - a.spendYTD).slice(0, 6))
 
-// ── Computed: warnings reference ──
-const fcWarnings = computed(() => fourClassWarningsLocal.value || props.fourClassWarnings)
-
 // ── Computed: history comparison ──
-const displayAnalysisDate = computed(() => snapshotDisplayDate.value || props.analysisDate)
-const comparisonSource = computed(() => props.historyComparison || previousData.value)
-const shouldShowHistoryCompare = computed(() => Boolean(props.historyComparison))
+const displayAnalysisDate = computed(() => snapshotDisplayDate.value || _props.analysisDate || globalData.zaigongDate.value)
+const comparisonSource = computed(() => _props.historyComparison || previousData.value)
+const shouldShowHistoryCompare = computed(() => Boolean(_props.historyComparison))
 
 const compareOverview = computed(() => {
   if (!shouldShowHistoryCompare.value) return null
@@ -1459,6 +1465,7 @@ async function processFile(file) {
       showUpload.value = false
       clearSelectedFile()
       emit('dataUpdate', data)
+      emit('warningsUpdate', result.data?.four_class_warnings || null)
       await fetchCompareData()
       uploadMessage.value = ''
     } else {
@@ -1524,7 +1531,7 @@ async function fetchCompareData() {
 }
 
 async function restoreLatestView() {
-  const latest = props.latestData || props.initialData
+  const latest = _props.latestData ?? _props.initialData ?? globalData.zaigongLatestData.value ?? globalData.zaigongData.value
   if (!latest) return
   applyDashboardData(latest)
   isViewingHistory.value = false
@@ -1711,19 +1718,20 @@ function runCountUp(newMetrics) {
 watch(metrics, runCountUp, { immediate: true })
 
 // ── Watchers ──
-watch(() => props.initialData, async (newData) => {
-  if (newData) {
-    applyDashboardData(newData)
-    if (props.initialRecordId) currentRecordId.value = props.initialRecordId
-    isViewingHistory.value = false
-    snapshotDisplayDate.value = null
-    await fetchCompareData()
-  }
-}, { immediate: true })
-
-watch(() => props.fourClassWarnings, (newWarnings) => {
-  fourClassWarningsLocal.value = newWarnings || null
-}, { immediate: true })
+watch(
+  () => _props.initialData ?? globalData.zaigongData.value,
+  async (newData) => {
+    if (newData) {
+      applyDashboardData(newData)
+      const rid = _props.initialRecordId ?? globalData.zaigongLatestRecordId.value
+      if (rid) currentRecordId.value = rid
+      isViewingHistory.value = false
+      snapshotDisplayDate.value = null
+      await fetchCompareData()
+    }
+  },
+  { immediate: true }
+)
 
 // ── Lifecycle ──
 onMounted(() => {
