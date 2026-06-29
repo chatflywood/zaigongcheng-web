@@ -9,20 +9,24 @@
 - **统一 Session 管理**：`routers/budget.py` 中 5 处 `SessionLocal()` 改为 `get_db()`，全局一致
 - **CORS 改为环境变量配置**：`main.py` 中 `allow_origins` 由硬编码 `localhost:5173` 改为读取 `CORS_ORIGINS` 环境变量（逗号分隔，默认不变）
 
-### 前端测试体系建立 — 0 → 93 个用例
+### 前端测试体系建立 — 0 → 304 个用例
 
 - **后端单测**：新增 `tests/test_analysis_services.py`，37 个用例覆盖核心算法：
   - `safe_float`（6）、`load_dataframe`（6）、`calculate_total_rate`（3）、`build_summary`（3）、`build_metrics`（4）、四类预警 TYPE A/B/C/D（11）、转固推进优先级（4）
-- **前端单测**：基于 Vitest + @vue/test-utils 建立前端测试体系：
-  - `Dashboard.test.js`（26 个）：初始状态、数据加载、目标值输入、上传区、管理员表、四类预警、转固推进、计算属性
-  - `Budget.test.js`（29 个）：初始状态、数据加载、KPI 动画、标签切换、上传区、计算属性、历史面板、工具函数
-  - `App.test.js`（38 个）：视图切换、数据管理器、历史中心、投屏模式、状态管理
+- **前端单测**：基于 Vitest + @vue/test-utils 建立前端测试体系，304 个用例覆盖全部 5 个页面组件 + API 层：
+  - `App.test.js`（26 个）：视图切换、计算属性、数据管理器、历史中心、投屏模式、工具函数、状态管理
+  - `Dashboard.test.js`（87 个）：初始状态、数据加载、目标值输入、上传区、管理员表、四类预警、转固推进弹窗（computedTarget/displayManagers）、管理员详情抽屉（12 个 modalXxx computed）、KPI metrics、Progress summary、History comparison、事件发射
+  - `Budget.test.js`（89 个）：初始状态、数据加载、标签切换、上传区、KPI 动画、计算属性、历史面板、工具函数、批次下达基础状态/计算属性/CRUD 操作/专业管理/切换与加载
+  - `KeyIndicators.test.js`（60 个）：空状态、KPI 甜甜圈计算（4 个仪表盘）、deficit 逻辑、管理员视图、四类预警面板（11 个用例）、工具函数（gaugeColor/getDaysClass/getWarningPillClass/formatNum/getRateBarClass）、投屏模式、Summary banner、日期格式化、动画
+  - `Archive.test.js`（35 个）：空状态、文件列表渲染、上传弹窗（年份/文件/拖拽）、预览面板（Excel/Word/不支持格式）、删除确认、工具函数
+  - `api.test.js`（60 个）：覆盖全部 30+ 个 API 函数的 HTTP 方法、URL、参数拼装、默认值、边界条件（在建工程/预算/AI/通知/报告/档案/批次下达 7 大模块）
 - **新增 npm scripts**：`npm run test`（一次性运行）、`npm run test:watch`（持续监听）
 - **安装测试依赖**：`vitest`、`@vue/test-utils`、`jsdom`
 
 ### 文档同步
 
 - 修正 README.md 中过时的设计语言描述（暗色玻璃拟态 → Editorial 暖纸色调）
+- 更新 README.md 项目结构（补充 Archive.vue、`__tests__/` 目录、API 层说明）和测试用例数
 - 补充 `.gitignore`：`backend/uploads/`、`.claude/`、`frontend/.claude/`
 - 删除脚手架残留 `frontend/src/components/HelloWorld.vue`
 

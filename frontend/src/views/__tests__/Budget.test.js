@@ -349,3 +349,299 @@ describe('工具函数', () => {
     expect(wrapper.vm.formatPercent(0.755)).toBeTypeOf('string')
   })
 })
+
+
+// ──────────────────────────────────────────────────────────────
+// 10. 批次下达 — 基础状态
+// ──────────────────────────────────────────────────────────────
+
+describe('批次下达 — 基础状态', () => {
+  it('batchTab 默认为 budget', () => {
+    const wrapper = mountBudget()
+    expect(wrapper.vm.batchTab).toBe('budget')
+  })
+
+  it('batchData 初始结构正确', () => {
+    const wrapper = mountBudget()
+    expect(wrapper.vm.batchData.specialties).toEqual([])
+    expect(wrapper.vm.batchData.batches).toEqual([])
+    expect(wrapper.vm.batchData.totals).toEqual({})
+  })
+
+  it('batchModal 初始不可见', () => {
+    const wrapper = mountBudget()
+    expect(wrapper.vm.batchModal.visible).toBe(false)
+    expect(wrapper.vm.batchModal.mode).toBe('create')
+    expect(wrapper.vm.batchModal.editId).toBeNull()
+  })
+
+  it('specialtyPanel 初始关闭', () => {
+    const wrapper = mountBudget()
+    expect(wrapper.vm.specialtyPanel).toBe(false)
+  })
+
+  it('specialtyList 初始为空', () => {
+    const wrapper = mountBudget()
+    expect(wrapper.vm.specialtyList).toEqual([])
+  })
+})
+
+
+// ──────────────────────────────────────────────────────────────
+// 11. 批次下达 — 计算属性
+// ──────────────────────────────────────────────────────────────
+
+describe('批次下达 — 计算属性', () => {
+  it('grandTotal 计算所有批次总额', () => {
+    const wrapper = mountBudget()
+    wrapper.vm.batchData = {
+      specialties: ['5G', '传输'],
+      batches: [],
+      totals: { '5G': 100, '传输': 200 },
+    }
+    expect(wrapper.vm.grandTotal).toBe(300)
+  })
+
+  it('grandTotal totals 为空时返回 0', () => {
+    const wrapper = mountBudget()
+    expect(wrapper.vm.grandTotal).toBe(0)
+  })
+
+  it('modalSubtotal 计算当前表单小计', () => {
+    const wrapper = mountBudget()
+    wrapper.vm.batchModal.form.amounts = { '5G': 100, '传输': '200' }
+    expect(wrapper.vm.modalSubtotal).toBe(300)
+  })
+
+  it('modalSubtotal 空值忽略', () => {
+    const wrapper = mountBudget()
+    wrapper.vm.batchModal.form.amounts = { '5G': 100, '传输': null, '无线': '' }
+    expect(wrapper.vm.modalSubtotal).toBe(100)
+  })
+
+  it('batchSubtotal 计算单批次小计', () => {
+    const wrapper = mountBudget()
+    const batch = { amounts: { '5G': 50, '传输': 80 } }
+    expect(wrapper.vm.batchSubtotal(batch)).toBe(130)
+  })
+
+  it('formatBatchNum 格式化批次金额', () => {
+    const wrapper = mountBudget()
+    expect(wrapper.vm.formatBatchNum(1234.5)).toContain('1,234.50')
+    expect(wrapper.vm.formatBatchNum(0)).toBe('—')
+    expect(wrapper.vm.formatBatchNum(null)).toBe('—')
+  })
+})
+
+
+// ──────────────────────────────────────────────────────────────
+// 12. 批次下达 — CRUD 操作
+// ──────────────────────────────────────────────────────────────
+
+describe('批次下达 — CRUD 操作', () => {
+  it('openCreateModal 设置 modal 状态', () => {
+    const wrapper = mountBudget()
+    wrapper.vm.batchData.specialties = ['5G', '传输']
+    wrapper.vm.openCreateModal()
+    expect(wrapper.vm.batchModal.visible).toBe(true)
+    expect(wrapper.vm.batchModal.mode).toBe('create')
+    expect(wrapper.vm.batchModal.editId).toBeNull()
+    expect(wrapper.vm.batchModal.form.amounts).toHaveProperty('5G')
+    expect(wrapper.vm.batchModal.form.amounts).toHaveProperty('传输')
+    expect(wrapper.vm.batchModal.form.amounts['5G']).toBeNull()
+  })
+
+  it('openEditModal 填充已有数据', () => {
+    const wrapper = mountBudget()
+    wrapper.vm.batchData.specialties = ['5G', '传输']
+    const batch = {
+      id: 42,
+      batch_date: '2026-06-20',
+      note: '第一批',
+      amounts: { '5G': 100, '传输': 200 },
+      notes: { '5G': '备注1' },
+    }
+    wrapper.vm.openEditModal(batch)
+    expect(wrapper.vm.batchModal.visible).toBe(true)
+    expect(wrapper.vm.batchModal.mode).toBe('edit')
+    expect(wrapper.vm.batchModal.editId).toBe(42)
+    expect(wrapper.vm.batchModal.form.batch_date).toBe('2026-06-20')
+    expect(wrapper.vm.batchModal.form.note).toBe('第一批')
+    expect(wrapper.vm.batchModal.form.amounts['5G']).toBe(100)
+    expect(wrapper.vm.batchModal.form.notes['5G']).toBe('备注1')
+  })
+
+  it('closeBatchModal 关闭弹窗', () => {
+    const wrapper = mountBudget()
+    wrapper.vm.batchModal.visible = true
+    wrapper.vm.closeBatchModal()
+    expect(wrapper.vm.batchModal.visible).toBe(false)
+  })
+
+  it('setAmount 设置金额', () => {
+    const wrapper = mountBudget()
+    wrapper.vm.batchModal.form.amounts = { '5G': null }
+    wrapper.vm.setAmount('5G', '100')
+    expect(wrapper.vm.batchModal.form.amounts['5G']).toBe(100)
+  })
+
+  it('setAmount 空字符串设为 null', () => {
+    const wrapper = mountBudget()
+    wrapper.vm.batchModal.form.amounts = { '5G': 100 }
+    wrapper.vm.setAmount('5G', '')
+    expect(wrapper.vm.batchModal.form.amounts['5G']).toBeNull()
+  })
+
+  it('toggleNoteField 切换备注字段', () => {
+    const wrapper = mountBudget()
+    expect(wrapper.vm.noteFieldsOpen['5G']).toBeUndefined()
+    wrapper.vm.toggleNoteField('5G')
+    expect(wrapper.vm.noteFieldsOpen['5G']).toBe(true)
+    wrapper.vm.toggleNoteField('5G')
+    expect(wrapper.vm.noteFieldsOpen['5G']).toBe(false)
+  })
+
+  it('showCellNote 设置 tooltip 状态', () => {
+    const wrapper = mountBudget()
+    const event = { currentTarget: { getBoundingClientRect: () => ({ left: 100, bottom: 200 }) } }
+    wrapper.vm.showCellNote(event, '测试备注')
+    expect(wrapper.vm.cellNoteVisible).toBe(true)
+    expect(wrapper.vm.cellNoteText).toBe('测试备注')
+    expect(wrapper.vm.cellNoteX).toBe(100)
+    expect(wrapper.vm.cellNoteY).toBe(206)
+  })
+
+  it('hideCellNote 隐藏 tooltip', () => {
+    const wrapper = mountBudget()
+    wrapper.vm.cellNoteVisible = true
+    wrapper.vm.hideCellNote()
+    expect(wrapper.vm.cellNoteVisible).toBe(false)
+  })
+})
+
+
+// ──────────────────────────────────────────────────────────────
+// 13. 批次下达 — 专业管理
+// ──────────────────────────────────────────────────────────────
+
+describe('批次下达 — 专业管理', () => {
+  it('openSpecialtyPanel 加载专业列表', async () => {
+    api.getSpecialties.mockResolvedValue([
+      { id: 1, name: '5G', sort_order: 1 },
+      { id: 2, name: '传输', sort_order: 2 },
+    ])
+    const wrapper = mountBudget()
+    await wrapper.vm.openSpecialtyPanel()
+    expect(wrapper.vm.specialtyPanel).toBe(true)
+    expect(wrapper.vm.specialtyList).toHaveLength(2)
+  })
+
+  it('startEditSpecialty 设置编辑状态', () => {
+    const wrapper = mountBudget()
+    wrapper.vm.startEditSpecialty({ id: 1, name: '5G' })
+    expect(wrapper.vm.editingSpecialty).toEqual({ id: 1, name: '5G' })
+  })
+
+  it('saveSpecialtyEdit 调用 updateSpecialty', async () => {
+    api.updateSpecialty.mockResolvedValue({})
+    api.getSpecialties.mockResolvedValue([{ id: 1, name: '传输' }])
+    api.getBatchData.mockResolvedValue({ specialties: ['传输'], batches: [], totals: {} })
+    const wrapper = mountBudget()
+    wrapper.vm.editingSpecialty = { id: 1, name: '传输' }
+    await wrapper.vm.saveSpecialtyEdit()
+    expect(api.updateSpecialty).toHaveBeenCalledWith(1, { name: '传输' })
+    expect(wrapper.vm.editingSpecialty).toBeNull()
+  })
+
+  it('saveSpecialtyEdit 无编辑状态时不调用', async () => {
+    vi.clearAllMocks()
+    const wrapper = mountBudget()
+    wrapper.vm.editingSpecialty = null
+    await wrapper.vm.saveSpecialtyEdit()
+    expect(api.updateSpecialty).not.toHaveBeenCalled()
+  })
+
+  it('addNewSpecialty 调用 addSpecialty', async () => {
+    vi.clearAllMocks()
+    api.addSpecialty.mockResolvedValue({})
+    api.getSpecialties.mockResolvedValue([{ id: 1, name: '5G' }])
+    api.getBatchData.mockResolvedValue({ specialties: ['5G'], batches: [], totals: {} })
+    const wrapper = mountBudget()
+    wrapper.vm.newSpecialtyName = '5G'
+    await wrapper.vm.addNewSpecialty()
+    expect(api.addSpecialty).toHaveBeenCalledWith('5G')
+    expect(wrapper.vm.newSpecialtyName).toBe('')
+  })
+
+  it('addNewSpecialty 空名称不调用', async () => {
+    vi.clearAllMocks()
+    const wrapper = mountBudget()
+    wrapper.vm.newSpecialtyName = '  '
+    await wrapper.vm.addNewSpecialty()
+    expect(api.addSpecialty).not.toHaveBeenCalled()
+  })
+
+  it('confirmDeleteSpecialty 调用 deleteSpecialty', async () => {
+    vi.clearAllMocks()
+    const origConfirm = global.confirm
+    global.confirm = vi.fn(() => true)
+    api.deleteSpecialty.mockResolvedValue({})
+    api.getSpecialties.mockResolvedValue([])
+    api.getBatchData.mockResolvedValue({ specialties: [], batches: [], totals: {} })
+    const wrapper = mountBudget()
+    await wrapper.vm.confirmDeleteSpecialty({ id: 1, name: '5G' })
+    expect(api.deleteSpecialty).toHaveBeenCalledWith(1)
+    global.confirm = origConfirm
+  })
+
+  it('confirmDeleteSpecialty 取消时不调用', async () => {
+    vi.clearAllMocks()
+    const origConfirm = global.confirm
+    global.confirm = vi.fn(() => false)
+    const wrapper = mountBudget()
+    await wrapper.vm.confirmDeleteSpecialty({ id: 1, name: '5G' })
+    expect(api.deleteSpecialty).not.toHaveBeenCalled()
+    global.confirm = origConfirm
+  })
+})
+
+
+// ──────────────────────────────────────────────────────────────
+// 14. 批次下达 — 切换与加载
+// ──────────────────────────────────────────────────────────────
+
+describe('批次下达 — 切换与加载', () => {
+  it('switchToBatchTab 切换标签', async () => {
+    api.getBatchData.mockResolvedValue({ specialties: ['5G'], batches: [], totals: {} })
+    const wrapper = mountBudget()
+    await wrapper.vm.switchToBatchTab()
+    expect(wrapper.vm.batchTab).toBe('batch')
+  })
+
+  it('switchToBatchTab 加载批次数据', async () => {
+    api.getBatchData.mockResolvedValue({
+      specialties: ['5G'],
+      batches: [{ id: 1, batch_date: '2026-06-20', note: '', amounts: { '5G': 100 }, notes: {} }],
+      totals: { '5G': 100 },
+    })
+    const wrapper = mountBudget()
+    await wrapper.vm.switchToBatchTab()
+    expect(api.getBatchData).toHaveBeenCalled()
+    expect(wrapper.vm.batchData.batches).toHaveLength(1)
+  })
+
+  it('switchToBatchTab 已有数据时不重复加载', async () => {
+    const wrapper = mountBudget()
+    wrapper.vm.batchData.batches = [{ id: 1, amounts: { '5G': 100 }, notes: {} }]
+    vi.clearAllMocks()
+    await wrapper.vm.switchToBatchTab()
+    expect(api.getBatchData).not.toHaveBeenCalled()
+  })
+
+  it('loadBatchData 失败时静默处理', async () => {
+    api.getBatchData.mockRejectedValue(new Error('网络错误'))
+    const wrapper = mountBudget()
+    await wrapper.vm.loadBatchData()
+    expect(wrapper.vm.batchLoading).toBe(false)
+  })
+})

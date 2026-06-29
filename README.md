@@ -42,11 +42,13 @@ zaigongcheng-web/
 └── frontend/
     ├── src/
     │   ├── App.vue          # 根组件（导航栏）
-    │   ├── api/index.js     # API 调用封装
-    │   └── views/           # 页面组件
-    │       ├── Dashboard.vue       # 在建工程分析页
-    │       ├── Budget.vue          # 预算分析页
-    │       └── KeyIndicators.vue   # 关键指标页
+    │   ├── api/index.js     # API 调用封装（30+ 接口）
+    │   ├── views/           # 页面组件
+    │   │   ├── Dashboard.vue       # 在建工程分析页
+    │   │   ├── Budget.vue          # 预算分析页（含批次下达）
+    │   │   ├── KeyIndicators.vue   # 关键指标页（杂志式双栏）
+    │   │   └── Archive.vue         # 数据档案库
+    │   └── __tests__/       # 前端单元测试（Vitest）
     └── package.json         # Node.js 依赖
 ```
 
@@ -75,11 +77,11 @@ npm install
 ### 运行测试
 
 ```bash
-# 后端测试
+# 后端测试（37 个用例）
 cd ~/Documents/zaigongcheng-web/backend
 python -m pytest tests/ -v
 
-# 前端测试 (需安装 Vitest)
+# 前端测试（304 个用例，覆盖全部页面 + API 层）
 cd ~/Documents/zaigongcheng-web/frontend
 npm run test
 ```
@@ -261,7 +263,7 @@ npm run dev
 
 ### 前端
 
-- **建立前端测试体系**：基于 Vitest + @vue/test-utils，93 个用例覆盖 Dashboard（26）、Budget（29）、App（38）的核心交互。运行 `npm run test`。
+- **建立前端测试体系**：基于 Vitest + @vue/test-utils，304 个用例覆盖全部 5 个页面组件 + API 层（App 26、Dashboard 87、Budget 89、KeyIndicators 60、Archive 35、API 60）。运行 `npm run test`。
 - **补充 `.gitignore`**：添加 `backend/uploads/`、`.claude/`、`frontend/.claude/`。
 - **删除脚手架残留**：移除 Vite 初始化模板 `HelloWorld.vue`。
 - 在建工程页和预算立项页统一为双栏上传区布局。

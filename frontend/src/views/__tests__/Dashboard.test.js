@@ -381,3 +381,376 @@ describe('事件发射', () => {
     expect(wrapper.vm.$options.emits).toContain('warningsUpdate')
   })
 })
+
+
+// ──────────────────────────────────────────────────────────────
+// 10. 管理员详情抽屉 computed
+// ──────────────────────────────────────────────────────────────
+
+describe('管理员详情抽屉', () => {
+  it('modalManagerRow 从 summaryRows 匹配管理员', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    wrapper.vm.modalManager = '张三'
+    await nextTick()
+    expect(wrapper.vm.modalManagerRow).not.toBeNull()
+    expect(wrapper.vm.modalManagerRow.manager).toBe('张三')
+  })
+
+  it('modalManagerRow 不匹配时返回 undefined', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    wrapper.vm.modalManager = '不存在的人'
+    await nextTick()
+    expect(wrapper.vm.modalManagerRow).toBeUndefined()
+  })
+
+  it('modalBalance 从 modalManagerRow 读取', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    wrapper.vm.modalManager = '张三'
+    await nextTick()
+    // 张三的 pending 为 50，但 modalBalance 读 capital
+    expect(typeof wrapper.vm.modalBalance).toBe('number')
+  })
+
+  it('modalSpendYTD 读取 capital', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    wrapper.vm.modalManager = '张三'
+    await nextTick()
+    expect(wrapper.vm.modalSpendYTD).toBe(200)
+  })
+
+  it('modalTransfer 读取结转额', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    wrapper.vm.modalManager = '张三'
+    await nextTick()
+    expect(wrapper.vm.modalTransfer).toBe(150)
+  })
+
+  it('modalPending 读取待收货', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    wrapper.vm.modalManager = '张三'
+    await nextTick()
+    expect(wrapper.vm.modalPending).toBe(50)
+  })
+
+  it('modalManagerRateStr 格式化转固率', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    wrapper.vm.modalManager = '张三'
+    await nextTick()
+    expect(wrapper.vm.modalManagerRateStr).toContain('%')
+  })
+
+  it('modalRank 返回排名', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    wrapper.vm.modalManager = '张三'
+    await nextTick()
+    expect(typeof wrapper.vm.modalRank).toBe('number')
+    expect(wrapper.vm.modalRank).toBeGreaterThan(0)
+  })
+
+  it('modalTotalProjects 返回管理员项目数', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    wrapper.vm.modalManager = '张三'
+    await nextTick()
+    expect(wrapper.vm.modalTotalProjects).toBe(1) // 项目A
+  })
+
+  it('modalActiveCount 返回余额 > 0 的项目数', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    wrapper.vm.modalManager = '张三'
+    await nextTick()
+    expect(wrapper.vm.modalActiveCount).toBeGreaterThanOrEqual(0)
+  })
+
+  it('modalReversedCount 返回支出 < 0 的项目数', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    expect(wrapper.vm.modalReversedCount).toBeGreaterThanOrEqual(0)
+  })
+
+  it('sortedModalData 按 sortKey 排序', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    wrapper.vm.modalManager = '张三'
+    wrapper.vm.modalData = [
+      { '工程名称': 'B项目', '在建工程期末余额': 20 },
+      { '工程名称': 'A项目', '在建工程期末余额': 50 },
+    ]
+    wrapper.vm.sortKey = '在建工程期末余额'
+    wrapper.vm.sortOrder = 'desc'
+    await nextTick()
+    const sorted = wrapper.vm.sortedModalData
+    expect(sorted[0]['在建工程期末余额']).toBe(50)
+    expect(sorted[1]['在建工程期末余额']).toBe(20)
+  })
+})
+
+
+// ──────────────────────────────────────────────────────────────
+// 11. 转固推进弹窗 computed
+// ──────────────────────────────────────────────────────────────
+
+describe('转固推进弹窗 computed', () => {
+  it('computedTarget 无 targetRate 时返回 null', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    wrapper.vm.targetRate = ''
+    expect(wrapper.vm.computedTarget).toBeNull()
+  })
+
+  it('computedTarget targetRate 超出范围时返回 null', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    wrapper.vm.targetRate = 150
+    expect(wrapper.vm.computedTarget).toBeNull()
+  })
+
+  it('computedTarget 无 transferPriorityData 时返回 null', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    wrapper.vm.targetRate = 80
+    wrapper.vm.transferPriorityData = []
+    expect(wrapper.vm.computedTarget).toBeNull()
+  })
+
+  it('computedTarget 有数据时计算目标', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    wrapper.vm.targetRate = 80
+    wrapper.vm.transferPriorityData = [
+      {
+        manager: '张三',
+        current_rate: 0.65,
+        denominator: 200,
+        projects: [
+          { '工程名称': '项目A', '在建余额': 30, '累计后转固率': 0.75, '紧迫度': '高' },
+          { '工程名称': '项目B', '在建余额': 20, '累计后转固率': 0.85, '紧迫度': '中' },
+        ],
+      },
+    ]
+    await nextTick()
+    const ct = wrapper.vm.computedTarget
+    expect(ct).not.toBeNull()
+    expect(ct.target).toBe(0.8)
+    expect(ct.managers).toHaveLength(1)
+    expect(ct.managers[0].manager).toBe('张三')
+  })
+
+  it('displayManagers 无 computedTarget 时直接映射', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    wrapper.vm.targetRate = ''
+    wrapper.vm.transferPriorityData = [
+      {
+        manager: '张三',
+        current_rate: 0.65,
+        denominator: 200,
+        projects: [{ '工程名称': '项目A', '在建余额': 30 }],
+      },
+    ]
+    await nextTick()
+    const dm = wrapper.vm.displayManagers
+    expect(dm).toHaveLength(1)
+    expect(dm[0].manager).toBe('张三')
+    expect(dm[0].alreadyAchieved).toBe(false)
+  })
+
+  it('displayManagers 有 computedTarget 时使用 computedTarget.managers', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    wrapper.vm.targetRate = 50
+    wrapper.vm.transferPriorityData = [
+      {
+        manager: '张三',
+        current_rate: 0.65,
+        denominator: 200,
+        projects: [
+          { '工程名称': '项目A', '在建余额': 30, '累计后转固率': 0.75 },
+          { '工程名称': '项目B', '在建余额': 20, '累计后转固率': 0.85 },
+        ],
+      },
+    ]
+    await nextTick()
+    const ct = wrapper.vm.computedTarget
+    expect(ct).not.toBeNull()
+    const dm = wrapper.vm.displayManagers
+    expect(dm[0].manager).toBe('张三')
+    expect(dm[0].alreadyAchieved).toBe(true) // 0.65 >= 0.50
+  })
+})
+
+
+// ──────────────────────────────────────────────────────────────
+// 12. KPI metrics computed
+// ──────────────────────────────────────────────────────────────
+
+describe('KPI metrics computed', () => {
+  it('无 dashboard 数据时 metrics 为空数组', () => {
+    const wrapper = mountDashboard()
+    expect(wrapper.vm.metrics).toEqual([])
+  })
+
+  it('有数据时 metrics 返回 4 个 KPI', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    expect(wrapper.vm.metrics).toHaveLength(4)
+    expect(wrapper.vm.metrics[0].label).toBe('本年累计资本性支出')
+    expect(wrapper.vm.metrics[1].label).toBe('已下单待收货')
+    expect(wrapper.vm.metrics[2].label).toBe('本月资本性支出')
+    expect(wrapper.vm.metrics[3].label).toBe('综合转固率')
+  })
+
+  it('metrics 值格式化为两位小数', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    expect(wrapper.vm.metrics[0].value).toBe('500.00')
+    expect(wrapper.vm.metrics[1].value).toBe('120.00')
+  })
+
+  it('monthSpend 为负时 valueClass 为 val-negative', async () => {
+    const data = makeDashboardData()
+    data.metrics.monthSpend = -10
+    const wrapper = mountDashboard({ initialData: data })
+    await nextTick()
+    expect(wrapper.vm.metrics[2].valueClass).toBe('val-negative')
+  })
+})
+
+
+// ──────────────────────────────────────────────────────────────
+// 13. Progress summary computed
+// ──────────────────────────────────────────────────────────────
+
+describe('Progress summary computed', () => {
+  it('spendProgress 计算支出进度', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    wrapper.vm.targetValue = 770
+    await nextTick()
+    // capital=500, target=770 → 500/770*100 ≈ 64.9
+    expect(wrapper.vm.spendProgress).toBeCloseTo(64.9, 0)
+  })
+
+  it('spendProgress 无目标时返回 0', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    wrapper.vm.targetValue = 0
+    expect(wrapper.vm.spendProgress).toBe(0)
+  })
+
+  it('spendHint 有差距时显示差额', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    wrapper.vm.targetValue = 770
+    await nextTick()
+    expect(wrapper.vm.spendHint).toContain('距目标还差')
+  })
+
+  it('spendHint 超额时显示超额', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    wrapper.vm.targetValue = 100
+    await nextTick()
+    expect(wrapper.vm.spendHint).toContain('已超额完成')
+  })
+
+  it('rateProgress 计算转固率进度', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    wrapper.vm.rateTarget = 80
+    await nextTick()
+    // rate=0.72 → 72%, target=80 → 72/80*100=90
+    expect(wrapper.vm.rateProgress).toBeCloseTo(90, 0)
+  })
+
+  it('rateHint 距目标还差', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    wrapper.vm.rateTarget = 80
+    await nextTick()
+    expect(wrapper.vm.rateHint).toContain('距目标还差')
+  })
+
+  it('rateHint 超过目标', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    wrapper.vm.rateTarget = 50
+    await nextTick()
+    expect(wrapper.vm.rateHint).toContain('已超过目标')
+  })
+})
+
+
+// ──────────────────────────────────────────────────────────────
+// 14. History comparison computed
+// ──────────────────────────────────────────────────────────────
+
+describe('History comparison computed', () => {
+  it('compareOverview 无历史对比时返回 null', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    expect(wrapper.vm.compareOverview).toBeNull()
+  })
+
+  it('compareOverview 有历史对比时返回差异', async () => {
+    const current = makeDashboardData()
+    const previous = makeDashboardData()
+    previous.metrics.capital = 400
+    const wrapper = mountDashboard({
+      initialData: current,
+      historyComparison: { dashboard: previous },
+    })
+    await nextTick()
+    const co = wrapper.vm.compareOverview
+    expect(co).not.toBeNull()
+    expect(co.capital.current).toBe(500)
+    expect(co.capital.diff).toBe(100) // 500 - 400
+  })
+
+  it('compareOverview rate 差异计算', async () => {
+    const current = makeDashboardData()
+    const previous = makeDashboardData()
+    previous.metrics.rate = 0.60
+    const wrapper = mountDashboard({
+      initialData: current,
+      historyComparison: { dashboard: previous },
+    })
+    await nextTick()
+    const co = wrapper.vm.compareOverview
+    expect(co.rate.diff).toBeCloseTo(12, 0) // (0.72-0.60)*100 = 12
+  })
+
+  it('managerProgressTop5 有对比时返回差异排名', async () => {
+    const current = makeDashboardData()
+    const previous = makeDashboardData()
+    previous.summary = [
+      { manager: '张三', capital: 180 },
+      { manager: '李四', capital: 120 },
+      { manager: '王五', capital: 60 },
+    ]
+    const wrapper = mountDashboard({
+      initialData: current,
+      historyComparison: { dashboard: previous },
+    })
+    await nextTick()
+    const top5 = wrapper.vm.managerProgressTop5
+    expect(top5.length).toBeGreaterThan(0)
+    expect(top5[0]).toHaveProperty('name')
+    expect(top5[0]).toHaveProperty('diff')
+  })
+
+  it('managerProgressTop5 无对比时返回空', async () => {
+    const wrapper = mountDashboard({ initialData: makeDashboardData() })
+    await nextTick()
+    expect(wrapper.vm.managerProgressTop5).toEqual([])
+  })
+})
