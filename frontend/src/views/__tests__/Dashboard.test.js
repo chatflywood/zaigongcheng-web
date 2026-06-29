@@ -39,9 +39,23 @@ const api = await import('../../api')
 api.getHistory.mockResolvedValue({ success: false, data: [] })
 api.getCompare.mockResolvedValue({ success: false })
 
+// ── 重置 composable 单例状态，避免测试间泄漏 ──
+const globalData = await import('../../composables/useGlobalData')
+
 let Dashboard
 beforeEach(async () => {
-  // 每次测试重新加载模块，避免缓存污染
+  const gd = globalData.useGlobalData()
+  gd.zaigongData.value = null
+  gd.zaigongLatestData.value = null
+  gd.zaigongLatestRecordId.value = null
+  gd.zaigongDate.value = null
+  gd.zaigongSnapshotLabel.value = ''
+  gd.zaigongFourClassWarnings.value = null
+  gd.zaigongLatestFourClassWarnings.value = null
+  gd.budgetData.value = null
+  gd.budgetLatestData.value = null
+  gd.budgetDate.value = null
+
   Dashboard = (await import('../Dashboard.vue')).default
 })
 

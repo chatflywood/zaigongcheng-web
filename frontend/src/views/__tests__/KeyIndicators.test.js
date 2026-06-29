@@ -25,8 +25,27 @@ vi.mock('../../api', () => ({
   exportFourClassExcel: vi.fn(() => Promise.resolve(new Blob())),
 }))
 
+// ── 重置 composable 单例状态，避免测试间泄漏 ──
+const globalData = await import('../../composables/useGlobalData')
+const appToolsModule = await import('../../composables/useAppTools')
+
 let KeyIndicators
 beforeEach(async () => {
+  const gd = globalData.useGlobalData()
+  gd.zaigongData.value = null
+  gd.zaigongLatestData.value = null
+  gd.zaigongLatestRecordId.value = null
+  gd.zaigongDate.value = null
+  gd.zaigongSnapshotLabel.value = ''
+  gd.zaigongFourClassWarnings.value = null
+  gd.zaigongLatestFourClassWarnings.value = null
+  gd.budgetData.value = null
+  gd.budgetLatestData.value = null
+  gd.budgetDate.value = null
+
+  const at = appToolsModule.useAppTools()
+  at.presentationMode.value = false
+
   KeyIndicators = (await import('../KeyIndicators.vue')).default
 })
 

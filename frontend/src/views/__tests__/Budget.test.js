@@ -42,8 +42,24 @@ api.getBatchData.mockResolvedValue({
   totals: {},
 })
 
+// ── 重置 composable 单例状态，避免测试间泄漏 ──
+const globalData = await import('../../composables/useGlobalData')
+
 let Budget
 beforeEach(async () => {
+  // 重置 composable 状态
+  const gd = globalData.useGlobalData()
+  gd.budgetData.value = null
+  gd.budgetLatestData.value = null
+  gd.budgetDate.value = null
+  gd.budgetSnapshotLabel.value = ''
+  gd.zaigongData.value = null
+  gd.zaigongLatestData.value = null
+  gd.zaigongDate.value = null
+  gd.zaigongSnapshotLabel.value = ''
+  gd.zaigongFourClassWarnings.value = null
+  gd.zaigongLatestFourClassWarnings.value = null
+
   Budget = (await import('../Budget.vue')).default
 })
 

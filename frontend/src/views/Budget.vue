@@ -668,19 +668,13 @@ const _props = defineProps({
   snapshotLabel: { type: String, default: undefined },
 })
 
-const props = new Proxy(_props, {
-  get(target, key) {
-    if (key in target && target[key] !== undefined) return target[key]
-    const map = {
-      initialData: globalData.budgetData,
-      latestData: globalData.budgetLatestData,
-      analysisDate: globalData.budgetDate,
-      snapshotLabel: globalData.budgetSnapshotLabel,
-    }
-    const refVal = map[key]
-    return refVal ? refVal.value : (key === 'historyComparison' ? null : undefined)
-  }
-})
+const props = {
+  get initialData()    { return _props.initialData    ?? globalData.budgetData.value },
+  get latestData()     { return _props.latestData     ?? globalData.budgetLatestData.value },
+  get analysisDate()   { return _props.analysisDate   ?? globalData.budgetDate.value },
+  get snapshotLabel()  { return _props.snapshotLabel  ?? globalData.budgetSnapshotLabel.value },
+  get historyComparison() { return _props.historyComparison ?? null },
+}
 
 const emit = (event, ...args) => {
   if (event === 'dataUpdate') globalData.onBudgetDataUpdate(...args)

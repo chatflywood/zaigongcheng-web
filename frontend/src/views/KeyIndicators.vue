@@ -308,20 +308,14 @@ const _props = defineProps({
   recordId: { type: [Number, String], default: undefined },
 })
 
-const props = new Proxy(_props, {
-  get(target, key) {
-    if (key in target && target[key] !== undefined) return target[key]
-    const map = {
-      zaigongData: globalData.zaigongData,
-      budgetData: globalData.budgetData,
-      zaigongDate: globalData.zaigongDate,
-      fourClassWarnings: globalData.zaigongFourClassWarnings,
-      recordId: globalData.zaigongLatestRecordId,
-    }
-    const refVal = map[key]
-    return refVal ? refVal.value : undefined
-  }
-})
+const props = {
+  get zaigongData()       { return _props.zaigongData       ?? globalData.zaigongData.value },
+  get budgetData()        { return _props.budgetData        ?? globalData.budgetData.value },
+  get zaigongDate()       { return _props.zaigongDate       ?? globalData.zaigongDate.value },
+  get budgetDate()        { return _props.budgetDate        ?? globalData.budgetDate.value },
+  get fourClassWarnings() { return _props.fourClassWarnings ?? globalData.zaigongFourClassWarnings.value },
+  get recordId()          { return _props.recordId          ?? globalData.zaigongLatestRecordId.value },
+}
 
 const presentationMode = computed(() => appTools.presentationMode.value)
 

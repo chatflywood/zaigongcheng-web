@@ -905,21 +905,15 @@ const _props = defineProps({
   fourClassWarnings: { type: Object, default: undefined },
 })
 
-const props = new Proxy(_props, {
-  get(target, key) {
-    if (key in target && target[key] !== undefined) return target[key]
-    const map = {
-      initialData: globalData.zaigongData,
-      initialRecordId: globalData.zaigongLatestRecordId,
-      latestData: globalData.zaigongLatestData,
-      analysisDate: globalData.zaigongDate,
-      snapshotLabel: globalData.zaigongSnapshotLabel,
-      fourClassWarnings: globalData.zaigongFourClassWarnings,
-    }
-    const refVal = map[key]
-    return refVal ? refVal.value : (key === 'historyComparison' ? null : undefined)
-  }
-})
+const props = {
+  get initialData()       { return _props.initialData       ?? globalData.zaigongData.value },
+  get initialRecordId()   { return _props.initialRecordId   ?? globalData.zaigongLatestRecordId.value },
+  get latestData()        { return _props.latestData        ?? globalData.zaigongLatestData.value },
+  get analysisDate()      { return _props.analysisDate      ?? globalData.zaigongDate.value },
+  get snapshotLabel()     { return _props.snapshotLabel     ?? globalData.zaigongSnapshotLabel.value },
+  get fourClassWarnings() { return _props.fourClassWarnings ?? globalData.zaigongFourClassWarnings.value },
+  get historyComparison() { return _props.historyComparison ?? null },
+}
 
 const emit = (event, ...args) => {
   if (event === 'dataUpdate') globalData.onZaigongDataUpdate(...args)
