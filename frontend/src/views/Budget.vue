@@ -655,30 +655,37 @@ import { uploadBudget, getBudgetHistory, getBudgetHistorySnapshot,
   getBatchData, createBatch, updateBatch, deleteBatch,
   getSpecialties, addSpecialty, updateSpecialty, deleteSpecialty } from '../api'
 
-const props = defineProps({
-  initialData: {
-    type: Object,
-    default: null
-  },
-  latestData: {
-    type: Object,
-    default: null
-  },
-  historyComparison: {
-    type: Object,
-    default: null
-  },
-  analysisDate: {
-    type: String,
-    default: null
-  },
-  snapshotLabel: {
-    type: String,
-    default: ''
+import { useGlobalData } from '../composables/useGlobalData'
+
+const globalData = useGlobalData()
+
+// Props 优先（测试时传入），否则从 composable 读取
+const _props = defineProps({
+  initialData: { type: Object, default: undefined },
+  latestData: { type: Object, default: undefined },
+  historyComparison: { type: Object, default: null },
+  analysisDate: { type: String, default: undefined },
+  snapshotLabel: { type: String, default: undefined },
+})
+
+const props = new Proxy(_props, {
+  get(target, key) {
+    if (key in target && target[key] !== undefined) return target[key]
+    const map = {
+      initialData: globalData.budgetData,
+      latestData: globalData.budgetLatestData,
+      analysisDate: globalData.budgetDate,
+      snapshotLabel: globalData.budgetSnapshotLabel,
+    }
+    const refVal = map[key]
+    return refVal ? refVal.value : (key === 'historyComparison' ? null : undefined)
   }
 })
 
-const emit = defineEmits(['dataUpdate', 'restoreLatest'])
+const emit = (event, ...args) => {
+  if (event === 'dataUpdate') globalData.onBudgetDataUpdate(...args)
+  if (event === 'restoreLatest') globalData.onBudgetRestoreLatest()
+}
 
 const fileInput = ref(null)
 const loading = ref(false)

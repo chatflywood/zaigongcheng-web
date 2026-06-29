@@ -1,5 +1,29 @@
 # 功能更新日志
 
+## v1.31.0 (2026-06-29)
+
+### Vue Router + 共享 UI 组件重构
+
+- **引入 Vue Router 4**：4 个视图从手动 `v-if` 切换升级为标准路由（`/`、`/zaigong`、`/budget`、`/archive`），支持 URL 导航、浏览器前进/后退、链接分享
+  - 使用 `createWebHashHistory` 兼容 Electron `file://` 协议
+  - 路由组件懒加载（`() => import()`）
+  - `<keep-alive>` 保持页面状态
+- **全局状态 Composable 化**：App.vue 47 个 ref 拆分为 3 个 composable：
+  - `useGlobalData()` — 核心数据（在建工程/预算立项的 data/latest/date/warnings）
+  - `useHistoryCenter()` — 历史记录面板、趋势图、双版本对比
+  - `useAppTools()` — 数据管理面板、通知设置、简报生成、推送播报
+  - 模块级 ref 单例，所有组件共享同一份状态
+- **新增 4 个共享 UI 组件**（`src/components/`）：
+  - `Modal.vue` — 通用弹窗壳（Teleport + Transition + 可配置尺寸）
+  - `UploadZone.vue` — 拖拽上传区（拖拽/点击/文件选择/已选状态）
+  - `DataCard.vue` — 数据指标卡片（标签/数值/单位/delta/徽标）
+  - `FileRow.vue` — 文件列表行（扩展名徽标/文件名/元信息/操作区）
+- **App.vue 瘦身**：2041 行 → ~500 行模板 + ~100 行脚本，视图切换、数据管理、历史中心逻辑全部下沉到 composable
+- **视图组件适配**：Dashboard/Budget/KeyIndicators 通过 Proxy 实现 props 优先 + composable fallback，测试可继续传 props
+- **测试全部通过**：300 个用例（6 个测试文件），适配 Vue Router 的 App.test.js 使用 `createMemoryHistory` 测试路由
+
+---
+
 ## v1.30.0 (2026-06-29)
 
 ### 后端质量提升 — 部署可靠性 + 安全收敛

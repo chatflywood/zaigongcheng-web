@@ -292,17 +292,49 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import html2canvas from 'html2canvas'
+import { useGlobalData } from '../composables/useGlobalData'
+import { useAppTools } from '../composables/useAppTools'
 
-const props = defineProps({
-  zaigongData: Object,
-  budgetData: Object,
-  zaigongDate: String,
-  budgetDate: String,
-  fourClassWarnings: Object,
-  recordId: { type: [Number, String], default: null },
+const globalData = useGlobalData()
+const appTools = useAppTools()
+
+// Props 优先（测试时传入），否则从 composable 读取
+const _props = defineProps({
+  zaigongData: { type: Object, default: undefined },
+  budgetData: { type: Object, default: undefined },
+  zaigongDate: { type: String, default: undefined },
+  budgetDate: { type: String, default: undefined },
+  fourClassWarnings: { type: Object, default: undefined },
+  recordId: { type: [Number, String], default: undefined },
 })
 
-const emit = defineEmits(['presentation-change'])
+const props = new Proxy(_props, {
+  get(target, key) {
+    if (key in target && target[key] !== undefined) return target[key]
+    const map = {
+      zaigongData: globalData.zaigongData,
+      budgetData: globalData.budgetData,
+      zaigongDate: globalData.zaigongDate,
+      fourClassWarnings: globalData.zaigongFourClassWarnings,
+      recordId: globalData.zaigongLatestRecordId,
+    }
+    const refVal = map[key]
+    return refVal ? refVal.value : undefined
+  }
+})
+
+const presentationMode = computed(() => appTools.presentationMode.value)
+
+async function togglePresentationMode() {
+  appTools.togglePresentationMode()
+  try {
+    if (appTools.presentationMode.value) {
+      await document.documentElement.requestFullscreen?.()
+    } else {
+      if (document.fullscreenElement) await document.exitFullscreen()
+    }
+  } catch (_) {}
+}
 
 const currentDate = computed(() => {
   const now = new Date()
@@ -540,28 +572,7 @@ function getWarningPillClass(key) {
   return map[key] || 'info'
 }
 
-// Presentation mode
-const presentationMode = ref(false)
-
-async function togglePresentationMode() {
-  const entering = !presentationMode.value
-  presentationMode.value = entering
-  emit('presentation-change', entering)
-  try {
-    if (entering) {
-      await document.documentElement.requestFullscreen?.()
-    } else {
-      if (document.fullscreenElement) await document.exitFullscreen()
-    }
-  } catch (_) {}
-}
-
-function handleFullscreenChange() {
-  if (!document.fullscreenElement && presentationMode.value) {
-    presentationMode.value = false
-    emit('presentation-change', false)
-  }
-}
+// Presentation mode — 使用 composable 中的 presentationMode 和 togglePresentationMode
 
 function copyNarrative() {
   const text = `当期资本性支出 ${props.zaigongData?.metrics?.capital?.toFixed(2) || '—'} 万元（当期目标 ${displayTargetValue.value} 万，进度 ${capitalProgress.value}%），${deficitLabel.value}。全年支出进度 ${annualCapitalProgress.value}%，立项进度 ${approvalProgress.value}%。整体转固率仅 ${transferRate.value}%，需在下一周期集中推进转固。`
@@ -592,14 +603,7 @@ async function exportPNG() {
   }
 }
 
-onMounted(() => {
-  presentationMode.value = Boolean(document.fullscreenElement)
-  document.addEventListener('fullscreenchange', handleFullscreenChange)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('fullscreenchange', handleFullscreenChange)
-})
+// 生命周期由 composable 管理，无需额外挂载
 </script>
 
 <style scoped>

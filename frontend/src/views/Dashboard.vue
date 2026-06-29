@@ -890,17 +890,42 @@
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { uploadExcel, getCompare, getHistory, getHistorySnapshot, getManagerDetails, getTransferPriority, exportTransferPriority, pushNotify, updateTargetValue } from '../api'
 
-const props = defineProps({
-  initialData: { type: Object, default: null },
-  initialRecordId: { type: Number, default: null },
-  latestData: { type: Object, default: null },
+import { useGlobalData } from '../composables/useGlobalData'
+
+const globalData = useGlobalData()
+
+// Props 优先（测试时传入），否则从 composable 读取
+const _props = defineProps({
+  initialData: { type: Object, default: undefined },
+  initialRecordId: { type: Number, default: undefined },
+  latestData: { type: Object, default: undefined },
   historyComparison: { type: Object, default: null },
-  analysisDate: { type: String, default: null },
-  snapshotLabel: { type: String, default: '' },
-  fourClassWarnings: { type: Object, default: null }
+  analysisDate: { type: String, default: undefined },
+  snapshotLabel: { type: String, default: undefined },
+  fourClassWarnings: { type: Object, default: undefined },
 })
 
-const emit = defineEmits(['dataUpdate', 'restoreLatest', 'warningsUpdate'])
+const props = new Proxy(_props, {
+  get(target, key) {
+    if (key in target && target[key] !== undefined) return target[key]
+    const map = {
+      initialData: globalData.zaigongData,
+      initialRecordId: globalData.zaigongLatestRecordId,
+      latestData: globalData.zaigongLatestData,
+      analysisDate: globalData.zaigongDate,
+      snapshotLabel: globalData.zaigongSnapshotLabel,
+      fourClassWarnings: globalData.zaigongFourClassWarnings,
+    }
+    const refVal = map[key]
+    return refVal ? refVal.value : (key === 'historyComparison' ? null : undefined)
+  }
+})
+
+const emit = (event, ...args) => {
+  if (event === 'dataUpdate') globalData.onZaigongDataUpdate(...args)
+  if (event === 'restoreLatest') globalData.onZaigongRestoreLatest()
+  if (event === 'warningsUpdate') globalData.onZaigongWarningsUpdate(...args)
+}
 
 // ── Core state ──
 const fileInput = ref(null)
