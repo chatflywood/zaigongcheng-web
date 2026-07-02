@@ -934,7 +934,23 @@ const dashboard = ref(null)
 const summaryRows = ref([])
 const maxCapital = ref(0)
 const targetValue = ref(null)
-const rateTarget = ref(null)
+const rateTarget = ref(loadPersistedRateTarget())
+
+function loadPersistedRateTarget() {
+  try {
+    const v = localStorage.getItem('zaigong_rate_target')
+    return v ? Number(v) : null
+  } catch { return null }
+}
+function persistRateTarget(val) {
+  try {
+    if (val && val > 0 && val <= 100) {
+      localStorage.setItem('zaigong_rate_target', String(val))
+    } else {
+      localStorage.removeItem('zaigong_rate_target')
+    }
+  } catch {}
+}
 const editingRateTarget = ref(false)
 const previousData = ref(null)
 const selectedFile = ref(null)
@@ -1153,6 +1169,7 @@ function startEditRateTarget() {
 function confirmEditRateTarget() {
   if (rateTargetEdit.value && rateTargetEdit.value > 0 && rateTargetEdit.value <= 100) {
     rateTarget.value = Number(rateTargetEdit.value)
+    persistRateTarget(rateTarget.value)
   }
   editingRateTarget.value = false
 }
@@ -1777,8 +1794,6 @@ onUnmounted(() => {})
   transition: all 120ms; white-space: nowrap; cursor: pointer; font-family: inherit;
 }
 .btn:hover { background: var(--paper-2); color: var(--ink); border-color: var(--ink-4); }
-.btn.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-.btn.primary:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn.ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
 .btn.ghost:hover { background: var(--paper-2); }
 .btn svg { width: 12px; height: 12px; opacity: 0.7; }
@@ -1842,31 +1857,6 @@ onUnmounted(() => {})
 }
 .upload-strip .up-meter b { font-size: 14px; color: var(--ink); font-weight: 500; }
 
-/* ── Upload overlay ──────────────────────────────── */
-.upload-overlay {
-  position: fixed; inset: 0; background: rgba(31,29,24,0.42);
-  z-index: 1000; display: grid; place-items: center; padding: 40px;
-}
-.upload-overlay-card {
-  background: var(--paper); border: 1px solid var(--line-2);
-  border-radius: var(--r-xl); width: min(560px, 100%);
-  box-shadow: var(--shadow-pop);
-}
-.upload-overlay-head {
-  padding: 18px 24px; border-bottom: 1px solid var(--line);
-  display: flex; align-items: center; justify-content: space-between;
-}
-.upload-overlay-head h3 { font-size: 16px; font-weight: 500; color: var(--ink); margin: 0; }
-.upload-overlay-body { padding: 20px 24px 24px; }
-.overlay-target-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
-.overlay-target-label { font-size: 13px; color: var(--ink-2); white-space: nowrap; flex-shrink: 0; }
-.overlay-target-input-wrap { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line-2); border-radius: var(--r-md); padding: 5px 10px; background: var(--paper); flex: 1; }
-.overlay-target-input-wrap input { border: none; outline: none; background: transparent; font-size: 14px; color: var(--ink); width: 100%; font-variant-numeric: tabular-nums; }
-.overlay-target-unit { font-size: 12px; color: var(--ink-3); white-space: nowrap; }
-.overlay-target-confirm { padding: 6px 14px; border-radius: var(--r-md); background: var(--accent); color: #fff; font-size: 13px; font-weight: 500; border: none; cursor: pointer; white-space: nowrap; }
-.overlay-target-confirm:hover { opacity: 0.88; }
-.overlay-divider { height: 1px; background: var(--line); margin: 16px 0; }
-
 /* ── KPI grid ──────────────────────────────────── */
 .kpi-grid {
   display: grid; grid-template-columns: repeat(4, 1fr);
@@ -1920,8 +1910,6 @@ onUnmounted(() => {})
 .tbl .muted { color: var(--ink-3); }
 .tbl .link { cursor: pointer; text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; transition: all 120ms; }
 .tbl .link:hover { color: var(--accent); text-decoration-color: var(--accent); }
-.sortable-th { cursor: pointer; user-select: none; }
-.sortable-th:hover { color: var(--ink) !important; }
 .sort-icon { margin-left: 4px; font-size: 10px; opacity: 0.4; }
 .sort-icon.active { opacity: 1; color: var(--accent); }
 
@@ -2030,13 +2018,6 @@ onUnmounted(() => {})
   font-size: 11.5px; color: var(--ink-3);
 }
 
-/* ── Table footnote ────────────────────────────── */
-.table-footnote {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 12px 16px; font-size: 11.5px; color: var(--ink-3);
-  border-top: 1px solid var(--line); background: var(--surface-2);
-}
-
 /* ── Warning + Manager grid ────────────────────── */
 .warning-manager-grid {
   display: grid; grid-template-columns: 1fr 1.5fr; gap: 24px;
@@ -2121,7 +2102,6 @@ onUnmounted(() => {})
 .mgr-stat-label { font-size: 11px; color: var(--ink-3); margin-bottom: 8px; }
 .mgr-stat-value { font-size: 22px; font-weight: 500; color: var(--ink); font-family: var(--font-mono); letter-spacing: -0.02em; line-height: 1; }
 .mgr-stat-unit { font-size: 11px; color: var(--ink-3); margin-left: 3px; font-weight: 400; font-family: var(--font-sans); }
-.mgr-tbl-total td { background: var(--surface-2) !important; border-top: 1px solid var(--line); }
 .modal-close {
   width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
   background: transparent; border: 1px solid var(--line-2);
@@ -2458,7 +2438,6 @@ onUnmounted(() => {})
 }
 @media (max-width: 900px) {
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-  .four-class-cards-row { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 600px) {
   .kpi-grid { grid-template-columns: 1fr; }
