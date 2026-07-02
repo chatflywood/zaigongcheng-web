@@ -21,7 +21,7 @@
         <div class="page-meta">
           <span>数据截止 · 当前周期</span>
           <span class="ph-sep"></span>
-          <span>年度目标 {{ displayTargetValue }} 万</span>
+          <span>当期目标 {{ displayTargetValue }} 万</span>
           <template v-if="normalizedZaigongDate">
             <span class="ph-sep"></span>
             <span>{{ normalizedZaigongDate }}</span>
@@ -43,7 +43,7 @@
     <!-- ── Summary banner ── -->
     <div class="ki-summary-banner" v-if="props.zaigongData?.metrics">
       <p class="ki-summary-text">
-        当期资本性支出 <strong class="mono">{{ props.zaigongData?.metrics?.capital?.toFixed(2) || '—' }} 万元</strong>（当期目标 {{ displayTargetValue }} 万，进度 <strong style="color:var(--accent)">{{ capitalProgress }}%</strong>），{{ deficitLabel }}。全年支出进度 <strong style="color:var(--accent)">{{ annualCapitalProgress }}%</strong>，立项进度 {{ approvalProgress }}%。整体转固率仅 <strong class="mono" :style="{ color: parseFloat(transferRate) < 60 ? 'var(--bad)' : 'var(--ok)' }">{{ transferRate }}%</strong>{{ parseFloat(transferRate) < 60 ? '，低于60%期望值，需在下一周期集中推进转固。' : '，已达标。' }}
+        当期资本性支出 <strong class="mono">{{ props.zaigongData?.metrics?.capital?.toFixed(2) || '—' }} 万元</strong>（当期目标 {{ displayTargetValue }} 万，进度 <strong style="color:var(--accent)">{{ capitalProgress }}%</strong>），{{ deficitLabel }}。全年支出进度 <strong style="color:var(--accent)">{{ annualCapitalProgress }}%</strong>，立项进度 {{ approvalProgress }}%。整体转固率仅 <strong class="mono" :style="{ color: parseFloat(transferRate) < 60 ? 'var(--bad)' : 'var(--ok)' }">{{ transferRate }}%</strong>（当月时序目标 <strong>{{ transferTimelineTarget }}%</strong>，差距 <strong :style="{ color: parseFloat(transferTimelineGap) < 0 ? 'var(--bad)' : 'var(--ok)' }">{{ Math.abs(parseFloat(transferTimelineGap)) }}pp</strong>{{ parseFloat(transferTimelineGap) < 0 ? ' 落后' : ' 领先' }}）{{ parseFloat(transferRate) < 60 ? '，低于60%期望值，需在下一周期集中推进转固。' : '，已达标。' }}
       </p>
       <div class="ki-summary-foot">
         <span>AUTO-DRAFTED · 基于上传数据</span>
@@ -101,9 +101,9 @@
             </div>
             <div class="ki-kpi-label">转固率</div>
             <div class="ki-kpi-sub mono">期末余额 vs 年初数</div>
-            <div class="ki-kpi-delta" :class="parseFloat(transferRate) < 10 ? 'down' : 'flat'">
-              <span v-if="parseFloat(transferRate) < 10" class="tri-dn"></span>
-              {{ parseFloat(transferRate) < 10 ? '低位' : '—' }}
+            <div class="ki-kpi-delta" :class="parseFloat(transferRate) < 60 ? 'up' : 'ok'">
+              <span v-if="parseFloat(transferRate) < 60" class="tri-up"></span>
+              {{ parseFloat(transferRate) < 60 ? `距目标 ${(60 - parseFloat(transferRate)).toFixed(1)}pp` : '已达标' }}
             </div>
           </div>
 
@@ -124,7 +124,7 @@
                 <div class="ki-kpi-target">目标 100%</div>
               </div>
             </div>
-            <div class="ki-kpi-label">支出进度</div>
+            <div class="ki-kpi-label">整体支出进度</div>
             <div class="ki-kpi-sub mono">{{ props.budgetData?.annual_spend_total?.toFixed(1) || '0.0' }} / {{ props.budgetData?.budget_total?.toFixed(1) || '0.0' }} 万</div>
             <div class="ki-kpi-delta" :class="parseFloat(annualCapitalProgress) > 100 ? 'down' : 'up'">
               <span v-if="parseFloat(annualCapitalProgress) > 100" class="tri-dn"></span>
@@ -150,7 +150,7 @@
                 <div class="ki-kpi-target">目标 90%</div>
               </div>
             </div>
-            <div class="ki-kpi-label">立项进度</div>
+            <div class="ki-kpi-label">整体立项进度</div>
             <div class="ki-kpi-sub mono">{{ props.budgetData?.occupied_total?.toFixed(1) || '0.0' }} / {{ props.budgetData?.budget_total?.toFixed(1) || '0.0' }} 万</div>
             <div class="ki-kpi-delta" :class="parseFloat(approvalProgress) < 90 ? 'up' : 'flat'">
               {{ parseFloat(approvalProgress) < 90 ? `${(90 - parseFloat(approvalProgress)).toFixed(1)}pp 未绑定` : '已达标' }}
@@ -294,9 +294,13 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import html2canvas from 'html2canvas'
 import { useGlobalData } from '../composables/useGlobalData'
 import { useAppTools } from '../composables/useAppTools'
+import { useFormatters } from '../composables/useFormatters'
 
 const globalData = useGlobalData()
 const appTools = useAppTools()
+const { formatNum: _fmtNum } = useFormatters()
+// KeyIndicators 用 0 位小数 + '—' 占位符
+const formatNum = (v) => _fmtNum(v, { nullText: '—', min: 0, max: 0 })
 
 // Props 优先（测试时传入），否则从 composable 读取
 const _props = defineProps({
@@ -397,6 +401,15 @@ const transferRate = computed(() => {
   return (props.zaigongData.metrics.rate * 100).toFixed(1)
 })
 
+const transferTimelineTarget = computed(() => {
+  const month = new Date().getMonth() + 1 // 1–12
+  return ((60 * month) / 12).toFixed(1)
+})
+
+const transferTimelineGap = computed(() => {
+  return (parseFloat(transferRate.value) - parseFloat(transferTimelineTarget.value)).toFixed(1)
+})
+
 function gaugeColor(value, target) {
   if (value >= target * 0.95) return 'var(--ok)'
   if (value >= target * 0.80) return 'var(--accent)'
@@ -476,10 +489,7 @@ const managerViewRows = computed(() => {
     .sort((a, b) => b.capital - a.capital)
 })
 
-function formatNum(v) {
-  if (v == null || Number.isNaN(v)) return '—'
-  return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-}
+// formatNum 由 useFormatters 提供（上方包装为 0 位小数 + '—' 占位符）
 
 function getRateBarClass(rate) {
   if (rate >= 0.6) return 'ok'
@@ -575,7 +585,7 @@ function getWarningPillClass(key) {
 // Presentation mode — 使用 composable 中的 presentationMode 和 togglePresentationMode
 
 function copyNarrative() {
-  const text = `当期资本性支出 ${props.zaigongData?.metrics?.capital?.toFixed(2) || '—'} 万元（当期目标 ${displayTargetValue.value} 万，进度 ${capitalProgress.value}%），${deficitLabel.value}。全年支出进度 ${annualCapitalProgress.value}%，立项进度 ${approvalProgress.value}%。整体转固率仅 ${transferRate.value}%，需在下一周期集中推进转固。`
+  const text = `当期资本性支出 ${props.zaigongData?.metrics?.capital?.toFixed(2) || '—'} 万元（当期目标 ${displayTargetValue.value} 万，进度 ${capitalProgress.value}%），${deficitLabel.value}。全年支出进度 ${annualCapitalProgress.value}%，立项进度 ${approvalProgress.value}%。整体转固率 ${transferRate.value}%（当月时序目标 ${transferTimelineTarget.value}%，差距 ${Math.abs(parseFloat(transferTimelineGap.value))}pp${parseFloat(transferTimelineGap.value) < 0 ? ' 落后' : ' 领先'}），低于60%期望值，需在下一周期集中推进转固。`
   navigator.clipboard.writeText(text).catch(() => {})
 }
 

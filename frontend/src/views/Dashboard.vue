@@ -97,7 +97,7 @@
             <button class="view-all-btn" @click="openHistoryPanel">查看全部 →</button>
           </div>
           <div class="recent-uploads-grid">
-            <button v-for="record in recentHistoryCards" :key="record.id" class="recent-upload-item" @click="viewHistorySnapshot(record.id)">
+            <button v-for="record in recentHistoryCards" :key="record.id" class="recent-upload-item" @click="onViewHistorySnapshot(record.id)">
               <div class="recent-upload-date">{{ formatHistoryDateOnly(record.uploaded_at) }}</div>
               <div class="recent-upload-value">{{ formatNum(record.dashboard_snapshot?.metrics?.capital || 0) }} <span>万元</span></div>
               <div class="recent-upload-meta">目标 {{ formatNum(record.target_value || 0) }} · {{ formatHistoryProgress(record) }}</div>
@@ -485,7 +485,7 @@
           <p>暂无历史记录</p>
         </div>
         <div v-else class="history-list">
-          <button v-for="(record, index) in historyRecords" :key="record.id" class="history-item" :class="{ active: currentRecordId === record.id }" @click="viewHistorySnapshot(record.id)">
+          <button v-for="(record, index) in historyRecords" :key="record.id" class="history-item" :class="{ active: currentRecordId === record.id }" @click="onViewHistorySnapshot(record.id)">
             <div class="history-item-top">
               <strong>{{ record.source_filename }}</strong>
               <span class="history-item-id">#{{ record.id }}</span>
@@ -890,11 +890,16 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
-import { uploadExcel, getCompare, getHistory, getHistorySnapshot, getManagerDetails, getTransferPriority, exportTransferPriority, pushNotify, updateTargetValue } from '../api'
+import { uploadExcel, getCompare, getHistorySnapshot, getManagerDetails, getTransferPriority, exportTransferPriority, pushNotify, updateTargetValue } from '../api'
 
 import { useGlobalData } from '../composables/useGlobalData'
+import { useFormatters } from '../composables/useFormatters'
+import { useHistoryPanel } from '../composables/useHistoryPanel'
+import { useFileUpload } from '../composables/useFileUpload'
 
 const globalData = useGlobalData()
+const { formatNum, formatPercent, formatDelta, formatHistoryDateOnly } = useFormatters()
+const { formatHistoryTime, formatFileDate } = globalData
 
 // Props 优先（测试时传入），否则从 composable 读取
 const _props = defineProps({
@@ -924,10 +929,7 @@ const emit = (event, ...args) => {
 }
 
 // ── Core state ──
-const fileInput = ref(null)
 const loading = ref(false)
-const uploadMessage = ref('')
-const uploadMessageType = ref('info')
 const hasData = ref(false)
 const showUpload = ref(false)
 const dashboard = ref(null)
@@ -953,11 +955,6 @@ function persistRateTarget(val) {
 }
 const editingRateTarget = ref(false)
 const previousData = ref(null)
-const selectedFile = ref(null)
-const selectedFileName = ref('')
-const currentRecordId = ref(null)
-const isViewingHistory = ref(false)
-const snapshotDisplayDate = ref(null)
 
 // ── Manager detail (drawer) ──
 const modalVisible = ref(false)
@@ -967,10 +964,23 @@ const modalLoading = ref(false)
 const sortKey = ref('本年累计资本性支出')
 const sortOrder = ref('desc')
 
-// ── History ──
-const historyVisible = ref(false)
-const historyLoading = ref(false)
-const historyRecords = ref([])
+// ── History panel（composable 管理） ──
+const {
+  historyVisible, historyLoading, historyRecords, currentRecordId,
+  isViewingHistory, snapshotDisplayDate, recentHistoryCards,
+  loadHistoryList, openHistoryPanel, closeHistoryPanel, viewHistorySnapshot,
+} = useHistoryPanel({ type: 'zaigong' })
+
+// ── File upload（composable 管理；processFile 为页面业务编排，靠函数提升传引用） ──
+const {
+  fileInput, selectedFile, selectedFileName, uploadMessage, uploadMessageType,
+  triggerFileInput, handleFileChange, handleDrop, clearSelectedFile,
+} = useFileUpload({
+  requireTarget: true,
+  getTargetValue: () => targetValue.value,
+  isReady: () => targetValue.value && Number(targetValue.value) > 0,
+  processFile,
+})
 
 // ── Four-class warnings ──
 const fourClassWarningsLocal = ref(null)
@@ -1081,7 +1091,7 @@ function getTrendDiff(row) {
   return +(curr - prev).toFixed(2)
 }
 
-const recentHistoryCards = computed(() => historyRecords.value.slice(0, 4))
+// recentHistoryCards 由 useHistoryPanel 提供
 
 // ── Computed: KPI metrics ──
 const pendingOverLimitCount = computed(() => summaryRows.value.filter(item => {
@@ -1433,35 +1443,11 @@ function applyHistorySnapshot(snapshot, previous = null) {
 }
 
 // ── File handling ──
-function triggerFileInput() {
-  if (!targetValue.value) { uploadMessage.value = '请先输入目标金额'; uploadMessageType.value = 'error'; return }
-  uploadMessage.value = ''
-  fileInput.value?.click()
-}
+// triggerFileInput / handleFileChange / handleDrop / clearSelectedFile 由 useFileUpload 提供
 function confirmTargetValue() {
   if (!targetValue.value) { uploadMessage.value = '请先输入目标金额'; uploadMessageType.value = 'error'; return }
   uploadMessage.value = `目标金额已设置为 ${Number(targetValue.value).toFixed(2)} 万元`
   uploadMessageType.value = 'info'
-}
-async function handleFileChange(e) {
-  const file = e.target.files?.[0]
-  if (file) {
-    selectedFile.value = file; selectedFileName.value = file.name
-    uploadMessage.value = `已选择文件：${file.name}`; uploadMessageType.value = 'info'
-    if (targetValue.value && Number(targetValue.value) > 0) await processFile(file)
-  }
-}
-async function handleDrop(e) {
-  const file = e.dataTransfer.files?.[0]
-  if (file) {
-    selectedFile.value = file; selectedFileName.value = file.name
-    uploadMessage.value = `已选择文件：${file.name}`; uploadMessageType.value = 'info'
-    if (targetValue.value && Number(targetValue.value) > 0) await processFile(file)
-  }
-}
-function clearSelectedFile() {
-  selectedFile.value = null; selectedFileName.value = ''; uploadMessage.value = ''
-  if (fileInput.value) fileInput.value.value = ''
 }
 
 async function processFile(file) {
@@ -1499,42 +1485,11 @@ async function processFile(file) {
 }
 
 // ── History ──
-async function loadHistoryList() {
-  historyLoading.value = true
-  try {
-    const result = await getHistory(30)
-    if (result.success) {
-      const records = result.data || []
-      const enriched = await Promise.all(records.map(async (record, index) => {
-        if (index > 3) return record
-        try {
-          const snapshotResult = await getHistorySnapshot(record.id)
-          if (snapshotResult.success && snapshotResult.data?.current) {
-            return { ...record, dashboard_snapshot: snapshotResult.data.current.dashboard }
-          }
-        } catch (error) { console.error('获取历史快照摘要失败:', error) }
-        return record
-      }))
-      historyRecords.value = enriched
-    }
-  } catch (error) { console.error('获取历史列表失败:', error); historyRecords.value = [] }
-  finally { historyLoading.value = false }
-}
-async function openHistoryPanel() {
-  historyVisible.value = true
-  if (!historyRecords.value.length) await loadHistoryList()
-}
-function closeHistoryPanel() { historyVisible.value = false }
-async function viewHistorySnapshot(recordId) {
-  historyLoading.value = true
-  try {
-    const result = await getHistorySnapshot(recordId)
-    if (result.success && result.data?.current) {
-      applyHistorySnapshot(result.data.current, result.data.previous)
-      closeHistoryPanel()
-    }
-  } catch (error) { console.error('获取历史快照失败:', error); alert('读取历史快照失败，请稍后重试') }
-  finally { historyLoading.value = false }
+// loadHistoryList / openHistoryPanel / closeHistoryPanel 由 useHistoryPanel 提供
+// viewHistorySnapshot 包装：composable 拉快照后，页面执行 applyHistorySnapshot（写 dashboard/targetValue/previousData 等）
+async function onViewHistorySnapshot(recordId) {
+  const snapshot = await viewHistorySnapshot(recordId)
+  if (snapshot) applyHistorySnapshot(snapshot.current, snapshot.previous)
 }
 
 async function fetchCompareData() {
@@ -1587,32 +1542,8 @@ function getSortIcon(key) {
 function getSortClass(key) { return sortKey.value === key ? 'active' : '' }
 
 // ── Formatting helpers ──
-function formatNum(num) {
-  if (num === null || num === undefined || isNaN(num)) return '-'
-  return Number(num).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
-function formatHistoryTime(value) {
-  if (!value) return '-'
-  return new Date(value).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-}
-function formatHistoryDateOnly(value) {
-  if (!value) return '-'
-  return new Date(value).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-')
-}
-function formatFileDate(value) {
-  if (!value) return '-'
-  const raw = String(value)
-  if (/^\d{8}$/.test(raw)) return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`
-  if (/^\d{4}$/.test(raw)) return `${raw.slice(0, 2)}-${raw.slice(2, 4)}`
-  return raw
-}
-function formatPercent(value) { return (value * 100).toFixed(1) + '%' }
-function formatDelta(value, unit = '', alreadyPercent = false) {
-  const numeric = Number(value || 0)
-  const sign = numeric > 0 ? '+' : ''
-  if (unit === 'pct') return `${sign}${numeric.toFixed(1)} pct`
-  return `${sign}${numeric.toFixed(2)} ${unit}`.trim()
-}
+// formatNum / formatPercent / formatDelta / formatHistoryDateOnly 由 useFormatters 提供
+// formatHistoryTime / formatFileDate 由 useGlobalData 提供
 function formatHistoryProgress(record) {
   const capital = Number(record?.dashboard_snapshot?.metrics?.capital || 0)
   const target = Number(record?.target_value || 0)
