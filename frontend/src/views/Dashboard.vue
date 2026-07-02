@@ -174,19 +174,11 @@
 
       <!-- — KPI row — -->
       <div class="section" style="margin-bottom:48px">
-        <div class="kpi-grid">
-          <div class="kpi" v-for="(k, i) in metrics" :key="i">
-            <div class="kpi-label">{{ k.label }}</div>
-            <div class="kpi-value"><span class="mono" :class="k.valueClass || ''">{{ animatedValues[i] || k.value }}</span><span v-if="k.unit" style="font-size:13px;color:var(--ink-3);font-weight:400;margin-left:4px">{{ k.unit }}</span></div>
-            <div class="kpi-foot">
-              <span v-if="k.inlineNote">{{ k.inlineNote }}</span>
-              <span v-if="k.badgeText" class="pill" :class="k.badgeClass || ''">{{ k.badgeText }}</span>
-              <span v-if="k.delta !== undefined && k.delta !== null" class="delta" :class="k.deltaDir || ''">
-                <span :class="k.deltaDir === 'up' ? 'tri-up' : k.deltaDir === 'down' ? 'tri-dn' : ''"></span>{{ k.delta }}
-              </span>
-            </div>
-          </div>
-        </div>
+        <KpiGrid
+          :metrics="metrics"
+          :targets="[dashboard?.metrics?.capital || 0, dashboard?.metrics?.pending || 0, dashboard?.metrics?.monthSpend || 0, (dashboard?.metrics?.rate || 0) * 100]"
+          :formatters="[v => v.toFixed(2), v => v.toFixed(2), v => v.toFixed(2), v => v.toFixed(1) + '%']"
+        />
       </div>
 
       <!-- History comparison (when available) -->
@@ -465,44 +457,25 @@
     </div>
 
     <!-- History panel (full-screen overlay with tabs) -->
-    <div v-if="historyVisible" class="history-overlay" @click.self="closeHistoryPanel">
-      <div class="history-panel">
-        <div class="history-panel-header">
-          <div>
-            <span class="panel-kicker">History Snapshots</span>
-            <h3>历史记录中心</h3>
-            <p>{{ historyRecords.length }} 条记录 · 选择某次上传可恢复快照</p>
-          </div>
-          <button class="drawer-close" @click="closeHistoryPanel">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          </button>
-        </div>
-        <div v-if="historyLoading" class="history-loading">
-          <div class="loader-ring" style="width:32px;height:32px;position:relative"></div>
-          <p>正在读取历史记录...</p>
-        </div>
-        <div v-else-if="historyRecords.length === 0" class="history-empty">
-          <p>暂无历史记录</p>
-        </div>
-        <div v-else class="history-list">
-          <button v-for="(record, index) in historyRecords" :key="record.id" class="history-item" :class="{ active: currentRecordId === record.id }" @click="onViewHistorySnapshot(record.id)">
-            <div class="history-item-top">
-              <strong>{{ record.source_filename }}</strong>
-              <span class="history-item-id">#{{ record.id }}</span>
-            </div>
-            <div class="history-item-kpis">
-              <span class="history-kpi-capital">{{ formatNum(record.dashboard_snapshot?.metrics?.capital || 0) }}<em>万元</em></span>
-              <span class="history-kpi-progress">{{ formatHistoryProgress(record) }}</span>
-              <span v-if="getCapitalDelta(record, index) !== null" class="history-kpi-delta" :class="getCapitalDelta(record, index) >= 0 ? 'delta-up' : 'delta-down'">{{ getCapitalDelta(record, index) >= 0 ? '↑' : '↓' }} {{ formatNum(Math.abs(getCapitalDelta(record, index))) }}</span>
-            </div>
-            <div class="history-item-meta">
-              <span>{{ formatHistoryTime(record.uploaded_at) }}</span>
-              <span v-if="record.file_date">{{ formatFileDate(record.file_date) }}</span>
-            </div>
-          </button>
-        </div>
-      </div>
-    </div>
+    <HistoryPanel
+      v-model:visible="historyVisible"
+      :loading="historyLoading"
+      :records="historyRecords"
+      :current-record-id="currentRecordId"
+      title="历史记录中心"
+      :subtitle="`${historyRecords.length} 条记录 · 选择某次上传可恢复快照`"
+      @view-snapshot="onViewHistorySnapshot"
+    >
+      <template #kpi-capital="{ record }">{{ formatNum(record.dashboard_snapshot?.metrics?.capital || 0) }}<em>万元</em></template>
+      <template #kpi-progress="{ record }">{{ formatHistoryProgress(record) }}</template>
+      <template #kpi-delta="{ record, index }">
+        <span v-if="getCapitalDelta(record, index) !== null" class="history-kpi-delta" :class="getCapitalDelta(record, index) >= 0 ? 'delta-up' : 'delta-down'">{{ getCapitalDelta(record, index) >= 0 ? '↑' : '↓' }} {{ formatNum(Math.abs(getCapitalDelta(record, index))) }}</span>
+      </template>
+      <template #meta="{ record }">
+        <span>{{ formatHistoryTime(record.uploaded_at) }}</span>
+        <span v-if="record.file_date">{{ formatFileDate(record.file_date) }}</span>
+      </template>
+    </HistoryPanel>
 
     <!-- Manager detail drawer -->
     <ManagerDetailDrawer
@@ -566,6 +539,8 @@ import { useFileUpload } from '../composables/useFileUpload'
 import FourClassWarningModal from '../components/FourClassWarningModal.vue'
 import ManagerDetailDrawer from '../components/ManagerDetailDrawer.vue'
 import TransferPriorityModal from '../components/TransferPriorityModal.vue'
+import KpiGrid from '../components/KpiGrid.vue'
+import HistoryPanel from '../components/HistoryPanel.vue'
 
 const globalData = useGlobalData()
 const { formatNum, formatPercent, formatDelta, formatHistoryDateOnly } = useFormatters()
@@ -687,8 +662,7 @@ const targetEditValue = ref(null)
 const targetSaving = ref(false)
 const targetEditInput = ref(null)
 
-// ── KPI animation ──
-const animatedValues = ref([])
+// KPI 动画（animatedValues/runCountUp）已移入 KpiGrid 组件
 
 // ── Computed: projects for tables ──
 const projectsList = computed(() => {
@@ -1289,25 +1263,7 @@ function getManagerRate(managerName) {
   return formatPercent(row.rate || row['转固率'] || 0)
 }
 
-// ── KPI count-up animation ──
-function runCountUp(newMetrics) {
-  if (!newMetrics?.length) { animatedValues.value = []; return }
-  const m = dashboard.value?.metrics
-  if (!m) return
-  const targets = [m.capital || 0, m.pending || 0, m.monthSpend || 0, (m.rate || 0) * 100]
-  const formatters = [v => v.toFixed(2), v => v.toFixed(2), v => v.toFixed(2), v => v.toFixed(1) + '%']
-  const duration = 900
-  const startTs = performance.now()
-  function tick(ts) {
-    const t = Math.min((ts - startTs) / duration, 1)
-    const eased = 1 - Math.pow(1 - t, 3)
-    animatedValues.value = targets.map((target, i) => formatters[i](target * eased))
-    if (t < 1) requestAnimationFrame(tick)
-    else animatedValues.value = targets.map((target, i) => formatters[i](target))
-  }
-  requestAnimationFrame(tick)
-}
-watch(metrics, runCountUp, { immediate: true })
+// runCountUp / watch(metrics) 已移入 KpiGrid 组件
 
 // ── Watchers ──
 watch(
@@ -1432,39 +1388,7 @@ onUnmounted(() => {})
 }
 .upload-strip .up-meter b { font-size: 14px; color: var(--ink); font-weight: 500; }
 
-/* ── KPI grid ──────────────────────────────────── */
-.kpi-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr);
-  gap: 1px; background: var(--line);
-  border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden;
-}
-.kpi {
-  background: var(--surface); padding: 22px 24px;
-  display: flex; flex-direction: column; min-width: 0;
-}
-.kpi-label {
-  font-size: 11.5px; color: var(--ink-3); letter-spacing: 0.02em; margin-bottom: 14px;
-}
-.kpi-value {
-  font-size: 32px; font-weight: 500; color: var(--ink); line-height: 1;
-  letter-spacing: -0.025em; font-variant-numeric: tabular-nums;
-  display: flex; align-items: baseline; gap: 6px;
-}
-.kpi-value .mono { font-family: var(--font-mono); }
-.kpi-foot {
-  margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line);
-  font-size: 11.5px; color: var(--ink-3);
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
-}
-.kpi-foot .delta {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-family: var(--font-mono); font-size: 11px; letter-spacing: -0.02em;
-}
-.delta.up { color: var(--ok); }
-.delta.down { color: var(--bad); }
 .val-negative { color: var(--bad) !important; }
-.tri-up::before { content: '▲'; font-size: 8px; margin-right: 3px; }
-.tri-dn::before { content: '▼'; font-size: 8px; margin-right: 3px; }
 
 /* ── Table ─────────────────────────────────────── */
 .tbl { width: 100%; font-size: 13px; color: var(--ink); border-collapse: collapse; }
@@ -1727,43 +1651,6 @@ onUnmounted(() => {})
 .loader-ring:nth-child(3) { inset: 14px; border-top-color: var(--ok); animation-delay: 0.3s; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .loading p { margin-top: 16px; font-size: 13px; color: var(--ink-3); }
-
-/* ── History panel ────────────────────────────── */
-.history-overlay {
-  position: fixed; inset: 0; z-index: 980;
-  display: flex; justify-content: flex-end; background: rgba(31,29,24,0.2);
-}
-.history-panel {
-  width: min(480px, 100%); height: 100%; padding: 24px;
-  background: var(--surface); border-left: 1px solid var(--line);
-  box-shadow: -12px 0 40px rgba(31,29,24,0.08); overflow-y: auto; color: var(--ink);
-}
-.history-panel-header {
-  display: flex; align-items: flex-start; justify-content: space-between;
-  gap: 16px; margin-bottom: 20px;
-}
-.history-panel-header h3 { margin: 6px 0 8px; font-size: 20px; font-weight: 500; color: var(--ink); }
-.history-panel-header p { color: var(--ink-3); font-size: 13px; line-height: 1.6; }
-.history-loading, .history-empty { min-height: 200px; display: grid; place-items: center; color: var(--ink-3); text-align: center; }
-.history-list { display: grid; gap: 8px; }
-.history-item {
-  width: 100%; padding: 14px; border-radius: var(--r-md);
-  border: 1px solid var(--line); background: var(--surface);
-  color: var(--ink); text-align: left; cursor: pointer; transition: 0.15s; font-family: inherit;
-}
-.history-item:hover { border-color: var(--line-2); background: var(--paper); }
-.history-item.active { border-color: var(--line-2); background: var(--paper-2); }
-.history-item-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
-.history-item-top strong { flex: 1; font-size: 13px; color: var(--ink); }
-.history-item-id { flex-shrink: 0; color: var(--ink-4); font-size: 12px; font-family: var(--font-mono); }
-.history-item-kpis { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
-.history-kpi-capital { font-size: 14px; font-weight: 500; color: var(--ink); display: flex; align-items: baseline; gap: 3px; font-family: var(--font-mono); }
-.history-kpi-capital em { font-size: 11px; font-style: normal; font-weight: 400; color: var(--ink-3); font-family: var(--font-sans); }
-.history-kpi-progress { font-size: 11px; color: var(--info); background: var(--info-soft); padding: 2px 8px; border-radius: 4px; }
-.history-kpi-delta { font-size: 12px; font-weight: 500; font-family: var(--font-mono); }
-.history-kpi-delta.delta-up { color: var(--ok); }
-.history-kpi-delta.delta-down { color: var(--bad); }
-.history-item-meta { display: flex; gap: 10px; flex-wrap: wrap; color: var(--ink-4); font-size: 11px; }
 
 /* ── Target edit inline ──────────────────────── */
 .target-edit-btn { display: inline-flex; align-items: center; padding: 2px; border: none; background: transparent; color: var(--ink-4); cursor: pointer; border-radius: var(--r-sm); transition: color 0.15s; font-family: inherit; vertical-align: middle; }

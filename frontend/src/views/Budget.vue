@@ -580,57 +580,29 @@
 
     </div><!-- /batch tab -->
 
-    <div v-if="historyVisible" class="history-overlay" @click.self="closeHistoryPanel">
-      <aside class="history-panel">
-        <div class="history-panel-header">
-          <div>
-            <span class="panel-kicker budget-kicker">History Snapshots</span>
-            <h3>预算立项历史记录</h3>
-            <p>选择某次上传记录，直接恢复当时的预算分析结果。</p>
-          </div>
-          <button class="modal-close" @click="closeHistoryPanel">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-
-        <div v-if="historyLoading" class="history-loading">
-          <div class="loader-ring"></div>
-          <p>正在读取历史记录...</p>
-        </div>
-        <div v-else-if="historyRecords.length === 0" class="history-empty">
-          <p>暂无历史记录</p>
-        </div>
-        <div v-else class="history-list">
-          <button
-            v-for="(record, index) in historyRecords"
-            :key="record.id"
-            class="history-item"
-            :class="{ active: currentRecordId === record.id }"
-            @click="onViewHistorySnapshot(record.id)"
-          >
-            <div class="history-item-top">
-              <strong>{{ record.source_filename }}</strong>
-              <span class="history-item-id">#{{ record.id }}</span>
-            </div>
-            <div class="history-item-kpis">
-              <span class="history-kpi-capital">{{ formatNum(record.snapshot_data?.occupied_total || 0) }}<em>万元</em></span>
-              <span class="history-kpi-progress">{{ formatBudgetHistoryProgress(record) }}</span>
-              <span
-                v-if="getProgressDelta(record, index) !== null"
-                class="history-kpi-delta"
-                :class="getProgressDelta(record, index) >= 0 ? 'delta-up' : 'delta-down'"
-              >{{ getProgressDelta(record, index) >= 0 ? '↑' : '↓' }} {{ Math.abs(getProgressDelta(record, index)).toFixed(1) }}pct</span>
-            </div>
-            <div class="history-item-meta">
-              <span>{{ formatHistoryTime(record.uploaded_at) }}</span>
-            </div>
-          </button>
-        </div>
-      </aside>
-    </div>
+    <HistoryPanel
+      v-model:visible="historyVisible"
+      :loading="historyLoading"
+      :records="historyRecords"
+      :current-record-id="currentRecordId"
+      title="预算立项历史记录"
+      subtitle="选择某次上传记录，直接恢复当时的预算分析结果。"
+      kicker-class="budget-kicker"
+      @view-snapshot="onViewHistorySnapshot"
+    >
+      <template #kpi-capital="{ record }">{{ formatNum(record.snapshot_data?.occupied_total || 0) }}<em>万元</em></template>
+      <template #kpi-progress="{ record }">{{ formatBudgetHistoryProgress(record) }}</template>
+      <template #kpi-delta="{ record, index }">
+        <span
+          v-if="getProgressDelta(record, index) !== null"
+          class="history-kpi-delta"
+          :class="getProgressDelta(record, index) >= 0 ? 'delta-up' : 'delta-down'"
+        >{{ getProgressDelta(record, index) >= 0 ? '↑' : '↓' }} {{ Math.abs(getProgressDelta(record, index)).toFixed(1) }}pct</span>
+      </template>
+      <template #meta="{ record }">
+        <span>{{ formatHistoryTime(record.uploaded_at) }}</span>
+      </template>
+    </HistoryPanel>
 
     <div v-if="loading" class="loading">
       <div class="loader">
@@ -659,6 +631,7 @@ import { useGlobalData } from '../composables/useGlobalData'
 import { useFormatters } from '../composables/useFormatters'
 import { useHistoryPanel } from '../composables/useHistoryPanel'
 import { useFileUpload } from '../composables/useFileUpload'
+import HistoryPanel from '../components/HistoryPanel.vue'
 
 const globalData = useGlobalData()
 const { formatNum: _formatNum, formatPercent, formatDelta, formatHistoryDateOnly } = useFormatters()
@@ -795,30 +768,7 @@ const categoryProgressTop5 = computed(() => {
     .slice(0, 5)
 })
 
-const progressStatus = computed(() => {
-  const p = Number(data.value.approval_progress || 0)
-  if (p >= 1) return { text: '已达年度目标', badgeClass: 'safe' }
-  if (p >= 0.7) return { text: '推进中', badgeClass: 'warning' }
-  return { text: '进度偏低', badgeClass: 'danger' }
-})
-
-const metrics = computed(() => {
-  if (!data.value.budget_total) return []
-  return [
-    { label: '年度预算', value: formatNum(data.value.budget_total), unit: '万元', class: 'blue' },
-    { label: '年度支出', value: formatNum(data.value.annual_spend_total), unit: '万元', class: 'purple' },
-    { label: '已占用', value: formatNum(data.value.occupied_total), unit: '万元', class: 'green' },
-    { label: '预占用', value: formatNum(data.value.preoccupied_total), unit: '万元', class: 'orange' },
-    { label: '立项进度', value: formatPercent(data.value.approval_progress), unit: '', class: progressBadgeClass.value, badgeText: progressStatus.value.text, badgeClass: progressStatus.value.badgeClass },
-  ]
-})
-
-const progressBadgeClass = computed(() => {
-  const p = data.value.approval_progress || 0
-  if (p >= 1) return 'success'
-  if (p >= 0.5) return 'warning'
-  return 'danger'
-})
+// progressStatus / metrics / progressBadgeClass 三个孤儿 computed 已清理（template 从未引用）
 
 const progressText = computed(() => {
   const p = data.value.approval_progress || 0
@@ -1207,8 +1157,6 @@ async function confirmDeleteSpecialty(s) {
 
 .upload-copy,
 .upload-box,
-.history-panel,
-.history-item,
 .fact-card {
   color: #1c1b18;
 }
@@ -1223,36 +1171,15 @@ async function confirmDeleteSpecialty(s) {
 }
 
 .upload-box h2,
-.history-panel-header h3,
-.history-item-top strong,
-.fact-card strong,
-.history-item-id {
+.fact-card strong {
   color: #1c1b18;
 }
 
 .upload-copy p,
 .upload-hint,
-.history-panel-header p,
-.history-item-meta,
 .fact-card span {
   color: #6b6a63;
 }
-
-.history-kpi-capital {
-  color: #1c1b18;
-}
-
-.history-kpi-capital em {
-  color: #6b6a63;
-}
-
-.history-kpi-progress {
-  background: #f0eeff;
-  color: #5b21b6;
-}
-
-.history-kpi-delta.delta-up { color: #15803d; }
-.history-kpi-delta.delta-down { color: #b91c1c; }
 
 .file-tag,
 .panel-kicker,
@@ -1724,27 +1651,6 @@ async function confirmDeleteSpecialty(s) {
   border-radius: 6px;
 }
 
-.history-overlay {
-  background: rgba(28, 27, 24, 0.25);
-}
-
-.history-panel {
-  background: #fff;
-  border-left: 1px solid #e4e3dc;
-}
-
-.history-item {
-  background: #fff;
-  border: 1px solid #e4e3dc;
-  border-radius: 8px;
-}
-
-.history-item:hover,
-.history-item.active {
-  background: #f0efe9;
-  border-color: #d0cfc6;
-}
-
 /* ===== Budget upload page replica ===== */
 .upload-section {
   min-height: auto !important;
@@ -1809,15 +1715,9 @@ async function confirmDeleteSpecialty(s) {
   align-items: flex-start !important;
 }
 
-.panel-kicker.budget-kicker {
-  display: inline-block !important;
-  margin: 0 !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.16em !important;
-  text-transform: uppercase !important;
+/* HistoryPanel 组件内 .panel-kicker.budget-kicker 的 Budget 主题色覆盖（:deep 穿透 scoped） */
+:deep(.panel-kicker.budget-kicker) {
   color: #5f36da !important;
-  line-height: 1 !important;
 }
 
 .budget-intro-card {
