@@ -505,386 +505,53 @@
     </div>
 
     <!-- Manager detail drawer -->
-    <div v-if="modalVisible" class="mgr-drawer-overlay" @click.self="closeModal">
-      <aside class="mgr-drawer">
-
-        <header class="mgr-drawer-head">
-          <div style="min-width:0;flex:1">
-            <div class="eyebrow" style="margin-bottom:8px">工程管理员 · 明细</div>
-            <h2 class="mgr-drawer-name">{{ modalManager }}</h2>
-            <div class="mgr-drawer-meta">
-              <span>排名 <strong>#{{ modalRank }}</strong></span>
-              <span class="mgr-sep"></span>
-              <span>在管 <strong>{{ modalTotalProjects }}</strong> 项 · 在建 {{ modalActiveCount }}</span>
-              <span class="mgr-sep"></span>
-              <span>转固率 <strong>{{ modalManagerRateStr }}</strong></span>
-              <span v-if="modalReversedCount > 0" class="ds-pill warn" style="font-size:10px;margin-left:4px">
-                <span class="dot"></span>{{ modalReversedCount }} 项冲回
-              </span>
-            </div>
-          </div>
-          <button class="modal-close" @click="closeModal">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          </button>
-        </header>
-
-        <div class="mgr-drawer-body">
-
-          <!-- Financial summary -->
-          <div class="mgr-section">
-            <div class="mgr-section-head">
-              <span class="mgr-section-title">财务摘要</span>
-              <span class="mgr-section-sub">单位：万元</span>
-            </div>
-            <div class="mgr-stat-grid">
-              <div class="mgr-stat">
-                <div class="mgr-stat-label">在建工程期末余额</div>
-                <div class="mgr-stat-value">{{ formatNum(modalBalance) }}<span class="mgr-stat-unit">万</span></div>
-              </div>
-              <div class="mgr-stat">
-                <div class="mgr-stat-label">本年累计资本性支出</div>
-                <div class="mgr-stat-value" :style="{ color: modalSpendYTD < 0 ? 'var(--bad)' : '' }">
-                  {{ formatNum(modalSpendYTD) }}<span class="mgr-stat-unit">万</span>
-                </div>
-              </div>
-              <div class="mgr-stat">
-                <div class="mgr-stat-label">本月资本性支出</div>
-                <div class="mgr-stat-value" :style="{ color: modalSpendMo < 0 ? 'var(--bad)' : '' }">
-                  {{ formatNum(modalSpendMo) }}<span class="mgr-stat-unit">万</span>
-                </div>
-              </div>
-              <div class="mgr-stat">
-                <div class="mgr-stat-label">结转额 · 期初</div>
-                <div class="mgr-stat-value">{{ formatNum(modalTransfer) }}<span class="mgr-stat-unit">万</span></div>
-              </div>
-              <div class="mgr-stat">
-                <div class="mgr-stat-label">已下单待收货</div>
-                <div class="mgr-stat-value">{{ formatNum(modalPending) }}<span class="mgr-stat-unit">万</span></div>
-              </div>
-              <div class="mgr-stat">
-                <div class="mgr-stat-label">转固率</div>
-                <div class="mgr-stat-value">{{ modalManagerRateStr }}</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Projects detail table -->
-          <div class="mgr-section">
-            <div class="mgr-section-head">
-              <span class="mgr-section-title">所属工程明细 · {{ modalProjectsForDrawer.length }} 项</span>
-              <span class="mgr-section-sub">期末余额合计 <strong style="color:var(--ink)">{{ formatNum(modalBalance) }}</strong> 万</span>
-            </div>
-            <div v-if="modalLoading" class="modal-loading"><div class="loader-ring"></div></div>
-            <div v-else-if="modalProjectsForDrawer.length === 0" class="modal-empty">暂无工程记录</div>
-            <div v-else class="mgr-tbl-wrap">
-              <table class="detail-table">
-                <thead>
-                  <tr>
-                    <th class="sortable" style="min-width:200px" @click="toggleSort('工程名称')">
-                      工程名称 <span class="sort-icon" :class="getSortClass('工程名称')">{{ getSortIcon('工程名称') }}</span>
-                    </th>
-                    <th class="num sortable" title="结转额" @click="toggleSort('结转额')">
-                      结转额 <span class="sort-icon" :class="getSortClass('结转额')">{{ getSortIcon('结转额') }}</span>
-                    </th>
-                    <th class="num sortable" title="本年累计资本性支出" @click="toggleSort('本年累计资本性支出')">
-                      本年支出 <span class="sort-icon" :class="getSortClass('本年累计资本性支出')">{{ getSortIcon('本年累计资本性支出') }}</span>
-                    </th>
-                    <th class="num sortable" title="已下单待收货" @click="toggleSort('已下单待收货')">
-                      已下单待收货 <span class="sort-icon" :class="getSortClass('已下单待收货')">{{ getSortIcon('已下单待收货') }}</span>
-                    </th>
-                    <th class="num sortable" title="本月资本性支出" @click="toggleSort('本月资本性支出')">
-                      本月支出 <span class="sort-icon" :class="getSortClass('本月资本性支出')">{{ getSortIcon('本月资本性支出') }}</span>
-                    </th>
-                    <th class="num sortable" title="在建工程期末余额" @click="toggleSort('在建工程期末余额')">
-                      期末余额 <span class="sort-icon" :class="getSortClass('在建工程期末余额')">{{ getSortIcon('在建工程期末余额') }}</span>
-                    </th>
-                    <th class="sortable" @click="toggleSort('转固率')">
-                      转固率 <span class="sort-icon" :class="getSortClass('转固率')">{{ getSortIcon('转固率') }}</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="item in sortedModalData" :key="item['工程名称']">
-                    <td>
-                      <div class="mgr-proj-name" :title="item['工程名称']">{{ item['工程名称'] }}</div>
-                    </td>
-                    <td class="num mono muted">{{ formatNum(item['结转额']) }}</td>
-                    <td class="num mono" :class="(Number(item['本年累计资本性支出']) || 0) < 0 ? 'val-bad' : ''">
-                      {{ formatNum(item['本年累计资本性支出']) }}
-                    </td>
-                    <td class="num mono muted">{{ formatNum(item['已下单待收货']) }}</td>
-                    <td class="num mono" :class="(Number(item['本月资本性支出']) || 0) < 0 ? 'val-bad' : ''">
-                      {{ formatNum(item['本月资本性支出']) }}
-                    </td>
-                    <td class="num mono val-primary">{{ formatNum(item['在建工程期末余额']) }}</td>
-                    <td>
-                      <span class="rate-badge" :class="getRateClass(item['转固率'])">{{ formatPercent(item['转固率']) }}</span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-        </div>
-
-        <footer class="mgr-drawer-foot">
-          <span class="muted" style="font-size:11.5px">Esc 关闭 · 点击其他姓名可跳转</span>
-          <button class="ds-btn ghost" @click="exportAllManagerDetails" :disabled="modalLoading || !sortedModalData.length">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 12v1.5h10V12M5 8l3 3 3-3M8 3v8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            导出明细
-          </button>
-        </footer>
-
-      </aside>
-    </div>
+    <ManagerDetailDrawer
+      v-model:visible="modalVisible"
+      :manager="modalManager"
+      :loading="modalLoading"
+      :sorted-data="sortedModalData"
+      :rank="modalRank"
+      :total-projects="modalTotalProjects"
+      :active-count="modalActiveCount"
+      :reversed-count="modalReversedCount"
+      :manager-rate-str="modalManagerRateStr"
+      :balance="modalBalance"
+      :spend-ytd="modalSpendYTD"
+      :spend-mo="modalSpendMo"
+      :transfer="modalTransfer"
+      :pending="modalPending"
+      :projects-for-drawer="modalProjectsForDrawer"
+      :sort-key="sortKey"
+      :sort-order="sortOrder"
+      @sort="toggleSort"
+      @export="exportAllManagerDetails"
+    />
 
     <!-- Four-class detail modal -->
-    <div v-if="fourClassDetailVisible" class="four-class-modal-overlay" @click.self="fourClassDetailVisible = false">
-      <div class="four-class-modal">
-        <div class="modal-header">
-          <div class="modal-title-wrap">
-            <h3>{{ fourClassDetailType }}</h3>
-            <span v-if="fcWarnings?.analysis_date" class="modal-date">数据日期：{{ fcWarnings.analysis_date }}</span>
-          </div>
-          <div class="modal-header-actions">
-            <button class="export-btn-primary" @click="exportFourClassWarnings" :disabled="!currentRecordId">
-              <span>↓</span> 导出预警清单
-            </button>
-            <button class="modal-close" @click="fourClassDetailVisible = false">✕</button>
-          </div>
-        </div>
-        <div class="modal-body">
-          <template v-if="fourClassDetailType === '四类工程预警明细'">
-            <template v-for="type in fourClassTypes" :key="type.name">
-              <div class="four-class-group" :class="'group-' + type.key">
-                <div class="group-header">
-                  <span class="group-title">{{ type.name }}</span>
-                  <span class="group-count">已触发 {{ getGroupStats(type.name).triggered }} / 预警 {{ getGroupStats(type.name).warning }}</span>
-                </div>
-                <table class="data-table four-class-modal-table">
-                  <thead><tr><th class="col-status">状态</th><th class="col-name">工程名称</th><th class="col-accept">验收类型</th><th class="col-manager">管理员</th><th class="col-date">关键日期</th><th class="col-date">截止日期</th><th class="col-project-status">工程状态</th><th class="col-days">天数</th><th class="col-suggestion">处置建议</th></tr></thead>
-                  <tbody>
-                    <tr v-for="item in getGroupItems(type.name)" :key="item.id" :class="'row-' + item.status">
-                      <td class="col-status"><span class="status-tag" :class="item.status">{{ item.status }}</span></td>
-                      <td class="col-name" :title="item.name">{{ item.name }}</td>
-                      <td class="col-accept">{{ item.acceptType }}</td>
-                      <td class="col-manager">{{ item.manager }}</td>
-                      <td class="col-date">{{ item.keyDate }}</td>
-                      <td class="col-date">{{ item.deadline || '-' }}</td>
-                      <td class="col-project-status">{{ item.projectStatus || '—' }}</td>
-                      <td class="col-days" :class="getDaysClass(item.daysLabel, item.status)"><span v-if="item.status === '预警' && parseInt(item.daysLabel?.match(/\d+/)?.[0]) <= 30" style="margin-right:2px">⚠️</span>{{ item.daysLabel }}</td>
-                      <td class="col-suggestion">{{ item.suggestion }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </template>
-          </template>
-          <template v-else>
-            <table class="data-table four-class-modal-table">
-              <thead><tr><th class="col-status">状态</th><th class="col-name">工程名称</th><th class="col-accept">验收类型</th><th class="col-manager">管理员</th><th class="col-date">关键日期</th><th class="col-date">截止日期</th><th class="col-project-status">工程状态</th><th class="col-days">天数</th><th class="col-suggestion">处置建议</th></tr></thead>
-              <tbody>
-                <tr v-for="item in fourClassDetailItems" :key="item.id" :class="'row-' + item.status">
-                  <td class="col-status"><span class="status-tag" :class="item.status">{{ item.status }}</span></td>
-                  <td class="col-name" :title="item.name">{{ item.name }}</td>
-                  <td class="col-accept">{{ item.acceptType }}</td>
-                  <td class="col-manager">{{ item.manager }}</td>
-                  <td class="col-date">{{ item.keyDate }}</td>
-                  <td class="col-date">{{ item.deadline || '-' }}</td>
-                  <td class="col-project-status">{{ item.projectStatus || '—' }}</td>
-                  <td class="col-days" :class="getDaysClass(item.daysLabel, item.status)"><span v-if="item.status === '预警' && parseInt(item.daysLabel?.match(/\d+/)?.[0]) <= 30" style="margin-right:2px">⚠️</span>{{ item.daysLabel }}</td>
-                  <td class="col-suggestion">{{ item.suggestion }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </template>
-        </div>
-      </div>
-    </div>
+    <FourClassWarningModal
+      v-model:visible="fourClassDetailVisible"
+      :type="fourClassDetailType"
+      :items="fourClassDetailItems"
+      :warnings="fcWarnings"
+      :record-id="currentRecordId"
+      :types="fourClassTypes"
+      @export="exportFourClassWarnings"
+    />
 
     <!-- Transfer priority modal -->
-    <div v-if="transferPriorityVisible" class="tp-overlay" @click.self="transferPriorityVisible = false">
-      <div class="tp-modal">
-        <div class="tp-header">
-          <div class="tp-header-left">
-            <h3>转固推进清单</h3>
-            <span class="tp-subtitle">各管理员待转固项目 · 按转固贡献从高到低排序</span>
-          </div>
-          <div class="tp-header-actions">
-            <button class="tp-export-btn" :disabled="transferExporting || !transferPriorityData.length" @click="handleExportTransferPriority">
-              <span v-if="transferExporting">导出中…</span>
-              <span v-else>导出 Excel</span>
-            </button>
-            <button class="modal-close" @click="transferPriorityVisible = false">✕</button>
-          </div>
-        </div>
-        <div v-if="transferPriorityLoading" class="tp-loading">
-          <div class="loader-ring" style="width:32px;height:32px;position:relative"></div>
-          <p>正在计算...</p>
-        </div>
-        <div v-else-if="transferPriorityError" class="tp-empty tp-error"><p>{{ transferPriorityError }}</p></div>
-        <div v-else-if="!transferPriorityData.length" class="tp-empty"><p>暂无待转固项目数据</p></div>
-        <template v-else>
-          <div class="tp-calc-bar">
-            <div class="tp-calc-left">
-              <span class="tp-calc-label">转固率目标测算</span>
-              <div class="tp-calc-input-wrap">
-                <input v-model="targetRate" type="number" min="1" max="100" step="1" placeholder="输入目标 %" class="tp-calc-input" @keyup.enter="$event.target.blur()" />
-                <span class="tp-calc-unit">%</span>
-                <button v-if="targetRate" class="tp-calc-clear" @click="targetRate = ''" title="清除">✕</button>
-              </div>
-            </div>
-            <div class="tp-calc-result">
-              <template v-if="computedTarget">
-                <template v-if="computedTarget.alreadyGlobal">
-                  <span class="tp-calc-achieved">当前 {{ formatPercent(computedTarget.globalCurrentRate) }} 已达目标，无需额外转固</span>
-                </template>
-                <template v-else>
-                  <span class="tp-calc-from">当前 {{ formatPercent(computedTarget.globalCurrentRate) }}</span>
-                  <span class="tp-calc-arrow">→</span>
-                  <span class="tp-calc-to">目标 {{ formatPercent(computedTarget.target) }}</span>
-                  <span class="tp-calc-divider">|</span>
-                  <span class="tp-calc-desc">全局还需减少在建余额</span>
-                  <strong class="tp-calc-amount">{{ formatNum(computedTarget.globalRequired) }} 万元</strong>
-                </template>
-              </template>
-              <span v-else class="tp-calc-hint">设定目标后自动测算各管理员任务量</span>
-            </div>
-          </div>
-          <div class="tp-body">
-            <div v-for="managerGroup in displayManagers" :key="managerGroup.manager" class="tp-manager-block">
-              <div class="tp-manager-header">
-                <div class="tp-manager-name">{{ managerGroup.manager }}</div>
-                <div class="tp-manager-stats">
-                  <span class="tp-stat-item">
-                    当前转固率
-                    <strong :class="'rate-badge ' + getRateClass(managerGroup.current_rate)">
-                      {{ formatPercent(managerGroup.current_rate) }}
-                    </strong>
-                  </span>
-                  <span class="tp-stat-sep">·</span>
-                  <template v-if="!computedTarget">
-                    <span class="tp-stat-item">
-                      待转固余额合计
-                      <strong>{{ formatNum(managerGroup.total_balance) }} 万</strong>
-                    </span>
-                    <span class="tp-stat-sep">·</span>
-                    <span class="tp-stat-item">
-                      全部完成后可达
-                      <strong class="tp-target-rate">
-                        {{ managerGroup.projects.length ? formatPercent(managerGroup.projects[managerGroup.projects.length - 1]['累计后转固率']) : formatPercent(managerGroup.current_rate) }}
-                      </strong>
-                    </span>
-                  </template>
-                  <template v-else>
-                    <template v-if="managerGroup.alreadyAchieved">
-                      <span class="tp-stat-achieved">已达目标 {{ formatPercent(computedTarget.target) }}，无需额外操作</span>
-                    </template>
-                    <template v-else>
-                      <span class="tp-stat-item">
-                        需减少余额
-                        <strong class="tp-stat-required">{{ formatNum(managerGroup.managerRequired) }} 万</strong>
-                      </span>
-                      <span class="tp-stat-sep">·</span>
-                      <span class="tp-stat-item" v-if="managerGroup.reachable">
-                        完成前 <strong class="tp-stat-count">{{ managerGroup.neededCount }}</strong> 个项目即可达标
-                      </span>
-                      <span class="tp-stat-item tp-stat-warn" v-else>
-                        全部项目完成仍不足，需加快其他项目转固
-                      </span>
-                    </template>
-                  </template>
-                </div>
-              </div>
-              <div class="tp-table-wrap">
-                <table class="tp-table">
-                  <thead>
-                    <tr>
-                      <th class="tp-col-rank">优先</th>
-                      <th class="tp-col-name">工程名称</th>
-                      <th class="tp-col-contractor">施工单位</th>
-                      <th class="tp-col-balance">在建余额(万)</th>
-                      <th class="tp-col-contrib">转固贡献率</th>
-                      <th class="tp-col-urgency">紧迫度</th>
-                      <th class="tp-col-action">完成后转固率</th>
-                      <th class="tp-col-hint">紧迫说明</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <template v-for="(proj, idx) in managerGroup.projects" :key="proj['工程名称']">
-                      <tr v-if="computedTarget && proj.needed === false && idx > 0 && managerGroup.projects[idx-1].needed !== false"
-                          class="tp-divider-row">
-                        <td colspan="8">
-                          <div class="tp-divider-line">
-                            <span>以下为缓冲项目（完成上方任务后已达标）</span>
-                          </div>
-                        </td>
-                      </tr>
-                    <tr :class="['tp-row', 'urgency-' + proj['紧迫度'], { 'tp-row-needed': proj.needed === true, 'tp-row-optional': proj.needed === false && computedTarget }]">
-                      <td class="tp-col-rank">
-                        <span class="tp-rank-badge" :class="{ 'tp-rank-top': idx < 3, 'tp-rank-needed': proj.needed === true }">{{ idx + 1 }}</span>
-                      </td>
-                      <td class="tp-col-name" :title="proj['工程名称']">
-                        <span v-if="proj.needed === true" class="tp-needed-mark">必</span>
-                        {{ proj['工程名称'] }}
-                      </td>
-                      <td class="tp-col-contractor" :title="proj['施工单位']">{{ proj['施工单位'] || '—' }}</td>
-                      <td class="tp-col-balance">{{ formatNum(proj['在建余额']) }}</td>
-                      <td class="tp-col-contrib">
-                        <div class="tp-contrib-bar-wrap">
-                          <div class="tp-contrib-bar" :style="{ width: Math.min(proj['转固贡献率'] * 100 / 0.3, 100) + '%' }"></div>
-                          <span>{{ (proj['转固贡献率'] * 100).toFixed(1) }}%</span>
-                        </div>
-                      </td>
-                      <td class="tp-col-urgency">
-                        <span class="tp-urgency-tag" :class="'urgency-tag-' + proj['紧迫度']">{{ proj['紧迫度'] }}</span>
-                      </td>
-                      <td class="tp-col-action">
-                        <span class="tp-after-rate">{{ formatPercent(proj['累计后转固率']) }}</span>
-                        <span class="tp-rate-arrow">↑{{ ((proj['累计后转固率'] - managerGroup.current_rate) * 100).toFixed(1) }}pct</span>
-                      </td>
-                      <td class="tp-col-hint">
-                        <template v-if="proj.urgency_detail && proj.urgency_detail.length">
-                          <div v-for="(u, ui) in proj.urgency_detail" :key="ui" class="tp-hint-line">
-                            <span class="tp-hint-type">{{ u.type }}</span>
-                            {{ u.daysLabel }}{{ u.deadline ? ' · 截止 ' + u.deadline : '' }}
-                          </div>
-                        </template>
-                        <span v-else class="tp-hint-normal">—</span>
-                      </td>
-                    </tr>
-                    </template>
-                  </tbody>
-                </table>
-              </div>
-              <div class="tp-manager-footer">
-                <template v-if="computedTarget && !managerGroup.alreadyAchieved">
-                  <template v-if="managerGroup.reachable">
-                    需完成 <strong>{{ managerGroup.neededCount }}</strong> 个项目（转固
-                    <strong>{{ formatNum(managerGroup.neededBalance) }} 万元</strong>），
-                    转固率可从 {{ formatPercent(managerGroup.current_rate) }} 升至
-                    <strong>{{ formatPercent(computedTarget.target) }}</strong>
-                  </template>
-                  <template v-else>
-                    即使完成所有 {{ managerGroup.projects.length }} 个项目（{{ formatNum(managerGroup.total_balance) }} 万元），
-                    转固率仍不足 {{ formatPercent(computedTarget.target) }}，需关注在建工程余额以外的工程物资转固
-                  </template>
-                </template>
-                <template v-else-if="!computedTarget">
-                  完成前 3 项后，转固率可达
-                  <strong>{{ formatPercent((managerGroup.projects[Math.min(2, managerGroup.projects.length - 1)] || managerGroup.projects[0])?.['累计后转固率'] ?? managerGroup.current_rate) }}</strong>
-                  <span v-if="managerGroup.projects.length > 3">（还有 {{ managerGroup.projects.length - 3 }} 个项目可继续推进）</span>
-                </template>
-                <template v-else>
-                  当前转固率已达 {{ formatPercent(computedTarget.target) }} 目标
-                </template>
-              </div>
-            </div>
-          </div>
-        </template>
-      </div>
-    </div>
+    <TransferPriorityModal
+      v-model:visible="transferPriorityVisible"
+      v-model:target-rate="targetRate"
+      :data="transferPriorityData"
+      :loading="transferPriorityLoading"
+      :error="transferPriorityError"
+      :exporting="transferExporting"
+      :record-id="currentRecordId"
+      :computed-target="computedTarget"
+      :display-managers="displayManagers"
+      @export="handleExportTransferPriority"
+    />
+
   </div>
 </template>
 
@@ -896,6 +563,9 @@ import { useGlobalData } from '../composables/useGlobalData'
 import { useFormatters } from '../composables/useFormatters'
 import { useHistoryPanel } from '../composables/useHistoryPanel'
 import { useFileUpload } from '../composables/useFileUpload'
+import FourClassWarningModal from '../components/FourClassWarningModal.vue'
+import ManagerDetailDrawer from '../components/ManagerDetailDrawer.vue'
+import TransferPriorityModal from '../components/TransferPriorityModal.vue'
 
 const globalData = useGlobalData()
 const { formatNum, formatPercent, formatDelta, formatHistoryDateOnly } = useFormatters()
@@ -1325,24 +995,7 @@ function showFourClassAllDetail() {
   fourClassDetailItems.value = fcWarnings.value?.items || []
   fourClassDetailVisible.value = true
 }
-function getGroupItems(type) { return fcWarnings.value?.items?.filter(item => item.type === type) || [] }
-function getGroupStats(type) {
-  const items = getGroupItems(type)
-  return {
-    triggered: items.filter(i => i.status === '已触发' || i.status === '已触发(超期完成)').length,
-    warning: items.filter(i => i.status === '预警').length,
-  }
-}
-function getDaysClass(daysLabel, status) {
-  if (!daysLabel) return ''
-  const match = daysLabel.match(/\d+/)
-  if (!match) return ''
-  const days = parseInt(match[0])
-  if (status === '已触发' || status === '已触发(超期完成)') return 'days-overdue'
-  if (days <= 10) return 'days-overdue'
-  if (days <= 30) return 'days-warning'
-  return ''
-}
+// getGroupItems / getGroupStats / getDaysClass 已移入 FourClassWarningModal 组件
 function getWarningPillClass(key) {
   const map = { liezhang: 'info', yuzhuang: 'warn', guanbi: 'bad', guazhang: 'info' }
   return map[key] || 'info'
@@ -1535,11 +1188,7 @@ function toggleSort(key) {
   if (sortKey.value === key) sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
   else { sortKey.value = key; sortOrder.value = 'desc' }
 }
-function getSortIcon(key) {
-  if (sortKey.value !== key) return '⇅'
-  return sortOrder.value === 'asc' ? '↑' : '↓'
-}
-function getSortClass(key) { return sortKey.value === key ? 'active' : '' }
+// getSortIcon / getSortClass 已移入 ManagerDetailDrawer 组件
 
 // ── Formatting helpers ──
 // formatNum / formatPercent / formatDelta / formatHistoryDateOnly 由 useFormatters 提供
@@ -1560,12 +1209,7 @@ function getRateBarClass(rate) {
   if (rate >= 0.6) return 'warn'
   return 'bad'
 }
-function getRateClass(rate) {
-  if (rate >= 1) return 'success'
-  if (rate >= 0.6) return 'normal'
-  if (rate >= 0.3) return 'warning'
-  return 'danger'
-}
+// getRateClass 已移入 ManagerDetailDrawer / TransferPriorityModal 组件
 function getSourceMetrics(source) {
   if (!source) return null
   return source.dashboard?.metrics || source.metrics || null
@@ -1978,115 +1622,6 @@ onUnmounted(() => {})
 .compare-caption { color: var(--ink-3); font-size: 12px; }
 .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding: 0 4px; }
 
-/* ── Manager detail modal ─────────────────────── */
-/* ── Manager drawer ── */
-.mgr-drawer-overlay {
-  position: fixed; inset: 0;
-  background: rgba(31,29,24,0.35);
-  z-index: 1000; backdrop-filter: blur(2px);
-  animation: fadeIn 0.2s ease;
-}
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-.mgr-drawer {
-  position: fixed; top: 0; right: 0; bottom: 0;
-  width: min(960px, 95vw);
-  background: var(--surface); border-left: 1px solid var(--line);
-  display: flex; flex-direction: column;
-  box-shadow: -8px 0 32px rgba(31,29,24,0.12);
-  animation: slideIn 0.22s cubic-bezier(0.22,1,0.36,1);
-  overflow: hidden;
-}
-@keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
-.mgr-drawer-head {
-  display: flex; gap: 16px; align-items: flex-start;
-  padding: 28px 32px 24px; border-bottom: 1px solid var(--line);
-  background: var(--surface-2); flex-shrink: 0;
-}
-.mgr-drawer-name { font-size: 22px; font-weight: 500; color: var(--ink); letter-spacing: -0.02em; margin: 0; }
-.mgr-drawer-meta {
-  display: flex; gap: 12px; margin-top: 10px;
-  font-size: 12px; color: var(--ink-3); flex-wrap: wrap; align-items: center;
-}
-.mgr-drawer-meta strong { color: var(--ink-2); font-weight: 500; }
-.mgr-sep { width: 3px; height: 3px; background: var(--ink-4); border-radius: 50%; flex-shrink: 0; align-self: center; }
-.mgr-drawer-body { flex: 1; overflow-y: auto; padding: 28px 32px; display: flex; flex-direction: column; gap: 28px; }
-.mgr-drawer-foot {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 32px; border-top: 1px solid var(--line);
-  background: var(--surface-2); flex-shrink: 0;
-}
-.mgr-section {}
-.mgr-section-head {
-  display: flex; align-items: baseline; justify-content: space-between;
-  margin-bottom: 14px;
-}
-.mgr-section-title { font-size: 11px; font-weight: 500; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em; }
-.mgr-section-sub { font-size: 12px; color: var(--ink-3); }
-.mgr-stat-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr);
-  gap: 1px; background: var(--line);
-  border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden;
-}
-.mgr-stat {
-  background: var(--surface); padding: 16px 18px;
-}
-.mgr-stat-label { font-size: 11px; color: var(--ink-3); margin-bottom: 8px; }
-.mgr-stat-value { font-size: 22px; font-weight: 500; color: var(--ink); font-family: var(--font-mono); letter-spacing: -0.02em; line-height: 1; }
-.mgr-stat-unit { font-size: 11px; color: var(--ink-3); margin-left: 3px; font-weight: 400; font-family: var(--font-sans); }
-.modal-close {
-  width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
-  background: transparent; border: 1px solid var(--line-2);
-  border-radius: var(--r-md); color: var(--ink-2); cursor: pointer; transition: 0.15s; flex-shrink: 0;
-}
-.modal-close:hover { background: var(--paper-2); color: var(--ink); }
-.modal-loading { display: flex; justify-content: center; align-items: center; padding: 60px; }
-.modal-loading .loader-ring {
-  width: 36px; height: 36px; border: 2px solid transparent;
-  border-top-color: var(--ink-3); border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-.modal-empty { text-align: center; padding: 60px; color: var(--ink-3); }
-
-/* ── Detail table (manager drawer) ── */
-.mgr-tbl-wrap {
-  border: 1px solid var(--line); border-radius: var(--r-lg);
-  overflow-x: auto; overflow-y: visible;
-}
-.detail-table { width: 100%; border-collapse: collapse; white-space: nowrap; font-size: 12.5px; }
-.detail-table thead th {
-  padding: 10px 14px; text-align: left; font-weight: 500;
-  font-size: 11px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em;
-  background: var(--surface-2); border-bottom: 1px solid var(--line);
-  cursor: default; user-select: none; white-space: nowrap;
-}
-.detail-table thead th.num { text-align: right; }
-.detail-table thead th.sortable { cursor: pointer; }
-.detail-table thead th.sortable:hover { color: var(--ink); background: var(--paper-2); }
-.detail-table .sort-icon { margin-left: 4px; font-size: 10px; opacity: 0.35; }
-.detail-table .sort-icon.active { opacity: 1; color: var(--accent); }
-.detail-table tbody td {
-  padding: 11px 14px; border-bottom: 1px solid var(--line);
-  color: var(--ink); font-variant-numeric: tabular-nums; vertical-align: middle;
-}
-.detail-table tbody tr:last-child td { border-bottom: none; }
-.detail-table tbody tr:hover td { background: var(--surface-2); }
-.detail-table .num { text-align: right; font-family: var(--font-mono); }
-.detail-table .muted { color: var(--ink-3); }
-.mgr-proj-name {
-  max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-size: 13px; color: var(--ink);
-}
-.val-bad { color: var(--bad) !important; }
-.val-primary { font-weight: 500; color: var(--ink); }
-.rate-badge {
-  display: inline-block; padding: 2px 8px; border-radius: 999px;
-  font-size: 11.5px; font-weight: 500; font-family: var(--font-mono); white-space: nowrap;
-}
-.rate-badge.success { background: var(--ok-soft); color: var(--ok); }
-.rate-badge.normal { background: var(--info-soft); color: var(--info); }
-.rate-badge.warning { background: var(--warn-soft); color: var(--warn); }
-.rate-badge.danger { background: var(--bad-soft); color: var(--bad); }
-
 /* ── Upload section (no data state) ───────────── */
 .dashboard { }
 .upload-section { padding: 0; }
@@ -2239,125 +1774,6 @@ onUnmounted(() => {})
 .target-save-btn:hover { background: var(--ok); color: #fff; border-color: var(--ok); }
 .target-cancel-btn:hover { background: var(--paper-2); color: var(--ink); }
 .target-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-/* ── Four-class modal ────────────────────────── */
-.four-class-modal-overlay { position: fixed; inset: 0; background: rgba(31,29,24,0.45); display: flex; align-items: center; justify-content: center; z-index: 9999; }
-.four-class-modal { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); width: 98%; max-width: 1400px; max-height: 84vh; display: flex; flex-direction: column; box-shadow: var(--shadow-pop); }
-.four-class-modal .modal-header { padding: 14px 18px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; }
-.four-class-modal .modal-title-wrap { display: flex; align-items: baseline; gap: 12px; }
-.four-class-modal .modal-title-wrap h3 { font-size: 15px; font-weight: 600; color: var(--ink); margin: 0; }
-.four-class-modal .modal-date { font-size: 11px; color: var(--ink-3); }
-.four-class-modal .modal-header-actions { display: flex; align-items: center; gap: 8px; }
-.four-class-modal .export-btn-primary { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: var(--info); color: #fff; border: none; border-radius: var(--r-md); font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.15s; }
-.four-class-modal .export-btn-primary:hover { background: #145293; }
-.four-class-modal .export-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-.four-class-modal .modal-body { flex: 1; overflow: auto; padding: 14px 20px 18px; }
-.four-class-modal .modal-close { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r-md); color: var(--ink-2); cursor: pointer; font-size: 14px; font-family: inherit; transition: 0.15s; }
-.four-class-modal .modal-close:hover { background: var(--paper-2); color: var(--ink); }
-.four-class-modal-table { width: 100%; border-collapse: collapse; min-width: 1000px; table-layout: fixed; }
-.four-class-modal-table th { background: var(--paper-2); color: var(--ink-3); font-weight: 500; font-size: 11px; padding: 7px 6px; text-align: left; border-bottom: 1px solid var(--line); position: sticky; top: 0; word-break: break-word; }
-.four-class-modal-table td { padding: 5px 6px; border-bottom: 1px solid var(--paper-2); color: var(--ink); font-size: 11px; }
-.four-class-modal-table tr:hover td { background: var(--paper); }
-.four-class-modal-table .col-status { width: 48px; white-space: nowrap; }
-.four-class-modal-table .col-name { width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.four-class-modal-table .col-accept { width: 64px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.four-class-modal-table .col-manager { width: 52px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.four-class-modal-table .col-date { width: 76px; white-space: nowrap; font-size: 10px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; }
-.four-class-modal-table .col-project-status { width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.four-class-modal-table .col-days { width: 72px; white-space: nowrap; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
-.four-class-modal-table .col-days.days-overdue { color: var(--bad); font-weight: 700; }
-.four-class-modal-table .col-days.days-warning { color: var(--bad); font-weight: 700; }
-.four-class-modal-table .col-suggestion { color: var(--ink-3); font-size: 11px; white-space: normal; line-height: 1.4; width: 140px; word-break: break-word; }
-.four-class-modal-table .status-tag { display: inline-block; padding: 2px 7px; border-radius: var(--r-sm); font-size: 11px; font-weight: 600; }
-.four-class-modal-table .status-tag.已触发, .four-class-modal-table .row-已触发 td { background: var(--bad-soft); color: var(--bad); }
-.four-class-modal-table .status-tag.预警, .four-class-modal-table .row-预警 td { color: var(--ink); }
-.four-class-group { margin-bottom: 20px; }
-.four-class-group .group-header { display: flex; align-items: center; gap: 12px; padding: 6px 10px; border-radius: var(--r-sm); margin-bottom: 6px; }
-.four-class-group.group-liezhang .group-header { background: var(--info-soft); color: #1F497D; }
-.four-class-group.group-yuzhuang .group-header { background: var(--warn-soft); color: #7B3F00; }
-.four-class-group.group-guanbi .group-header { background: var(--bad-soft); color: #843C0C; }
-.four-class-group.group-guazhang .group-header { background: #dde5ee; color: #244062; }
-.group-title { font-weight: 700; font-size: 13px; }
-.group-count { font-size: 11px; opacity: 0.8; }
-
-/* ── TP modal (转固推进清单) ───────────────────── */
-.tp-overlay { position: fixed; inset: 0; background: rgba(31,29,24,0.38); z-index: 1000; display: flex; align-items: flex-start; justify-content: center; padding: 28px 16px; overflow-y: auto; }
-.tp-modal { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); width: 100%; max-width: 1240px; box-shadow: var(--shadow-pop); display: flex; flex-direction: column; }
-.tp-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 18px 24px 14px; border-bottom: 1px solid var(--line); }
-.tp-header-left h3 { margin: 0 0 3px; font-size: 16px; font-weight: 600; color: var(--ink); }
-.tp-subtitle { font-size: 12px; color: var(--ink-3); }
-.tp-header-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-.tp-export-btn { padding: 5px 14px; font-size: 13px; font-weight: 600; color: #fff; background: var(--info); border: none; border-radius: var(--r-md); cursor: pointer; font-family: inherit; transition: background 0.15s; }
-.tp-export-btn:hover:not(:disabled) { background: #1d4ed8; }
-.tp-export-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.tp-loading, .tp-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px; color: var(--ink-3); gap: 12px; font-size: 13px; }
-.tp-error { color: var(--bad); }
-.tp-body { padding: 14px 18px 20px; display: flex; flex-direction: column; gap: 14px; }
-.tp-calc-bar { display: flex; align-items: center; gap: 16px; padding: 10px 20px; background: var(--surface-2); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-.tp-calc-left { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-.tp-calc-label { font-size: 12px; color: var(--ink-3); white-space: nowrap; font-weight: 500; }
-.tp-calc-input-wrap { display: flex; align-items: center; background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r-md); padding: 0 10px 0 8px; transition: border-color 0.15s; }
-.tp-calc-input-wrap:focus-within { border-color: var(--info); }
-.tp-calc-input { background: none; border: none; outline: none; color: var(--ink); font-size: 14px; font-weight: 600; font-family: var(--font-mono); width: 58px; padding: 5px 4px; text-align: right; }
-.tp-calc-input::placeholder { color: var(--ink-4); font-weight: 400; font-size: 12px; font-family: var(--font-sans); }
-.tp-calc-unit { font-size: 13px; color: var(--ink-3); }
-.tp-calc-clear { background: none; border: none; color: var(--ink-4); cursor: pointer; font-size: 11px; padding: 0 0 0 6px; line-height: 1; font-family: inherit; }
-.tp-calc-clear:hover { color: var(--ink); }
-.tp-calc-result { display: flex; align-items: center; gap: 8px; font-size: 13px; flex-wrap: wrap; }
-.tp-calc-from { color: var(--ink-3); }
-.tp-calc-arrow { color: var(--ink-4); }
-.tp-calc-to { color: var(--info); font-weight: 600; }
-.tp-calc-divider { color: var(--line-2); margin: 0 2px; }
-.tp-calc-desc { color: var(--ink-3); }
-.tp-calc-amount { color: var(--warn); font-size: 14px; font-weight: 700; }
-.tp-calc-achieved { color: var(--ok); font-size: 13px; font-weight: 600; }
-.tp-manager-block { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; }
-.tp-manager-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: var(--surface-2); border-bottom: 1px solid var(--line); flex-wrap: wrap; gap: 8px; }
-.tp-manager-name { font-size: 13px; font-weight: 600; color: var(--ink); }
-.tp-manager-stats { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3); flex-wrap: wrap; }
-.tp-stat-item { display: flex; align-items: center; gap: 5px; }
-.tp-stat-sep { color: var(--line-2); }
-.tp-stat-count { color: var(--info) !important; font-weight: 700 !important; }
-.tp-stat-required { color: var(--warn) !important; font-weight: 700 !important; }
-.tp-stat-achieved { font-size: 12px; color: var(--ok); font-weight: 500; }
-.tp-stat-warn { color: var(--bad) !important; font-size: 12px; }
-.tp-calc-hint { font-size: 12px; color: var(--ink-4); }
-.tp-hint-type { font-weight: 600; color: var(--ink-2); margin-right: 4px; }
-.tp-target-rate { color: var(--ok) !important; font-weight: 700 !important; }
-.tp-table-wrap { overflow-x: auto; }
-.tp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.tp-table th { padding: 7px 10px; text-align: left; font-weight: 500; color: var(--ink-3); background: var(--paper-2); white-space: nowrap; border-bottom: 1px solid var(--line); font-size: 11px; }
-.tp-table td { padding: 8px 10px; border-bottom: 1px solid var(--paper-2); vertical-align: middle; color: var(--ink); font-size: 12px; }
-.tp-row:last-child td { border-bottom: none; }
-.tp-row.urgency-已逾期 { background: var(--bad-soft); }
-.tp-row.urgency-即将到期 { background: var(--warn-soft); }
-.tp-col-rank { width: 42px; text-align: center; }
-.tp-col-name { max-width: 240px; }
-.tp-col-contractor { max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tp-col-balance, .tp-col-contrib, .tp-col-urgency, .tp-col-action { white-space: nowrap; }
-.tp-col-hint { font-size: 11px; color: var(--ink-3); min-width: 160px; }
-.tp-rank-badge { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; font-size: 11px; font-weight: 600; background: var(--paper-2); color: var(--ink-3); font-family: var(--font-mono); }
-.tp-rank-badge.tp-rank-top { background: var(--info-soft); color: var(--info); }
-.tp-contrib-bar-wrap { display: flex; align-items: center; gap: 7px; }
-.tp-contrib-bar { height: 5px; background: linear-gradient(90deg, var(--info), var(--ok)); border-radius: 3px; min-width: 4px; max-width: 80px; transition: width 0.3s; }
-.tp-urgency-tag { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
-.urgency-tag-已逾期 { background: var(--bad-soft); color: var(--bad); border: 1px solid #e0b8ad; }
-.urgency-tag-即将到期 { background: var(--warn-soft); color: var(--warn); border: 1px solid #e8c98a; }
-.urgency-tag-正常 { background: var(--paper-2); color: var(--ink-3); border: 1px solid var(--line); }
-.tp-after-rate { font-weight: 700; color: var(--ok); margin-right: 4px; }
-.tp-rate-arrow { font-size: 11px; color: var(--ink-3); }
-.tp-hint-line { margin-bottom: 2px; }
-.tp-hint-normal { color: var(--ink-4); }
-.tp-row-needed { background: var(--warn-soft) !important; border-left: 2px solid var(--warn); }
-.tp-row-optional { opacity: 0.55; }
-.tp-needed-mark { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: var(--r-sm); background: var(--warn-soft); color: var(--warn); font-size: 10px; font-weight: 700; margin-right: 5px; flex-shrink: 0; border: 1px solid #e8c98a; }
-.tp-rank-needed { background: var(--warn-soft) !important; color: var(--warn) !important; border: 1px solid #e8c98a; }
-.tp-divider-row td { padding: 0; border: none !important; background: transparent; }
-.tp-divider-line { display: flex; align-items: center; gap: 10px; padding: 5px 10px; font-size: 11px; color: var(--ink-4); }
-.tp-divider-line::before, .tp-divider-line::after { content: ''; flex: 1; height: 1px; background: var(--line); }
-.tp-manager-footer { padding: 8px 16px; font-size: 12px; color: var(--ink-3); border-top: 1px solid var(--line); background: var(--surface-2); }
-.tp-manager-footer strong { color: var(--ok); margin: 0 3px; }
-.tp-btn { font-size: 12px; display: flex; align-items: center; gap: 5px; }
 
 /* ── Empty state ──────────────────────────────── */
 .empty { padding: 40px; text-align: center; color: var(--ink-3); font-size: 13px; }
