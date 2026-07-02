@@ -22,7 +22,7 @@
 | 后端 | FastAPI (Python) | 高性能 API 框架 |
 | 前端 | Vue 3 + Vite | 渐进式 JavaScript 框架 |
 | 路由 | Vue Router 4 | Hash 模式，兼容 Electron |
-| 状态管理 | Composable（useGlobalData/useHistoryCenter/useAppTools） | 模块级 ref 单例，零额外依赖 |
+| 状态管理 | Composable（useGlobalData/useHistoryCenter/useAppTools/useFormatters/useHistoryPanel/useFileUpload） | 模块级 ref 单例（全局）+ 工厂 per-instance（视图私有） |
 | 图表 | ECharts / SVG | 可视化仪表盘 |
 | 字体 | 系统字体栈 + JetBrains Mono | PingFang SC（正文）+ JetBrains Mono / DM Mono（数字） |
 | 样式 | 自定义 CSS | Editorial 暖纸色调风格 |
@@ -46,15 +46,23 @@ zaigongcheng-web/
     │   ├── App.vue              # 根组件（侧边栏 + 全局弹窗）
     │   ├── api/index.js         # API 调用封装（30+ 接口）
     │   ├── router/index.js      # Vue Router 配置（4 条路由）
-    │   ├── composables/         # 全局状态 composable
-    │   │   ├── useGlobalData.js     # 核心数据（在建/预算）
-    │   │   ├── useHistoryCenter.js  # 历史记录中心
-    │   │   └── useAppTools.js       # 工具功能（通知/简报/推送）
+    │   ├── composables/         # 状态与逻辑 composable
+    │   │   ├── useGlobalData.js     # 核心数据（在建/预算，全局单例）
+    │   │   ├── useHistoryCenter.js  # 历史记录中心（全局单例）
+    │   │   ├── useAppTools.js       # 工具功能（通知/简报/推送，全局单例）
+    │   │   ├── useFormatters.js     # 通用格式化函数（纯函数）
+    │   │   ├── useHistoryPanel.js   # 历史快照抽屉（工厂 per-instance）
+    │   │   └── useFileUpload.js     # 文件上传交互（工厂 per-instance）
     │   ├── components/          # 共享 UI 组件
     │   │   ├── Modal.vue            # 通用弹窗
     │   │   ├── UploadZone.vue       # 拖拽上传区
     │   │   ├── DataCard.vue         # 数据指标卡片
-    │   │   └── FileRow.vue          # 文件列表行
+    │   │   ├── FileRow.vue          # 文件列表行
+    │   │   ├── FourClassWarningModal.vue  # 四类预警明细弹窗
+    │   │   ├── ManagerDetailDrawer.vue   # 管理员明细抽屉
+    │   │   ├── TransferPriorityModal.vue # 转固推进清单弹窗
+    │   │   ├── KpiGrid.vue          # KPI 指标卡网格（含滚动动画）
+    │   │   └── HistoryPanel.vue     # 历史快照抽屉（跨页面复用）
     │   ├── views/               # 路由页面组件
     │   │   ├── Dashboard.vue        # 在建工程分析页
     │   │   ├── Budget.vue           # 预算分析页（含批次下达）

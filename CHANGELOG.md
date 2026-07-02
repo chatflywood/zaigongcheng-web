@@ -1,5 +1,54 @@
 # 功能更新日志
 
+## v1.32.0 (2026-07-02)
+
+### 前端组件瘦身 — 四波重构，净减 2086 行
+
+延续 v1.31.0 的组件化方向，对两个臃肿视图（Budget.vue 3733 行、Dashboard.vue 2487 行）做四波渐进式重构，全程 300/300 测试保底、零视觉变化、零逻辑变化。
+
+#### 第一波：清理死代码 CSS
+
+- **Budget.vue 3733→2647**：删除被 `!important` 完全覆盖的第 1/2 层深色/亮色主题 CSS（~1030 行死代码），4 个无引用 `@keyframes`，5 个未定义 CSS 变量引用（`--text-primary` 等），第 3 层 205 处 `!important` 降级为普通声明
+- **Dashboard.vue 2487→2449**：删除已下线的 `upload-overlay` 家族及 6 个孤儿选择器（`.btn.primary`/`.sortable-th`/`.table-footnote` 等）
+
+#### 第二波：抽取 3 个共享 composables
+
+- **`useFormatters.js`**：`formatNum` 参数化（`{nullText, min, max}`）+ `formatPercent`/`formatDelta`/`formatHistoryDateOnly`，消除三处 `formatNum` 重复（Dashboard/Budget/KeyIndicators 各不同小数位与占位符）
+- **`useHistoryPanel.js`**：工厂模式 per-instance，按 `{type:'zaigong'|'budget'}` 分流 API，`viewHistorySnapshot` 返回 `{current, previous}` 供调用方各自 apply
+- **`useFileUpload.js`**：工厂模式 per-instance，注入 `{requireTarget, processFile}`，共享 `triggerFileInput`/`handleFileChange`/`handleDrop`/`clearSelectedFile`
+- `formatHistoryTime`/`formatFileDate` 复用 `useGlobalData` 已有实现，不再重复定义
+- Dashboard 14 个、Budget 14 个同名函数全部消除
+
+#### 第三波：Dashboard 拆分 3 个弹窗子组件
+
+- **`FourClassWarningModal.vue`**：四类预警明细弹窗（单类/全部两种视图）
+- **`ManagerDetailDrawer.vue`**：管理员明细抽屉（财务摘要 + 可排序工程表）
+- **`TransferPriorityModal.vue`**：转固推进清单弹窗（目标测算 + 待转固表，`targetRate` v-model 双向绑定）
+- **拆分策略**：状态 ref + 业务 computed 留 Dashboard（测试通过 `wrapper.vm.xxx` 访问 21 个标识符，零改动），子组件只搬 template + CSS + 纯展示函数，props 接收计算结果、emit 上抛操作
+- Dashboard 2380→1796
+
+#### 方向 1：KpiGrid + HistoryPanel 跨页面复用
+
+- **`KpiGrid.vue`**：Dashboard KPI 指标卡网格，动画逻辑内化（`animatedValues`/`runCountUp`/`watch`），纯展示零事件
+- **`HistoryPanel.vue`**：跨 Dashboard/Budget 复用历史面板，prop + scoped slot 接口
+  - props：`visible`/`loading`/`records`/`currentRecordId`/`title`/`subtitle`/`kickerClass`
+  - scoped slots：`#kpi-capital`/`#kpi-progress`/`#kpi-delta`/`#meta` 处理两页面 KPI 取数差异
+  - 统一 var-based CSS，Budget 删除两处 hex 覆盖块，用 `:deep(.budget-kicker)` 保留主题色
+- Dashboard 1796→1683，Budget 2550→2450
+- 顺手清理 Budget 3 个孤儿 computed（`metrics`/`progressStatus`/`progressBadgeClass`，template 从未引用）
+
+### 成果汇总
+
+| 文件 | 最初 | 当前 | 变化 |
+|---|---|---|---|
+| Budget.vue | 3733 | 2450 | -1283 行 |
+| Dashboard.vue | 2487 | 1683 | -804 行 |
+| **合计** | 6220 | 4133 | **-2087 行** |
+
+新增 6 个文件：3 composables（`useFormatters`/`useHistoryPanel`/`useFileUpload`）+ 5 子组件（`FourClassWarningModal`/`ManagerDetailDrawer`/`TransferPriorityModal`/`KpiGrid`/`HistoryPanel`），全部遵循现有 `<script setup>` + defineProps/defineEmits + JSDoc + scoped style 约定。
+
+---
+
 ## v1.31.0 (2026-06-29)
 
 ### Vue Router + 共享 UI 组件重构

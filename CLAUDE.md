@@ -22,8 +22,23 @@ zaigongcheng-web/
 ├── frontend/
 │   ├── src/
 │   │   ├── views/          # 页面组件（Dashboard.vue、Budget.vue、KeyIndicators.vue、Archive.vue）
-│   │   ├── services/       # API 封装
-│   │   └── router/         # 路由
+│   │   ├── api/            # API 调用封装（30+ 接口）
+│   │   ├── router/         # Vue Router 路由配置
+│   │   ├── composables/    # 状态与逻辑 composable
+│   │   │   ├── useGlobalData.js    # 核心数据（全局单例）
+│   │   │   ├── useHistoryCenter.js # 历史记录中心（全局单例）
+│   │   │   ├── useAppTools.js      # 工具功能（全局单例）
+│   │   │   ├── useFormatters.js    # 通用格式化函数
+│   │   │   ├── useHistoryPanel.js  # 历史快照抽屉（工厂 per-instance）
+│   │   │   └── useFileUpload.js    # 文件上传交互（工厂 per-instance）
+│   │   ├── components/     # 共享 UI 组件
+│   │   │   ├── Modal.vue / DataCard.vue / UploadZone.vue / FileRow.vue  # 基础组件
+│   │   │   ├── FourClassWarningModal.vue  # 四类预警明细弹窗
+│   │   │   ├── ManagerDetailDrawer.vue   # 管理员明细抽屉
+│   │   │   ├── TransferPriorityModal.vue # 转固推进清单弹窗
+│   │   │   ├── KpiGrid.vue          # KPI 指标卡网格
+│   │   │   └── HistoryPanel.vue     # 历史快照抽屉（跨页面复用）
+│   │   └── __tests__/      # 前端单元测试（Vitest，300 用例）
 │   └── package.json
 ├── backend/
 │   ├── main.py             # FastAPI 入口，CORS 允许 localhost:5173
