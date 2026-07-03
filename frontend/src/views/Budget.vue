@@ -1124,7 +1124,7 @@ async function confirmDeleteSpecialty(s) {
 /* ===== Analyst UI Override (Light, compact) ===== */
 .dashboard {
   background: #f6f5f2;
-  color: #1c1b18;
+  color: var(--ink);
   border-radius: 12px;
   padding: 10px 12px;
 }
@@ -1145,7 +1145,7 @@ async function confirmDeleteSpecialty(s) {
 .table-card,
 .compare-section {
   background: #ffffff;
-  border: 1px solid #e4e3dc;
+  border: 1px solid var(--line);
   border-radius: 10px;
   box-shadow: none;
 }
@@ -1158,7 +1158,7 @@ async function confirmDeleteSpecialty(s) {
 .upload-copy,
 .upload-box,
 .fact-card {
-  color: #1c1b18;
+  color: var(--ink);
 }
 
 .panel-kicker,
@@ -1167,18 +1167,18 @@ async function confirmDeleteSpecialty(s) {
 .metric-unit,
 .date-badge,
 .record-count {
-  color: #6b6a63;
+  color: var(--ink-3);
 }
 
 .upload-box h2,
 .fact-card strong {
-  color: #1c1b18;
+  color: var(--ink);
 }
 
 .upload-copy p,
 .upload-hint,
 .fact-card span {
-  color: #6b6a63;
+  color: var(--ink-3);
 }
 
 .file-tag,
@@ -1194,7 +1194,7 @@ async function confirmDeleteSpecialty(s) {
 
 .fact-card {
   background: #f8f6f1;
-  border-color: #e5e0d6;
+  border-color: var(--line);
 }
 
 .section-header-rich {
@@ -1208,13 +1208,13 @@ async function confirmDeleteSpecialty(s) {
 
 .page-title-rich h2 {
   font-size: 18px;
-  color: #1c1b18;
+  color: var(--ink);
   margin: 0;
 }
 
 .page-title-rich p {
   font-size: 12px;
-  color: #6b6a63;
+  color: var(--ink-3);
 }
 
 .header-main {
@@ -1228,7 +1228,7 @@ async function confirmDeleteSpecialty(s) {
 
 .metric-card {
   background: #fff;
-  border: 1px solid #e4e3dc;
+  border: 1px solid var(--line);
   border-radius: 18px;
   padding: 16px 18px 14px;
   min-height: 138px;
@@ -1259,7 +1259,7 @@ async function confirmDeleteSpecialty(s) {
 .metric-label {
   font-size: 12px;
   font-weight: 600;
-  color: #8a867f;
+  color: var(--ink-3);
   margin-bottom: 0;
   letter-spacing: 0;
   text-transform: none;
@@ -1276,7 +1276,7 @@ async function confirmDeleteSpecialty(s) {
 
 .metric-value-unit {
   font-size: 11px;
-  color: #8a867f;
+  color: var(--ink-3);
   line-height: 1;
   white-space: nowrap;
 }
@@ -1294,7 +1294,7 @@ async function confirmDeleteSpecialty(s) {
 }
 
 .metric-inline-note {
-  color: #8a867f;
+  color: var(--ink-3);
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
@@ -1362,13 +1362,13 @@ async function confirmDeleteSpecialty(s) {
 
 .ghost-action.--history {
   background: #fff;
-  border: 1px solid #d8d5cc;
-  color: #5f5b53;
+  border: 1px solid var(--line-2);
+  color: var(--ink-2);
 }
 
 .ghost-action.--history:hover {
   background: #f0efe9;
-  color: #1c1b18;
+  color: var(--ink);
 }
 
 .ghost-action.--restore {
@@ -1410,16 +1410,16 @@ async function confirmDeleteSpecialty(s) {
   height: 32px;
   padding: 0 12px;
   background: #f1eee8;
-  border: 1px solid #e4e0d6;
+  border: 1px solid var(--line);
   border-radius: 999px;
-  color: #6b6a63;
+  color: var(--ink-3);
   font-size: 12px;
 }
 
 
 .progress-overview-card {
   background: #fff;
-  border: 1px solid #e4e3dc;
+  border: 1px solid var(--line);
   border-radius: 10px;
   overflow: hidden;
 }
@@ -1439,7 +1439,7 @@ async function confirmDeleteSpecialty(s) {
 
 .progress-row {
   background: #fff;
-  border: 1px solid #e4e3dc;
+  border: 1px solid var(--line);
   border-radius: 10px;
   padding: 10px 14px;
   margin-bottom: 0;
@@ -1451,7 +1451,7 @@ async function confirmDeleteSpecialty(s) {
 .progress-label {
   font-size: 12px;
   font-weight: 600;
-  color: #1c1b18;
+  color: var(--ink);
   min-width: 132px;
 }
 
@@ -1463,7 +1463,7 @@ async function confirmDeleteSpecialty(s) {
   display: flex;
   justify-content: space-between;
   font-size: 11px;
-  color: #6b6a63;
+  color: var(--ink-3);
   margin-bottom: 4px;
 }
 
@@ -1480,7 +1480,7 @@ async function confirmDeleteSpecialty(s) {
 .progress-track {
   height: 6px;
   background: #f0efe9;
-  border: 1px solid #e4e3dc;
+  border: 1px solid var(--line);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -1500,7 +1500,7 @@ async function confirmDeleteSpecialty(s) {
 
 .progress-completed {
   font-size: 11px;
-  color: #a8a79f;
+  color: var(--ink-4);
 }
 
 .progress-remaining {
@@ -1511,7 +1511,7 @@ async function confirmDeleteSpecialty(s) {
 }
 
 .card-header h3 {
-  color: #1c1b18;
+  color: var(--ink);
   font-size: 13px;
 }
 
@@ -1525,21 +1525,21 @@ async function confirmDeleteSpecialty(s) {
   justify-content: space-between;
   gap: 12px;
   padding: 8px 12px;
-  border-top: 1px solid #e4e3dc;
+  border-top: 1px solid var(--line);
   font-size: 11px;
-  color: #6b6a63;
+  color: var(--ink-3);
 }
 
 .data-table thead th {
   background: #f0efe9;
-  color: #6b6a63;
+  color: var(--ink-3);
   font-size: 11px;
   padding: 10px 12px;
-  border-bottom: 1px solid #e4e3dc;
+  border-bottom: 1px solid var(--line);
 }
 
 .data-table tbody td {
-  color: #1c1b18;
+  color: var(--ink);
   border-bottom: 1px solid #f0efe9;
   font-size: 12px;
   padding: 10px 12px;
@@ -1578,8 +1578,8 @@ async function confirmDeleteSpecialty(s) {
 
 .collapse-toggle {
   background: #f0efe9;
-  border: 1px solid #d0cfc6;
-  color: #5f5b53;
+  border: 1px solid var(--line-2);
+  color: var(--ink-2);
   border-radius: 6px;
   height: 26px;
   padding: 0 10px;
@@ -1588,9 +1588,9 @@ async function confirmDeleteSpecialty(s) {
 }
 
 .collapse-toggle:hover {
-  background: #e6e4dd;
-  border-color: #b8b6ae;
-  color: #1c1b18;
+  background: var(--line);
+  border-color: var(--ink-4);
+  color: var(--ink);
 }
 
 .progress-cell {
@@ -1603,8 +1603,8 @@ async function confirmDeleteSpecialty(s) {
 
 .table-card .progress-bar {
   height: 10px;
-  background: #e8e4dc;
-  border: 1px solid #ddd8cd;
+  background: var(--line);
+  border: 1px solid var(--line-2);
   border-radius: 999px;
   overflow: hidden;
   min-width: 72px;
@@ -1626,13 +1626,13 @@ async function confirmDeleteSpecialty(s) {
 .table-card .progress-text {
   font-size: 11px;
   font-weight: 700;
-  color: #4f4a43;
+  color: var(--ink-2);
   min-width: 52px;
   text-align: right;
 }
 
 .table-card .total-row .progress-text {
-  color: #1c1b18;
+  color: var(--ink);
 }
 
 .card-badge {
@@ -1641,13 +1641,13 @@ async function confirmDeleteSpecialty(s) {
 }
 
 .code {
-  color: #6b6a63;
+  color: var(--ink-3);
 }
 
 .filter-select {
   background: #fff;
-  border: 1px solid #d0cfc6;
-  color: #1c1b18;
+  border: 1px solid var(--line-2);
+  color: var(--ink);
   border-radius: 6px;
 }
 
@@ -1675,7 +1675,7 @@ async function confirmDeleteSpecialty(s) {
   margin: 0 0 8px;
   font-size: 18px;
   font-weight: 500;
-  color: #1c1b18;
+  color: var(--ink);
   line-height: 1.2;
 }
 
@@ -1683,7 +1683,7 @@ async function confirmDeleteSpecialty(s) {
   margin: 0;
   font-size: 13px;
   line-height: 1.45;
-  color: #a8a79f;
+  color: var(--ink-4);
 }
 
 .upload-container {
@@ -1697,7 +1697,7 @@ async function confirmDeleteSpecialty(s) {
 .upload-box,
 .recent-uploads-card {
   background: #ffffff;
-  border: 1px solid #e4e3dc;
+  border: 1px solid var(--line);
   border-radius: 10px;
   box-shadow: none;
 }
@@ -1738,7 +1738,7 @@ async function confirmDeleteSpecialty(s) {
   font-size: 16px;
   line-height: 1.2;
   font-weight: 500;
-  color: #1c1b18;
+  color: var(--ink);
   text-align: left;
 }
 
@@ -1746,7 +1746,7 @@ async function confirmDeleteSpecialty(s) {
   margin-top: 0;
   font-size: 12px;
   font-weight: 700;
-  color: #a8a79f;
+  color: var(--ink-4);
   width: 100%;
   text-align: left;
 }
@@ -1755,7 +1755,7 @@ async function confirmDeleteSpecialty(s) {
   padding: 10px 12px;
   border-radius: 8px;
   background: #f8f6f1;
-  border: 1px solid #e5e0d6;
+  border: 1px solid var(--line);
   width: 100%;
   text-align: left;
 }
@@ -1764,7 +1764,7 @@ async function confirmDeleteSpecialty(s) {
   margin-bottom: 8px;
   font-size: 11px;
   font-weight: 700;
-  color: #a8a79f;
+  color: var(--ink-4);
   text-align: left;
 }
 
@@ -1821,7 +1821,7 @@ async function confirmDeleteSpecialty(s) {
   align-items: flex-start;
   font-size: 12px;
   line-height: 1.6;
-  color: #5e5a52;
+  color: var(--ink-2);
   justify-content: flex-start;
   text-align: left;
 }
@@ -1839,7 +1839,7 @@ async function confirmDeleteSpecialty(s) {
 }
 
 .budget-checklist b {
-  color: #1c1b18;
+  color: var(--ink);
   font-weight: 700;
 }
 
@@ -1862,7 +1862,7 @@ async function confirmDeleteSpecialty(s) {
   padding: 22px 18px;
   margin: 12px 12px 0;
   border-radius: 8px;
-  border: 1.5px dashed #d0cfc6;
+  border: 1.5px dashed var(--line-2);
   background: #f6f5f2;
   box-shadow: none;
   min-height: 180px;
@@ -1883,7 +1883,7 @@ async function confirmDeleteSpecialty(s) {
 .budget-upload-zone .upload-icon {
   width: 34px;
   height: 34px;
-  color: #a8a79f;
+  color: var(--ink-4);
   filter: none;
 }
 
@@ -1891,7 +1891,7 @@ async function confirmDeleteSpecialty(s) {
   margin: 0 0 4px;
   font-size: 16px;
   font-weight: 500;
-  color: #1c1b18;
+  color: var(--ink);
   line-height: 1.5;
 }
 
@@ -1905,7 +1905,7 @@ async function confirmDeleteSpecialty(s) {
 .budget-upload-zone .upload-hint {
   margin: 0 0 12px;
   font-size: 12px;
-  color: #a8a79f;
+  color: var(--ink-4);
 }
 
 .budget-upload-zone .file-types {
@@ -1917,8 +1917,8 @@ async function confirmDeleteSpecialty(s) {
   padding: 4px 12px;
   border-radius: 999px;
   background: #ffffff;
-  border: 1px solid #dfd9cf;
-  color: #6e6a62;
+  border: 1px solid var(--line-2);
+  color: var(--ink-3);
   font-size: 11px;
   font-weight: 500;
 }
@@ -1937,12 +1937,12 @@ async function confirmDeleteSpecialty(s) {
   display: flex;
   align-items: center;
   gap: 5px;
-  color: #a8a79f;
+  color: var(--ink-4);
   font-size: 12px;
 }
 
 .upload-last strong {
-  color: #6b6a63;
+  color: var(--ink-3);
   font-size: 12px;
   font-family: 'IBM Plex Mono', monospace;
 }
@@ -1955,7 +1955,7 @@ async function confirmDeleteSpecialty(s) {
   padding: 0 12px;
   border-radius: 6px;
   background: #f0efe9;
-  color: #8a867f;
+  color: var(--ink-3);
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
@@ -2011,7 +2011,7 @@ async function confirmDeleteSpecialty(s) {
 
 .selected-file-meta,
 .selected-file-change {
-  color: #a8a79f;
+  color: var(--ink-4);
   font-size: 11px;
 }
 
@@ -2022,7 +2022,7 @@ async function confirmDeleteSpecialty(s) {
 .selected-file-change {
   padding: 3px 7px;
   border-radius: 4px;
-  border: 0.5px solid #e4e3dc;
+  border: 0.5px solid var(--line);
   background: #fff;
 }
 
@@ -2042,7 +2042,7 @@ async function confirmDeleteSpecialty(s) {
   margin: 0;
   font-size: 11px;
   font-weight: 500;
-  color: #6b6a63;
+  color: var(--ink-3);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -2065,7 +2065,7 @@ async function confirmDeleteSpecialty(s) {
 .recent-upload-item {
   padding: 9px 10px;
   border-radius: 7px;
-  border: 0.5px solid #e4e3dc;
+  border: 0.5px solid var(--line);
   background: #f6f5f2;
   text-align: left;
   cursor: pointer;
@@ -2073,7 +2073,7 @@ async function confirmDeleteSpecialty(s) {
 }
 
 .recent-upload-item:hover {
-  border-color: #d0cfc6;
+  border-color: var(--line-2);
   background: #fff;
   transform: none;
 }
@@ -2082,7 +2082,7 @@ async function confirmDeleteSpecialty(s) {
   margin-bottom: 3px;
   font-size: 11px;
   font-weight: 500;
-  color: #1c1b18;
+  color: var(--ink);
   font-family: 'IBM Plex Mono', monospace;
 }
 
@@ -2101,7 +2101,7 @@ async function confirmDeleteSpecialty(s) {
 }
 
 .recent-upload-meta {
-  color: #a8a79f;
+  color: var(--ink-4);
   font-size: 10px;
   font-weight: 400;
 }
