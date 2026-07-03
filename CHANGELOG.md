@@ -1,5 +1,40 @@
 # 功能更新日志
 
+## v1.33.0 (2026-07-03)
+
+### Budget CSS 治理 — !important 清零 + 中性色 token 化
+
+延续 v1.32.0 的 Budget CSS 瘦身，完成 P1 两步治理。Budget.vue 全文 `!important` 清零，文字/边框色统一到 Editorial token 体系。
+
+#### P1-a：第 4 层 !important 全部清零（279→0）
+
+- 批量删除第 4 层（Budget upload page replica 段）279 处 `!important`，保留属性值不变
+- 其中 277 处可直接删除（第 4 层是最终生效层，删后同特异性后定义胜出，逻辑不变）
+- 2 处需升级选择器特异性替代 `!important`：
+  - `.bc-date` → `.batch-tbl th.bc-date`（反超 `.batch-tbl th` 的 `text-align:right`，保持"批次日期"表头左对齐）
+  - `.bc-note-muted` → `.br-total td.bc-note-muted`（反超 `.br-total td` 的 `color:ink`，保持"共 N 批次"文字灰色）
+- 分析方法：用脚本提取第 4 层 {选择器→声明} 映射，逐一检查同选择器在第 4 层内外是否有竞争规则
+
+#### P1-b：中性色 hex → Editorial token（文字/边框系，~50 处）
+
+- 文字色 ink 系替换：`#1c1b18`→`var(--ink)`、`#6b6a63`/`#8a867f`/`#6e6a62`→`var(--ink-3)`、`#4f4a43`/`#5f5b53`/`#5e5a52`→`var(--ink-2)`、`#a8a79f`/`#b8b6ae`→`var(--ink-4)`
+- 边框色 line 系替换：`#e4e3dc`/`#e5e0d6`/`#e8e4dc`/`#e6e4dd`/`#e4e0d6`→`var(--line)`、`#d0cfc6`/`#d8d5cc`/`#ddd8cd`/`#dfd9cf`→`var(--line-2)`
+- **底色保留原 hex**：Budget 冷灰底色（`#f6f5f2` 等）与 Editorial 暖米 token（`--paper`=#F7F5EE）色温不同，转 token 会导致页面底色变化（已踩坑还原）
+- 鲜艳语义色（`#047857` 鲜绿/`#c43131` 纯红/`#b85a08` 橙）和主题色（`#5f36da` 紫/`#1a56a4` 蓝）保留不动——Budget 视觉身份
+- 建立了完整的 hex→token 映射表（含置信度标注），见 CLAUDE.md 路线图
+
+### 成果
+
+| 指标 | 改前 | 改后 |
+|---|---|---|
+| Budget.vue !important | 279 处 | 0 处 |
+| Budget.vue 硬编码 hex | 163 处 | 96 处（底色+鲜艳色+主题色） |
+| Budget.vue 总行数 | 2450 | 2451（行数不变，只换写法） |
+
+300/300 测试全绿，视觉无变化。
+
+---
+
 ## v1.32.0 (2026-07-02)
 
 ### 前端组件瘦身 — 四波重构，净减 2086 行
