@@ -1,5 +1,20 @@
 # 功能更新日志
 
+## v1.34.1 (2026-07-06)
+
+### 抽 Shared CSS — P2 第一波
+
+延续 v1.34.0 抽弹窗子组件后发现的"每抽一个组件就复制一份 .btn/.rate-badge"结构性复制趋势，新建全局 shared.css，止住这个趋势。
+
+- 新增 `frontend/src/styles/shared.css`（36 行）：
+  - `.rate-badge` + `.success/.normal/.warning/.danger`（ManagerDetailDrawer + TransferPriorityModal 逐字一致，全 `var(--ok-soft)/var(--info-soft)/var(--warn-soft)/var(--bad-soft)` token）
+  - `.btn / .primary / .ghost / :hover / svg / :disabled`（Budget + Dashboard + BatchManageModal 一致，全 token；正典取 Budget/Dashboard 的 `padding: 7px 12px` + `border-radius: var(--r-md)` + `transition: all 120ms; white-space: nowrap` 版本）
+- 技术要点：用 `:where(.xxx) {}` 把特异性降为 0,0,0，任何 scoped 副本（带 `[data-v-xxx]` = 0,1,0）都能自然覆盖本文件，零回归风险
+- 清理 5 处副本：ManagerDetailDrawer -8 / TransferPriorityModal -8 / BatchManageModal -18（含修复一处 .btn-sm 误删）/ Budget.vue -14 / Dashboard.vue -12，净减 19 行
+- `main.js` 在 `style.css` 之后紧接 `import './styles/shared.css'`
+- 未抽（保留各自 scoped）：`.modal-close`（A 套 surface 底 vs B 套 transparent 底语义分歧）、`.loader-ring`（Budget 字面 hex 色 / Dashboard 三段 nth-child 色）、`.btn-sm`（仅 BatchManageModal 单处使用）
+- 300/300 测试全绿 + build 通过，零视觉回归
+
 ## v1.34.0 (2026-07-06)
 
 ### Budget 批次管理 UI 拆分 — P3 完成

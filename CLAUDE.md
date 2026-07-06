@@ -112,7 +112,15 @@ cd backend && uvicorn main:app --reload
 
 - ✅ P3：抽取 `BatchManageModal.vue`（293 行）—— 批次创建/编辑弹窗 + 专业管理抽屉两块交互。沿用 TransferPriorityModal 范式（script-first / JSDoc Props+Events / v-model:visible / 状态留父供 wrapper.vm 测试访问）。Props 11 个 / Events 12 个 / 内部纯函数 `formatBatchNum`。Budget template 489-578 段替换为单个 `<BatchManageModal/>`，Budget scoped CSS 删除弹窗/抽屉专属规则 ~110 行。Budget.vue 2451 → 2276 行（-175）。视觉零回归（保留原 class 名 + scoped 副本）。300/300 测试全绿无需改测试。
 
-### 🔴 P2 — 抽共享 CSS（可选，收益有限）
+#### v1.34.1 (2026-07-06) — 抽 Shared CSS（P2 第一波）
+
+- ✅ P2 第一波：新建 `src/styles/shared.css`（36 行），抽 `.rate-badge` + 4 状态（MDD/TDM 逐字一致）+ `.btn` 系（Budget/Dashboard/BatchManageModal 一致）。用 `:where(.xxx) {}` 把特异性降为 0,0,0，任何 scoped 副本（带 `[data-v-xxx]` = 0,1,0）自然覆盖本文件，零回归风险
+- 清理 5 处副本（MDD/TDM 各 -8 / BatchManageModal -18 / Budget -14 / Dashboard -12），净减 19 行
+- main.js 在 `style.css` 之后紧接 import `./styles/shared.css`
+- 未抽（保留各自 scoped）：`.modal-close`（A 套 surface 底 vs B 套 transparent 底语义分歧）、`.loader-ring`（Budget 字面 hex 色 / Dashboard 三段 nth-child 色）、`.btn-sm`（仅 BatchManageModal 单处）
+- 300/300 测试全绿 + build 通过
+
+### 🔴 P2 — 抽共享 CSS（✅ 第一波 v1.34.1，第二波可选）
 
 > 注意：P1-b 只统一了文字/边框 token，**底色未统一**（Budget 冷灰 hex vs Dashboard 暖米 token）。因此 P2 只能抽文字/边框类的共享样式，底色相关的仍各自带 scoped 副本。收益有限，可考虑跳过直接做 P3。
 
