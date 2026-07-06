@@ -1,5 +1,35 @@
 # 功能更新日志
 
+## v1.34.2 (2026-07-06)
+
+### 后端 4 路由补集成测试 + 安全/上传健壮性修复
+
+#### 安全与健壮性修复
+
+- `routers/report.py`: 两处月报生成失败响应（HTML / PNG）删除 `detail=traceback.format_exc()`，不再把完整 Python 堆栈原样返回前端——避免潜在信息泄露
+- `README.md`: 本地启动 `uvicorn --host` 由 `0.0.0.0` 改为 `127.0.0.1`，默认只允许本机访问，避免无意中把后端 API 暴露到局域网/公网；"部署说明"段保留 `0.0.0.0` 并加注"需自行加反代+鉴权"
+- `routers/budget.py /upload`: 新增 `.xlsx/.xls` 扩展名校验 + 20MB 大小上限（与 `analysis.py /upload` 一致），避免误传大文件爆内存
+- `routers/archive.py /upload`: 新增 50MB 大小上限（档案可含 docx/pdf，门限比 Excel 放宽），读入内存后落盘前校验
+
+#### 后端补集成测试（+41 例，94/94 全绿）
+
+补回此前"路由层零集成测试"的结构性债：archive / notify / report / budget_batch 4 个路由原本 0 例覆盖。新增 4 个测试文件，沿用 `test_ai_router_unit.py` 范式并扩展：
+
+| 文件 | 例数 | 覆盖端点 |
+|---|---|---|
+| `test_budget_batch_router.py` | 17 | 专业 + 批次 CRUD，含重命名传播、批次 totals 累加、dup name 400、404、reorder |
+| `test_archive_router.py` | 7 | 上传 → 列表 → 下载 → 删除全闭环，含非法分类/扩展名、pdf 上传白名单、不存在的 404 |
+| `test_notify_router.py` | 10 | 配置读写 + 脱敏、飞书/企微 URL 白名单、clear、push 未配置/不存在 400/404、test push 用 mock 隔离外部 webhook 的成功/错误路径 |
+| `test_report_router.py` | 7 | brief HTML + image PNG，含 404、渲染异常友好响应（验证 v1.34 trace 泄露不复活）、可选 budget_id 透传、StreamingResponse Content-Type |
+
+测试范式：
+- FastAPI mini-app + `httpx.ASGITransport`（async client 直连 ASGI，不启 uvicorn）
+- 内存 SQLite + `StaticPool` + `check_same_thread=False`，跨 async 线程安全
+- `get_db` monkeypatch 到内存库，与生产 SQLite 物理隔离零污染
+- 外部依赖（`build_brief_html/image`、`send_test` webhook）用 `patch` 隔离
+
+验证：`python -m pytest tests/ --ignore=tests/test_api.py` = 94/94 绿（53 旧 + 41 新）。`test_api.py` 既有 2 个 baseline 失败（`test_upload_excel` / `test_budget_sheet_name_is_year_agnostic`）与本次改动无关，已在前续步骤用 `git stash` 验证。
+
 ## v1.34.1 (2026-07-06)
 
 ### 抽 Shared CSS — P2 第一波
