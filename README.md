@@ -109,9 +109,9 @@ npm run test
 ### 启动服务
 
 ```bash
-# 终端1：启动后端（端口 8000）
+# 终端1：启动后端（端口 8000，绑定本机；如需局域网共享把 127.0.0.1 改 0.0.0.0）
 cd ~/Documents/zaigongcheng-web/backend
-uvicorn main:app --host 0.0.0.0 --port 8000
+uvicorn main:app --host 127.0.0.1 --port 8000
 
 # 终端2：启动前端（端口 5173）
 cd ~/Documents/zaigongcheng-web/frontend
@@ -379,13 +379,13 @@ SQLite 数据库存储
 
 ### 部署说明
 
-如需部署到服务器：
+如需部署到服务器（默认本地用法见上节，无需远程暴露端口）：
 
 **后端部署：**
 ```bash
 cd ~/Documents/zaigongcheng-web/backend
 pip install -r requirements.txt
-uvicorn main:app --host 0.0.0.0 --port 8000
+uvicorn main:app --host 0.0.0.0 --port 8000  # 公网部署需自行加反代+鉴权
 ```
 
 **前端部署：**

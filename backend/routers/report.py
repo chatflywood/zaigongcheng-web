@@ -385,8 +385,7 @@ async def generate_brief(
     try:
         html_content = build_brief_html(zaigong_rec, budget_rec)
     except Exception as e:
-        import traceback
-        return JSONResponse(status_code=500, content={"success": False, "message": f"生成简报失败：{e}", "detail": traceback.format_exc()})
+        return JSONResponse(status_code=500, content={"success": False, "message": f"生成简报失败：{e}"})
 
     report_month = _parse_report_month(zaigong_rec.file_date, zaigong_rec.uploaded_at)
     filename = f"在建工程简报_{report_month}.html".replace("年", "").replace("月", "")
@@ -851,10 +850,8 @@ async def generate_brief_image(
     try:
         png_bytes = build_brief_image(zaigong_rec, budget_rec)
     except Exception as e:
-        import traceback
         return JSONResponse(status_code=500,
-                            content={"success": False, "message": f"生成图片失败：{e}",
-                                     "detail": traceback.format_exc()})
+                            content={"success": False, "message": f"生成图片失败：{e}"})
 
     report_month = _parse_report_month(zaigong_rec.file_date, zaigong_rec.uploaded_at)
     filename = f"在建工程简报_{report_month}.png".replace("年", "").replace("月", "")
