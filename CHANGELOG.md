@@ -1,5 +1,22 @@
 # 功能更新日志
 
+## v1.34.0 (2026-07-06)
+
+### Budget 批次管理 UI 拆分 — P3 完成
+
+延续 v1.32.0/v1.33.0 的 Budget 瘦身，完成 P3 抽取批次管理弹窗为独立子组件。
+
+- 新增 `frontend/src/components/BatchManageModal.vue`（293 行）：承载「新增/编辑批次弹窗」+「专业管理抽屉」两块交互。沿用 TransferPriorityModal 范式 —— script-first / JSDoc 含 Props+Events / `v-model:visible` / 状态留父组件供 `wrapper.vm` 测试访问 / 全 `var(--xxx)` token / scoped style
+  - 11 个 Props：`modalVisible / modalMode / modalForm / noteFieldsOpen / specialties / specialtyVisible / specialtyList / editingSpecialty / newSpecialtyName / modalSubtotal / modalLoading`
+  - 12 个 Events：`update:modal-visible / update:specialty-visible / update:editing-specialty / update:new-specialty-name / close-batch-modal / set-amount / toggle-note-field / save-batch / start-edit-specialty / save-specialty-edit / add-new-specialty / confirm-delete-specialty`
+  - 内部纯函数 `formatBatchNum`（复制实现，不污染测试 wrapper.vm）
+- 改 `frontend/src/views/Budget.vue` 2451 → 2276 行（-175）：
+  - template 489–578 段（弹窗 + 抽屉）替换为单个 `<BatchManageModal/>` 调用
+  - script 新增 `import BatchManageModal`，所有 ref/computed/方法保留供 `wrapper.vm` 测试访问
+  - scoped CSS 删除弹窗/抽屉专属规则 ~110 行（`.batch-modal-box / .form-* / .amount-* / .modal-subtotal-bar / .modal-footer / .specialty-* / .btn-sm`），保留 `.btn` 系列（被 batch-view-head 按钮仍用）、`.cell-note-popup`（fixed 全局弹层仍留 Budget）、`.batch-tbl / .bc-* / .br-*`（表格本体留 Budget）
+
+**风险控制**：`Budget.test.js` 60 条用例通过 `wrapper.vm.XXX` 访问全部批次/专业标识符，已通过 Explore agent 精确列出标识符清单，全部确认留在 Budget.vue，**无需改测试**。视觉零回归（保留原 class 名 + scoped 副本，弹窗 UI 完全照旧）。300/300 测试全绿 + `npm run build` 通过。
+
 ## v1.33.0 (2026-07-03)
 
 ### Budget CSS 治理 — !important 清零 + 中性色 token 化

@@ -106,9 +106,13 @@ cd backend && uvicorn main:app --reload
 - ✅ P1-a：Budget 第 4 层 `!important` 全部清零（279→0）。其中 277 处直接删除，2 处升级选择器特异性替代（`.batch-tbl th.bc-date` 反超 `.batch-tbl th`；`.br-total td.bc-note-muted` 反超 `.br-total td`）
 - ✅ P1-b：Budget 中性色 hex→token。文字色（ink 系 9 个 hex）+ 边框色（line 系 9 个 hex）共 ~50 处转为 `var(--ink)`/`var(--ink-3)`/`var(--line)` 等。**底色保留原 hex**——Budget 冷灰底色（`#f6f5f2` 等）与 Editorial 暖米 token（`--paper`=#F7F5EE）色温不同，转 token 会导致视觉变化（已踩坑还原）。鲜艳语义色（绿/红/橙）和主题色（紫/蓝）也保留不动
 
-**当前状态**：Budget.vue 2451 行（!important 0 处 / 硬编码 hex 96 处：底色+鲜艳色+主题色），Dashboard.vue 1683 行。Budget CSS 可维护性已大幅提升。
+**当前状态**：Budget.vue 2276 行（!important 0 处 / 硬编码 hex 96 处：底色+鲜艳色+主题色），Dashboard.vue 1683 行。Budget CSS 可维护性已大幅提升。
 
-### 🔴 P2 — 抽共享 CSS（下一个待办）
+#### v1.34.0 (2026-07-06) — Budget 批次管理 UI 拆分
+
+- ✅ P3：抽取 `BatchManageModal.vue`（293 行）—— 批次创建/编辑弹窗 + 专业管理抽屉两块交互。沿用 TransferPriorityModal 范式（script-first / JSDoc Props+Events / v-model:visible / 状态留父供 wrapper.vm 测试访问）。Props 11 个 / Events 12 个 / 内部纯函数 `formatBatchNum`。Budget template 489-578 段替换为单个 `<BatchManageModal/>`，Budget scoped CSS 删除弹窗/抽屉专属规则 ~110 行。Budget.vue 2451 → 2276 行（-175）。视觉零回归（保留原 class 名 + scoped 副本）。300/300 测试全绿无需改测试。
+
+### 🔴 P2 — 抽共享 CSS（可选，收益有限）
 
 > 注意：P1-b 只统一了文字/边框 token，**底色未统一**（Budget 冷灰 hex vs Dashboard 暖米 token）。因此 P2 只能抽文字/边框类的共享样式，底色相关的仍各自带 scoped 副本。收益有限，可考虑跳过直接做 P3。
 
@@ -118,12 +122,12 @@ cd backend && uvicorn main:app --reload
 - 风险：低（只抽文字/边框类，底色类不动）
 - **替代方案**：若收益 deemed 太小，可跳过 P2 直接做 P3（Budget 批次 UI 拆分，收益更直接）
 
-### 🟡 P3 — Budget 批次管理 UI 拆分（推荐优先）
+### 🟡 P3 — Budget 批次管理 UI 拆分（✅ 已完成 v1.34.0）
 
-- 抽 `BatchManageModal.vue`（批次创建/编辑弹窗 + 专业面板）
+- ✅ 抽 `BatchManageModal.vue`（批次创建/编辑弹窗 + 专业面板）
 - 状态留 Budget（测试 wrapper.vm 访问），子组件搬 template + CSS + 纯展示
-- 收益：Budget template 650 → ~350 行
-- 风险：中（批次 reactive 逻辑复杂，Budget.test.js 有批次测试，需检查 wrapper.vm 访问的标识符）
+- 收益：Budget.vue 2451 → 2276 行（-175）
+- 风险：中（批次 reactive 逻辑复杂，Budget.test.js 有批次测试，已通过 wrapper.vm 访问的标识符清单确认全部留 Budget）
 
 ### 🟢 P4 — Dashboard 主体区块拆分（可选，收益递减）
 
@@ -141,8 +145,10 @@ cd backend && uvicorn main:app --reload
 ### 推荐执行顺序
 
 ```
-P2（可选，收益有限）→ P3（推荐优先）→ P5（可随时穿插）→ P4（可选）
+P2（可选，收益有限）→ P5（小收益，可随时穿插）→ P4（可选，收益递减）
 ```
+
+> P3 已于 v1.34.0 完成。下一个值得做的是 P5（复用 UploadZone，低风险小收益）或 P2（抽 shared.css，收益有限）。P4 收益递减且风险中-高，按需取舍。
 
 ### 重构约定（沿用 v1.32.0/v1.33.0 验证过的模式）
 
