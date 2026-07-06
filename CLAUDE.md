@@ -73,6 +73,12 @@ cd backend && uvicorn main:app --reload
 # 后端测试（FastAPI 集成 + 服务层单元，无需启 uvicorn）
 cd backend && python -m pytest tests/ -q --ignore=tests/test_api.py   # 94 用例
 cd backend && python -m pytest tests/test_api.py                        # 黑盒 HTTP，需先启 uvicorn
+
+# 重启前后端（解决 Vite 缓存旧 CSS/JS 导致页面错乱）
+lsof -ti:8000,5173 | xargs kill -9 2>/dev/null
+cd backend && uvicorn main:app --host 127.0.0.1 --port 8000 --reload &
+cd frontend && npm run dev
+# 浏览器打开 http://localhost:5173/zaigongcheng-web/ 再按 Cmd+Shift+R 硬刷新
 ```
 
 ## 核心业务模块
