@@ -106,8 +106,17 @@ async def upload_budget(file: UploadFile = File(...)):
     """
     上传预算 Excel 文件，返回分析结果
     """
+    # 文件类型校验
+    if not (file.filename or "").lower().endswith((".xlsx", ".xls")):
+        return JSONResponse(status_code=400, content={"success": False, "message": "仅支持 Excel 文件（.xlsx / .xls）"})
+
     try:
         contents = await file.read()
+
+        # 文件大小校验（20MB）
+        if len(contents) > 20 * 1024 * 1024:
+            return JSONResponse(status_code=400, content={"success": False, "message": "文件大小不能超过 20MB"})
+
         df_summary, df_projects = load_budget_sheets(contents)
         spend_summary = get_latest_zaigong_spend_summary()
 

@@ -33,6 +33,9 @@ async def upload_archive(
     dest = os.path.join(ARCHIVE_DIR, stored_name)
 
     content = await file.read()
+    # 文件大小校验（50MB，档案允许包含 docx/pdf，体量比 Excel 大）
+    if len(content) > 50 * 1024 * 1024:
+        raise HTTPException(400, "文件大小不能超过 50MB")
     with open(dest, "wb") as f:
         f.write(content)
 
