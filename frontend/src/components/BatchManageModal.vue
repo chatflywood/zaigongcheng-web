@@ -233,23 +233,7 @@ function formatBatchNum(v) {
   padding: 16px 28px; border-top: 1px solid var(--line);
 }
 
-/* ── 共享按钮（弹窗内自用副本，避免父组件 scoped 失效） ── */
-.btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 7px 14px; border-radius: var(--r-sm);
-  font-size: 12.5px; font-weight: 500; cursor: pointer;
-  border: 1px solid var(--line-2); background: var(--surface);
-  color: var(--ink-2); font-family: inherit; transition: all 0.15s;
-}
-.btn:hover { background: var(--paper-2); color: var(--ink); border-color: var(--ink-4); }
-.btn.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-.btn.primary:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn.ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
-.btn.ghost:hover { background: var(--paper-2); }
-.btn svg { width: 12px; height: 12px; opacity: 0.7; }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-/* 小按钮 */
+/* 小按钮（弹窗内自用，未抽至 shared.css） */
 .btn-sm {
   padding: 3px 10px; border-radius: var(--r-sm); font-size: 11px;
   border: 1px solid var(--line-2); background: none; cursor: pointer;

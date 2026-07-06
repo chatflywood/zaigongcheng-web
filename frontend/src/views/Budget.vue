@@ -2098,20 +2098,7 @@ async function confirmDeleteSpecialty(s) {
 
 /* ── New handoff-style data section ─────────────────── */
 
-/* Buttons (for data section) */
-.btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 7px 12px; border-radius: var(--r-md);
-  font-size: 12.5px; color: var(--ink-2);
-  background: var(--surface); border: 1px solid var(--line-2);
-  transition: all 120ms; white-space: nowrap; cursor: pointer; font-family: inherit;
-}
-.btn:hover { background: var(--paper-2); color: var(--ink); border-color: var(--ink-4); }
-.btn.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-.btn.primary:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn.ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
-.btn.ghost:hover { background: var(--paper-2); }
-.btn svg { width: 12px; height: 12px; opacity: 0.7; }
+/* .btn / .btn.primary / .btn.ghost 等共享自 styles/shared.css（v1.34.1） */
 
 /* Budget hero KPI grid */
 .budget-hero-kpis {

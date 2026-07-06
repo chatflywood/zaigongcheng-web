@@ -1,0 +1,36 @@
+/* ─── 跨组件共享样式（v1.34.1 起） ───────────────────────────
+ *
+ * 仅收纳"全 token / 无页面色温依赖 / 跨 ≥2 个 .vue 重复定义"的 class。
+ * 底色用 Budget 冷灰 hex 或 Dashboard 暖米 hex 的 class 一律不收
+ * （v1.33.0 已验证：色温不可跨页面统一）。
+ *
+ * main.js 在 style.css 之后紧接 import。共享 class 用 :where() 包裹
+ * 把特异性降为 0,0,0，任何 scoped 副本（带 [data-v-xxx] 为 0,1,0）
+ * 都能自然覆盖本文件，零回归。
+ * ────────────────────────────────────────────────────────── */
+
+/* ── 比率徽标（ManagerDetailDrawer / TransferPriorityModal 逐字一致） ── */
+:where(.rate-badge) {
+  display: inline-block; padding: 2px 8px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 500; font-family: var(--font-mono); white-space: nowrap;
+}
+:where(.rate-badge.success) { background: var(--ok-soft); color: var(--ok); }
+:where(.rate-badge.normal) { background: var(--info-soft); color: var(--info); }
+:where(.rate-badge.warning) { background: var(--warn-soft); color: var(--warn); }
+:where(.rate-badge.danger) { background: var(--bad-soft); color: var(--bad); }
+
+/* ── 主按钮 .btn（与 views/Budget.vue + views/Dashboard.vue 同款，全 token） ── */
+:where(.btn) {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; border-radius: var(--r-md);
+  font-size: 12.5px; color: var(--ink-2);
+  background: var(--surface); border: 1px solid var(--line-2);
+  transition: all 120ms; white-space: nowrap; cursor: pointer; font-family: inherit;
+}
+:where(.btn:hover) { background: var(--paper-2); color: var(--ink); border-color: var(--ink-4); }
+:where(.btn.primary) { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+:where(.btn.primary:hover) { background: var(--accent); border-color: var(--accent); color: #fff; }
+:where(.btn.ghost) { background: transparent; border-color: transparent; color: var(--ink-2); }
+:where(.btn.ghost:hover) { background: var(--paper-2); }
+:where(.btn svg) { width: 12px; height: 12px; opacity: 0.7; }
+:where(.btn:disabled) { opacity: 0.5; cursor: not-allowed; }

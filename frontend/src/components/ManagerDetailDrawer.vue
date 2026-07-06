@@ -307,12 +307,4 @@ function getRateClass(rate) {
 }
 .val-bad { color: var(--bad) !important; }
 .val-primary { font-weight: 500; color: var(--ink); }
-.rate-badge {
-  display: inline-block; padding: 2px 8px; border-radius: 999px;
-  font-size: 11.5px; font-weight: 500; font-family: var(--font-mono); white-space: nowrap;
-}
-.rate-badge.success { background: var(--ok-soft); color: var(--ok); }
-.rate-badge.normal { background: var(--info-soft); color: var(--info); }
-.rate-badge.warning { background: var(--warn-soft); color: var(--warn); }
-.rate-badge.danger { background: var(--bad-soft); color: var(--bad); }
 </style>

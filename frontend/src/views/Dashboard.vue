@@ -1316,18 +1316,7 @@ onUnmounted(() => {})
 .card-head .sub { font-size: 11.5px; color: var(--ink-3); }
 .card-body { padding: 20px; }
 
-/* ── Buttons ──────────────────────────────────────── */
-.btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 7px 12px; border-radius: var(--r-md);
-  font-size: 12.5px; color: var(--ink-2);
-  background: var(--surface); border: 1px solid var(--line-2);
-  transition: all 120ms; white-space: nowrap; cursor: pointer; font-family: inherit;
-}
-.btn:hover { background: var(--paper-2); color: var(--ink); border-color: var(--ink-4); }
-.btn.ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
-.btn.ghost:hover { background: var(--paper-2); }
-.btn svg { width: 12px; height: 12px; opacity: 0.7; }
+/* .btn / .btn.ghost 共享自 styles/shared.css（v1.34.1） */
 
 /* ── Page header ─────────────────────────────────── */
 .page {
