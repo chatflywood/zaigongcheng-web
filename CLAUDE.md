@@ -36,8 +36,11 @@ zaigongcheng-web/
 │   │   │   ├── FourClassWarningModal.vue  # 四类预警明细弹窗
 │   │   │   ├── ManagerDetailDrawer.vue   # 管理员明细抽屉
 │   │   │   ├── TransferPriorityModal.vue # 转固推进清单弹窗
+│   │   │   ├── BatchManageModal.vue  # 批次管理弹窗 + 专业抽屉（v1.34.0 抽出）
 │   │   │   ├── KpiGrid.vue          # KPI 指标卡网格
 │   │   │   └── HistoryPanel.vue     # 历史快照抽屉（跨页面复用）
+│   │   ├── styles/        # 全局共享样式（v1.34.1 起抽 .btn/.rate-badge 等）
+│   │   │   └── shared.css
 │   │   └── __tests__/      # 前端单元测试（Vitest，300 用例）
 │   └── package.json
 ├── backend/
@@ -120,45 +123,9 @@ cd backend && uvicorn main:app --reload
 - 未抽（保留各自 scoped）：`.modal-close`（A 套 surface 底 vs B 套 transparent 底语义分歧）、`.loader-ring`（Budget 字面 hex 色 / Dashboard 三段 nth-child 色）、`.btn-sm`（仅 BatchManageModal 单处）
 - 300/300 测试全绿 + build 通过
 
-### 🔴 P2 — 抽共享 CSS（✅ 第一波 v1.34.1，第二波可选）
+**所有 P2-P5 路线图项已于 v1.34.0 / v1.34.1 完成。** 后续若新增弹窗组件又复制 `.modal-close / .loader-ring` 各 ≥3 次，再回过头抽 `shared.css` 第二波。
 
-> 注意：P1-b 只统一了文字/边框 token，**底色未统一**（Budget 冷灰 hex vs Dashboard 暖米 token）。因此 P2 只能抽文字/边框类的共享样式，底色相关的仍各自带 scoped 副本。收益有限，可考虑跳过直接做 P3。
-
-- 新建 `src/styles/shared.css`，抽出 `.rate-badge`/`.modal-close`/`.loader-ring`/`.btn`/`.overlay-divider` 等共享样式
-- main.js import 全局样式，子组件删除自带的重复 CSS
-- 收益：消除子组件间 ~30 行重复（ManagerDetailDrawer/TransferPriorityModal 各有一份 `.rate-badge`/`.modal-close`/`.loader-ring`）
-- 风险：低（只抽文字/边框类，底色类不动）
-- **替代方案**：若收益 deemed 太小，可跳过 P2 直接做 P3（Budget 批次 UI 拆分，收益更直接）
-
-### 🟡 P3 — Budget 批次管理 UI 拆分（✅ 已完成 v1.34.0）
-
-- ✅ 抽 `BatchManageModal.vue`（批次创建/编辑弹窗 + 专业面板）
-- 状态留 Budget（测试 wrapper.vm 访问），子组件搬 template + CSS + 纯展示
-- 收益：Budget.vue 2451 → 2276 行（-175）
-- 风险：中（批次 reactive 逻辑复杂，Budget.test.js 有批次测试，已通过 wrapper.vm 访问的标识符清单确认全部留 Budget）
-
-### 🟢 P4 — Dashboard 主体区块拆分（可选，收益递减）
-
-- 上传空状态页：先复用已有 `UploadZone.vue`（components/ 下有但从未被 import），再拆 `UploadEmptyState.vue`
-- 管理员视图卡：耦合最深（~20 依赖），需先抽 target 编辑状态到 composable
-- 收益：Dashboard template -~200 行
-- 风险：中-高（耦合深，需小心 props/emit 拆分）
-
-### ⚪ P5 — Budget 上传区复用 UploadZone（小收益，可随时穿插）
-
-- `components/UploadZone.vue` 已存在但从未被 import，Budget/Dashboard 上传区都是内联实现
-- 替换为 `<UploadZone>` 引用，消除内联上传 UI 重复 ~40 行
-- 风险：低，需适配两页面交互差异
-
-### 推荐执行顺序
-
-```
-P2（可选，收益有限）→ P5（小收益，可随时穿插）→ P4（可选，收益递减）
-```
-
-> P3 已于 v1.34.0 完成。下一个值得做的是 P5（复用 UploadZone，低风险小收益）或 P2（抽 shared.css，收益有限）。P4 收益递减且风险中-高，按需取舍。
-
-### 重构约定（沿用 v1.32.0/v1.33.0 验证过的模式）
+### 重构约定（沿用 v1.32.0/v1.33.0/v1.34.0/v1.34.1 验证过的模式）
 
 - 子组件：`<script setup>` + defineProps 对象风格 + defineEmits 数组 + JSDoc + scoped style + 全 `var(--xxx)` token + 2 字母 class 前缀
 - composable：全局共享用模块级单例，视图私有用工厂 per-instance（ref 定义在 export 函数内）
