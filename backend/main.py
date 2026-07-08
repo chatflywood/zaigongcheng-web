@@ -3,6 +3,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from routers import analysis, budget, ai, notify, report, archive, budget_batch
 from models import init_db
 import os
+import logging
+
+# 统一日志配置：路由层用 logging.getLogger(__name__) 即可输出到控制台，
+# 500 异常用 logger.exception() 记完整堆栈，避免把内部细节经 JSONResponse 泄露给前端
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 
 app = FastAPI(title="在建工程分析系统", version="1.0.0")
 

@@ -5,10 +5,13 @@ from io import BytesIO
 import math
 import re
 import json
+import logging
 from services.budget import analyze_budget
 from models import ZaigongRecord, BudgetRecord, get_db
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
 
 
 def clean_nan(obj):
@@ -154,9 +157,10 @@ async def upload_budget(file: UploadFile = File(...)):
             content={"success": False, "message": str(e)}
         )
     except Exception as e:
+        logger.exception("预算上传处理失败")
         return JSONResponse(
             status_code=500,
-            content={"success": False, "message": str(e)}
+            content={"success": False, "message": f"预算上传失败：{type(e).__name__}"}
         )
 
 
@@ -194,7 +198,8 @@ async def refresh_budget_spend():
 
         return {"success": True, "data": cleaned}
     except Exception as e:
-        return {"success": False, "message": str(e)}
+        logger.exception("刷新预算支出失败")
+        return {"success": False, "message": f"刷新支出失败：{type(e).__name__}"}
     finally:
         db.close()
 

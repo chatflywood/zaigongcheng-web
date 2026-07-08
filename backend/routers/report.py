@@ -8,11 +8,14 @@ from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse, StreamingResponse
 import json
 import io
+import logging
 from datetime import datetime
 from models import ZaigongRecord, BudgetRecord, get_db
 from services.analysis import build_transfer_priority
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -385,7 +388,8 @@ async def generate_brief(
     try:
         html_content = build_brief_html(zaigong_rec, budget_rec)
     except Exception as e:
-        return JSONResponse(status_code=500, content={"success": False, "message": f"生成简报失败：{e}"})
+        logger.exception("生成简报HTML失败")
+        return JSONResponse(status_code=500, content={"success": False, "message": f"生成简报失败：{type(e).__name__}"})
 
     report_month = _parse_report_month(zaigong_rec.file_date, zaigong_rec.uploaded_at)
     filename = f"在建工程简报_{report_month}.html".replace("年", "").replace("月", "")
@@ -407,8 +411,46 @@ async def generate_brief(
 
 from PIL import Image as _PilImage, ImageDraw as _PilDraw, ImageFont
 
-FONT_ZH   = "/System/Library/Fonts/STHeiti Medium.ttc"
-FONT_MONO = "/System/Library/Fonts/SFNSMono.ttf"
+# 跨平台字体候选（macOS / Windows / Linux），按优先级取首个 PIL 可加载项；
+# 都不可用时 FONT_* 为 None，font()/mono() 会退到 PIL 默认字体（中文变方框
+# 但不崩溃）。避免写死单一 macOS 路径，导致打包/部署到 Win/Linux 后图片生成失败。
+_ZH_FONT_CANDIDATES = [
+    "/System/Library/Fonts/STHeiti Medium.ttc",              # macOS 黑体
+    "/System/Library/Fonts/PingFang.ttc",                    # macOS 苹方
+    "/Library/Fonts/Songti.ttc",                            # macOS 宋体
+    "C:/Windows/Fonts/simhei.ttf",                           # Windows 黑体
+    "C:/Windows/Fonts/msyh.ttc",                            # Windows 微软雅黑
+    "C:/Windows/Fonts/simsun.ttc",                           # Windows 宋体
+    "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",        # Linux 文泉驿微米黑
+    "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",  # Linux Noto CJK
+    "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+]
+_MONO_FONT_CANDIDATES = [
+    "/System/Library/Fonts/SFNSMono.ttf",                   # macOS 等宽
+    "/System/Library/Fonts/Menlo.ttc",
+    "/System/Library/Fonts/Monaco.ttf",
+    "C:/Windows/Fonts/consola.ttf",                          # Windows Consolas
+    "C:/Windows/Fonts/cour.ttf",                             # Windows Courier
+    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",   # Linux DejaVu
+    "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+]
+
+def _resolve_font(candidates):
+    """从候选路径取首个存在且 PIL 可加载的；都不可用返回 None。"""
+    import os
+    for path in candidates:
+        if not os.path.exists(path):
+            continue
+        try:
+            ImageFont.truetype(path, 16)   # 探测性加载，确认 PIL 能解析
+            return path
+        except Exception:
+            continue
+    return None
+
+FONT_ZH   = _resolve_font(_ZH_FONT_CANDIDATES)
+FONT_MONO = _resolve_font(_MONO_FONT_CANDIDATES)
 
 # 颜色
 C_BG        = (241, 245, 249)   # 页面背景 #f1f5f9
@@ -850,8 +892,9 @@ async def generate_brief_image(
     try:
         png_bytes = build_brief_image(zaigong_rec, budget_rec)
     except Exception as e:
+        logger.exception("生成简报PNG失败")
         return JSONResponse(status_code=500,
-                            content={"success": False, "message": f"生成图片失败：{e}"})
+                            content={"success": False, "message": f"生成图片失败：{type(e).__name__}"})
 
     report_month = _parse_report_month(zaigong_rec.file_date, zaigong_rec.uploaded_at)
     filename = f"在建工程简报_{report_month}.png".replace("年", "").replace("月", "")

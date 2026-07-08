@@ -3,6 +3,7 @@
 企业微信通知配置与推送接口
 """
 import json
+import logging
 from typing import Optional
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
@@ -11,6 +12,8 @@ from routers.analysis import build_dashboard_snapshot
 from services.notify import push_record, send_test
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
 
 WEBHOOK_KEY = "wework_webhook_url"
 AUTO_PUSH_KEY = "wework_auto_push"
@@ -159,4 +162,5 @@ async def test_push(body: dict):
                 content={"success": False, "message": f"平台返回错误：{errmsg}"},
             )
     except Exception as e:
-        return JSONResponse(status_code=502, content={"success": False, "message": f"请求失败：{str(e)}"})
+        logger.exception("消息推送请求失败")
+        return JSONResponse(status_code=502, content={"success": False, "message": f"消息推送失败：{type(e).__name__}"})

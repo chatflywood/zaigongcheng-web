@@ -4,11 +4,14 @@ import pandas as pd
 from io import BytesIO
 import math
 import json
+import logging
 from datetime import datetime
 from services.analysis import analyze, build_transfer_priority
 from models import ZaigongRecord, AppConfig, get_db
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
 
 # 全年资本性支出目标（单位：万元）
 YEARLY_TARGET = 503.0
@@ -183,9 +186,10 @@ async def upload_excel(file: UploadFile = File(...), target: float = Query(503.0
             content={"success": False, "message": str(e)}
         )
     except Exception as e:
+        logger.exception("在建工程上传处理失败")
         return JSONResponse(
             status_code=500,
-            content={"success": False, "message": str(e)}
+            content={"success": False, "message": f"上传处理失败：{type(e).__name__}"}
         )
 
 
@@ -238,7 +242,8 @@ async def update_target_value(record_id: int, target: float = Query(..., gt=0)):
         return {"success": True, "target_value": target}
     except Exception as e:
         db.rollback()
-        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
+        logger.exception("更新目标金额失败")
+        return JSONResponse(status_code=500, content={"success": False, "error": f"更新目标值失败：{type(e).__name__}"})
     finally:
         db.close()
 

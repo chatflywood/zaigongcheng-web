@@ -108,7 +108,7 @@ class TestReportRouter:
             assert r.status_code == 500
             body = r.json()
             assert body["success"] is False
-            assert "字体丢失" in body["message"]
+            assert "RuntimeError" in body["message"]  # v1.34.3 脱敏：只返回异常类型名，不返回内容
             # 关键：不包含 detail 字段（v1.34 已移除 traceback 泄露）
             assert "detail" not in body
 
@@ -157,5 +157,5 @@ class TestReportRouter:
             assert r.status_code == 500
             body = r.json()
             assert body["success"] is False
-            assert "Pillow 不可用" in body["message"]
+            assert "RuntimeError" in body["message"]  # v1.34.3 脱敏：只返回异常类型名，不返回内容
             assert "detail" not in body  # 无 traceback
