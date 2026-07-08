@@ -1,5 +1,33 @@
 # 功能更新日志
 
+## v1.34.3 (2026-07-08)
+
+### 后端健壮性：字体跨平台 + 错误信息脱敏 + 补日志
+
+延续 v1.34.2 的安全治理，修掉两颗会随"打包成桌面应用 / 换机部署"引爆的定时炸弹，并补上后端长期缺失的日志基础设施。
+
+#### 1. 月报字体路径跨平台化（`routers/report.py`）
+
+- 原状：`FONT_ZH / FONT_MONO` 写死 macOS 专有路径（`/System/Library/Fonts/STHeiti Medium.ttc` / `SFNSMono.ttf`）。Mac 本地正常，但**打包成 Electron 或部署到 Windows / Linux 后，月报 PNG 中文字符变方框 □□□**（`font()` 有 try/except 不致崩溃，但默认字体不含 CJK）
+- 改造：字体改为"候选列表 + 运行时解析首个可用项"，覆盖三大系统：
+  - 中文：macOS 黑体/苹方/宋体 → Windows simhei/msyh/simsun → Linux 文泉驿/Noto CJK
+  - 等宽：macOS SF Mono/Menlo/Monaco → Windows consola/cour → Linux DejaVu/Liberation
+  - 新增 `_resolve_font()` 探测性加载（`os.path.exists` + `ImageFont.truetype` 双重校验），全不可用返回 `None`，`font()/mono()` 走原 try/except 退默认字体，**不崩溃**
+- 行为不变：macOS 实测仍解析到原 STHeiti / SFNSMono，零视觉回归
+
+#### 2. 路由层错误信息脱敏 + 后端补日志（7 处）
+
+- 现状评估：v1.34.2 已把最危险的"完整 Python 堆栈经 `detail=traceback.format_exc()` 泄露"修掉，降级为 `str(e)` 一行摘要。但该摘要仍可能含数据库表名/文件路径/DSN 等内部细节
+- 改造：7 处 500/502 异常响应统一脱敏 -- 前端只返回异常类型名（如"生成简报失败：RuntimeError"），不返回 `str(e)` 内容；同时 `logger.exception()` 把**完整堆栈 + 异常消息**记到后端控制台，排查不丢线索
+  - `analysis.py`：upload 500、update_target 500
+  - `budget.py`：upload 500、refresh-spend 500
+  - `report.py`：brief HTML 500、image PNG 500
+  - `notify.py`：webhook 推送 502
+- `main.py` 新增 `logging.basicConfig`（level=INFO + 统一格式），补上后端此前完全空白的日志基础设施 -- 500 异常、运行信息现在可在 uvicorn 终端查看
+- 不动 400 `ValueError`：业务校验文案（如"仅支持 Excel 文件"）本就是给用户看的提示，非内部泄露
+- 实测验证（构造含 `SuperSecret123` 密码的异常）：前端响应不含密码 / 无 `detail` 字段 / message 含类型名；后端日志含完整密码 + Traceback -- 5 项断言全过
+- 测试同步：`test_report_router.py` 两处 500 断言由"含异常文本"改为"含 `RuntimeError` 类型名"，**94/94 仍全绿**
+
 ## v1.34.2 (2026-07-06)
 
 ### 后端 4 路由补集成测试 + 安全/上传健壮性修复

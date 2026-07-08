@@ -143,3 +143,9 @@ cd frontend && npm run dev
 - 状态留页面（测试 wrapper.vm 访问），子组件只搬 template + CSS + 纯展示函数
 - CSS token 迁移：**底色（paper/surface 系）不可跨页面统一**（Budget 冷灰 vs Editorial 暖米色温不同），只统一文字（ink 系）和边框（line 系）
 - 每步 300/300 测试 + 目视确认，分步提交
+
+### 后端健壮性（v1.34.3）
+
+- **字体跨平台**：`routers/report.py` 月报 PNG 字体不再写死 macOS 路径。`FONT_ZH/FONT_MONO` 由 `_resolve_font()` 从跨平台候选列表（macOS/Windows/Linux）取首个可用项，全不可用返回 `None` 由 `font()/mono()` 退默认字体不崩溃。打包到 Electron / 部署 Win/Linux 不再中文变方框
+- **错误脱敏**：7 处路由 500/502 异常统一脱敏 -- 前端只返回异常类型名（如 `生成简报失败：RuntimeError`），不返回 `str(e)` 内容；完整堆栈走 `logger.exception()` 记后端控制台。约定：400 `ValueError` 业务文案不动（是给用户的提示，非泄露）
+- **后端日志**：`main.py` 配 `logging.basicConfig(level=INFO)`。500 排查看 uvicorn 终端，不再凭空猜
