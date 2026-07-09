@@ -1,5 +1,19 @@
 # 功能更新日志
 
+## v1.34.4 (2026-07-09)
+
+### 后端补测：预算路由算钱盲区（+22 例，94→116 全绿）
+
+此前 94/94 gate 模式里预算页"上传 → 一级专业年度支出汇总 → 与预算目标对比 → 刷新 / 历史快照"整条链路零覆盖，是 `docs/prd.md` 第 11 章 P1 唯一未落地项。其余 P1 两条（一级专业入库、脱离本地源文件回查）早在 v1.29.0 落地，但 PRD 第 10 章"当前限制"仍写"依赖本地源文件回查"，文档与代码长期脱节。
+
+- 新增 `backend/tests/test_budget_router.py`，沿用 `test_budget_batch_router` 范式（httpx.ASGITransport + 内存 SQLite + StaticPool + patch `get_db`），6 类 22 例：
+  - `build_zaigong_spend_summary_from_record` 三分支：detail_data 含一级专业 / 退回 raw_data（字符串数字可转）/ record=None，含空 category 过滤、必需列缺失
+  - `load_budget_sheets` 年份无关 + 缺项目 sheet 返回 None；`clean_nan` 嵌套 NaN/Inf→None 递归
+  - `analyze_budget` 端到端算账（ward_total / annual_spend_total / approval_progress / spend_progress / 单专业 spend_progress）；spend_summary=None 全 0 初始化态
+  - 4 个路由端点：upload 入库 / 非 Excel 400 / 超 20MB 400 / 缺 sheet 抛 ValueError 400；refresh-spend 重算落库 / 无预算及无在建兜底；history 空库 / desc 时序 + limit / current+previous 快照 / id 不存在 404 + 空库 404
+- 不动业务代码一行（纯加测试）
+- 文档同步：删 PRD 第 10 章"本地源文件回查"限制（已不再成立），第 11 章 P1 三条标 ✅；`requirements.md` 同步两处口径与第 11 章；`CLAUDE.md` 用例数 94→116
+
 ## v1.34.3 (2026-07-08)
 
 ### 后端健壮性：字体跨平台 + 错误信息脱敏 + 补日志

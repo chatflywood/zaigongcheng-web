@@ -49,7 +49,7 @@ zaigongcheng-web/
 │   ├── routers/            # 路由模块（analysis、budget、ai、notify、report、archive）
 │   ├── uploads/archive/    # 数据档案文件存储目录
 │   ├── services/           # 业务逻辑
-│   ├── tests/             # 后端集成测试（pytest，94 用例：analysis services / ai router / archive / budget_batch / notify / report）
+│   ├── tests/             # 后端集成测试（pytest，116 用例：analysis services / ai router / archive / budget_batch / notify / report / budget_router）
 │   └── .env                # 环境变量（MiniMax API Key，不提交 git）
 └── docs/
 ```
@@ -71,7 +71,7 @@ cd frontend && npm run electron:build
 cd backend && uvicorn main:app --reload
 
 # 后端测试（FastAPI 集成 + 服务层单元，无需启 uvicorn）
-cd backend && python -m pytest tests/ -q --ignore=tests/test_api.py   # 94 用例
+cd backend && python -m pytest tests/ -q --ignore=tests/test_api.py   # 116 用例
 cd backend && python -m pytest tests/test_api.py                        # 黑盒 HTTP，需先启 uvicorn
 
 # 重启前后端（解决 Vite 缓存旧 CSS/JS 导致页面错乱）
