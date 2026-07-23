@@ -951,7 +951,10 @@ async function handleExportTransferPriority() {
     const a = document.createElement('a')
     a.href = url
     const suffix = rate ? `_目标${rate}pct` : ''
-    a.download = `转固推进清单${suffix}.xlsx`
+    const fileDate = displayAnalysisDate.value?.replace(/-/g, '') || ''
+    const now = new Date()
+    const exportDate = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
+    a.download = `转固推进清单_${fileDate}_${exportDate}${suffix}.xlsx`
     a.click()
     URL.revokeObjectURL(url)
   } catch (e) { console.error('导出失败:', e); alert('导出失败，请重试') }
@@ -1002,7 +1005,9 @@ async function exportFourClassWarnings() {
     const link = document.createElement('a')
     link.href = url
     const fileDate = fcWarnings.value?.summary?.analysis_date?.replace(/-/g, '') || ''
-    link.download = `四类工程预警清单_${fileDate}.xlsx`
+    const now = new Date()
+    const exportDate = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
+    link.download = `四类工程预警清单_${fileDate}_${exportDate}.xlsx`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)

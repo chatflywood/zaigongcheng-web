@@ -97,11 +97,11 @@ npm install
 ### 运行测试
 
 ```bash
-# 后端测试（37 个用例）
+# 后端测试（124 个用例，不含需先启 uvicorn 的黑盒 test_api.py）
 cd ~/Documents/zaigongcheng-web/backend
-python -m pytest tests/ -v
+python -m pytest tests/ -q --ignore=tests/test_api.py
 
-# 前端测试（304 个用例，覆盖全部页面 + API 层）
+# 前端测试（300 个用例，覆盖全部页面 + API 层）
 cd ~/Documents/zaigongcheng-web/frontend
 npm run test
 ```

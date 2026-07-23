@@ -1,5 +1,20 @@
 # 功能更新日志
 
+## v1.34.5 (2026-07-23)
+
+### P0 工程卫生：版本对齐 + Electron 本机绑定 + 仓库清理 + 施工单位护栏
+
+- **版本对齐**：`frontend/package.json` `1.14.0` → `1.34.4`（与 CHANGELOG 主线对齐；本版起为 `1.34.5`）；`backend/main.py` FastAPI / root 接口 `1.0.0` → `1.34.5`
+- **Electron 安全默认值**：`electron/main.cjs` 后端启动 host `0.0.0.0` → `127.0.0.1`，避免桌面端无鉴权 API 暴露到局域网
+- **仓库清理**：`dashboard-*-prototype.html` / `dashboard-demo.html` / `zaigongcheng-handoff.zip` 从 git 索引移除并加入 `.gitignore`；删除误放根目录空 `node_modules/`
+- **四类预警补「施工单位」**（承接未提交 WIP）：
+  - `services/analysis.py`：`build_four_class_warnings` item 增加 `constructionUnit`（缺列 / NaN → 空串）
+  - `routers/analysis.py`：导出表多一列「施工单位」；旧记录 JSON 无字段时从 `raw_data` 按工程编码回查；导出文件名加当日日期后缀
+  - 前端 `Dashboard.vue` / `KeyIndicators.vue`：下载文件名与后端一致（数据日期 + 导出日期）
+- **测试护栏**（+8 例，116→124 全绿）：
+  - `test_analysis_services.py` +3：有施工单位 / 缺列 / NaN
+  - 新增 `test_analysis_export_router.py` +5：表头 15 列、item 直写优先、raw_data 回查兜底、文件名日期后缀、404
+
 ## v1.34.4 (2026-07-09)
 
 ### 后端补测：预算路由算钱盲区（+22 例，94→116 全绿）

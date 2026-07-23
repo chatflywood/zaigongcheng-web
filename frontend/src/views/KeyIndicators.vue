@@ -518,7 +518,9 @@ async function exportFourClassWarnings() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `四类工程预警_${currentDate.value}.xlsx`
+    const fileDate = fcWarnings.value?.summary?.analysis_date?.replace(/-/g, '') || ''
+    const exportDate = currentDate.value.replace(/-/g, '')
+    a.download = `四类工程预警清单_${fileDate}_${exportDate}.xlsx`
     a.click()
     URL.revokeObjectURL(url)
   } catch (e) {

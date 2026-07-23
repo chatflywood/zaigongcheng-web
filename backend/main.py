@@ -12,7 +12,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 
-app = FastAPI(title="在建工程分析系统", version="1.0.0")
+app = FastAPI(title="在建工程分析系统", version="1.34.5")
 
 # 初始化数据库
 init_db()
@@ -38,4 +38,4 @@ app.include_router(budget_batch.router, prefix="/api/budget-batch", tags=["投�
 
 @app.get("/")
 async def root():
-    return {"message": "在建工程分析系统 API", "version": "1.0.0"}
+    return {"message": "在建工程分析系统 API", "version": "1.34.5"}

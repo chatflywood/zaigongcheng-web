@@ -993,7 +993,7 @@ async def export_transfer_priority(record_id: int, target_rate: float = Query(No
         from fastapi.responses import StreamingResponse
         from urllib.parse import quote
         suffix = f"_{int(target_rate * 100)}pct目标" if target_rate else ""
-        filename = f"转固推进清单_{file_date}{suffix}.xlsx"
+        filename = f"转固推进清单_{file_date}_{datetime.now().strftime('%Y%m%d')}{suffix}.xlsx"
         return StreamingResponse(
             io.BytesIO(output.getvalue()),
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -1071,7 +1071,7 @@ async def export_four_class_excel(record_id: int):
         }
 
         # 第1行：标题
-        ws1.merge_cells("A1:M1")
+        ws1.merge_cells("A1:O1")
         ws1["A1"].value = '中国电信股份有限公司仙桃分公司  "四类工程"预警清单'
         ws1["A1"].font = Font(name="微软雅黑", size=15, bold=True, color=C_WHITE)
         ws1["A1"].fill = PatternFill("solid", fgColor=C_NAVY)
@@ -1083,7 +1083,7 @@ async def export_four_class_excel(record_id: int):
         total = four_class.get("total", 0)
         hit = four_class.get("hit_count", 0)
         warn = four_class.get("warn_count", 0)
-        ws1.merge_cells("A2:M2")
+        ws1.merge_cells("A2:O2")
         ws1["A2"].value = f"数据截止：{today_str}  |  排除局房类  |  预警窗口90天  |  共{total}项（已触发{hit}项/预警{warn}项）"
         ws1["A2"].font = Font(name="微软雅黑", size=9, color="D9E8F5")
         ws1["A2"].fill = PatternFill("solid", fgColor=C_BLUE)
@@ -1103,7 +1103,7 @@ async def export_four_class_excel(record_id: int):
         ws1["E3"].fill = PatternFill("solid", fgColor="FFF3C8")
         ws1["E3"].alignment = Alignment(horizontal="center", vertical="center")
 
-        ws1.merge_cells("I3:M3")
+        ws1.merge_cells("I3:O3")
         ws1["I3"].value = "局房及基础设施、保密项目不纳入四类工程考核范围"
         ws1["I3"].font = Font(name="微软雅黑", size=9, italic=True, color="595959")
         ws1["I3"].fill = PatternFill("solid", fgColor="F0F0F0")
@@ -1111,7 +1111,7 @@ async def export_four_class_excel(record_id: int):
         ws1.row_dimensions[3].height = 20
 
         # 第4行：表头
-        headers = ["编号", "状态", "四类工程类型", "工程编码", "工程名称", "一级专业", "验收类型", "工程管理员", "关键日期", "关键日期说明", "截止日期", "工程状态", "逾期/剩余天数", "处置建议"]
+        headers = ["编号", "状态", "四类工程类型", "工程编码", "工程名称", "一级专业", "验收类型", "工程管理员", "关键日期", "关键日期说明", "截止日期", "工程状态", "施工单位", "逾期/剩余天数", "处置建议"]
         for col, header in enumerate(headers, 1):
             cell = ws1.cell(row=4, column=col)
             cell.value = header
@@ -1121,12 +1121,25 @@ async def export_four_class_excel(record_id: int):
         ws1.row_dimensions[4].height = 28
 
         # 列宽
-        col_widths = [5, 12, 13, 18, 44, 10, 8, 9, 11, 12, 11, 12, 40]
+        col_widths = [5, 12, 13, 18, 44, 10, 8, 9, 11, 12, 11, 12, 16, 13, 40]
         for col, width in enumerate(col_widths, 1):
             ws1.column_dimensions[get_column_letter(col)].width = width
 
         # 数据行
         items = four_class.get("items", [])
+
+        # 旧记录的预警 JSON 无 constructionUnit 字段，从 raw_data 按工程编码回查兜底
+        unit_by_code = {}
+        if record.raw_data:
+            try:
+                for raw in json.loads(record.raw_data):
+                    code = raw.get("工程编码")
+                    unit = raw.get("施工单位")
+                    if code and unit and str(code) not in unit_by_code:
+                        unit_by_code[str(code)] = str(unit).strip()
+            except (json.JSONDecodeError, TypeError, AttributeError):
+                pass
+
         current_row = 5
 
         # 按类型分组
@@ -1148,7 +1161,7 @@ async def export_four_class_excel(record_id: int):
 
             # 分组标题行
             bg_color, text_color = TYPE_COLORS.get(wtype, ("F0F0F0", "595959"))
-            ws1.merge_cells(f"A{current_row}:M{current_row}")
+            ws1.merge_cells(f"A{current_row}:O{current_row}")
             cell = ws1[f"A{current_row}"]
             cell.value = f"▌ {wtype}　{TYPE_STANDARDS.get(wtype, '')}　已触发：{triggered_count}项　预警：{warning_count}项"
             cell.font = Font(name="微软雅黑", size=10, bold=True, color=text_color)
@@ -1183,6 +1196,7 @@ async def export_four_class_excel(record_id: int):
                     item.get("keyDateLabel", ""),
                     item.get("deadline", ""),
                     item.get("projectStatus", ""),
+                    item.get("constructionUnit") or unit_by_code.get(str(item.get("code", "")), ""),
                     item.get("daysLabel", ""),
                     item.get("suggestion", ""),
                 ]
@@ -1192,7 +1206,7 @@ async def export_four_class_excel(record_id: int):
                     cell.value = value
                     cell.font = Font(name="微软雅黑", size=9, color=text_color if col == 3 else "000000")
                     cell.fill = PatternFill("solid", fgColor=row_bg)
-                    cell.alignment = Alignment(horizontal="left" if col in [5, 13] else "center", vertical="center", wrap_text=True)
+                    cell.alignment = Alignment(horizontal="left" if col in [5, 13, 15] else "center", vertical="center", wrap_text=True)
                     cell.border = Border(
                         left=Side(style="thin", color="BFBFBF"),
                         right=Side(style="thin", color="BFBFBF"),
@@ -1204,8 +1218,8 @@ async def export_four_class_excel(record_id: int):
                     if col == 2:
                         cell.font = Font(name="微软雅黑", size=9, bold=True, color=status_color)
 
-                    # L列天数颜色
-                    if col == 12:
+                    # N列天数颜色
+                    if col == 14:
                         days_text = str(value)
                         if "逾期" in days_text or "超期" in days_text:
                             cell.font = Font(name="微软雅黑", size=9, bold=True, color="C00000")
@@ -1269,7 +1283,7 @@ async def export_four_class_excel(record_id: int):
 
         from fastapi.responses import StreamingResponse
         from urllib.parse import quote
-        filename = f"四类工程预警清单_{record.file_date or 'export'}.xlsx"
+        filename = f"四类工程预警清单_{record.file_date or 'export'}_{datetime.now().strftime('%Y%m%d')}.xlsx"
         encoded_filename = quote(filename)
         return StreamingResponse(
             io.BytesIO(output.getvalue()),

@@ -36,7 +36,8 @@ function startBackend() {
   const backendPath = path.join(__dirname, '../../backend');
   const pythonCmd = process.platform === 'darwin' ? 'python3' : 'python';
 
-  backendProcess = spawn(pythonCmd, ['-m', 'uvicorn', 'main:app', '--host', '0.0.0.0', '--port', '8000'], {
+  // 默认仅本机可达，避免局域网无鉴权暴露上传/删除/推送接口
+  backendProcess = spawn(pythonCmd, ['-m', 'uvicorn', 'main:app', '--host', '127.0.0.1', '--port', '8000'], {
     cwd: backendPath,
     stdio: 'pipe'
   });

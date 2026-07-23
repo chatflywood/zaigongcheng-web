@@ -1,6 +1,11 @@
 # Dependencies
 node_modules/
 
+# Legacy prototypes / handoff archives (keep out of repo)
+dashboard-*-prototype.html
+dashboard-demo.html
+zaigongcheng-handoff.zip
+
 # Build output
 frontend/dist/
 

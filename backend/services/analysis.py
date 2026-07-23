@@ -410,6 +410,7 @@ def build_four_class_warnings(df: pd.DataFrame) -> dict:
             "keyDateLabel": "初验批复日期",
             "deadline": "",
             "projectStatus": (str(row["工程状态"]) if pd.notna(row["工程状态"]) else "") if "工程状态" in row.index else "",
+            "constructionUnit": (str(row["施工单位"]).strip() if pd.notna(row["施工单位"]) else "") if "施工单位" in row.index else "",
             "daysLabel": days_label,
             "suggestion": suggestion,
         })
@@ -469,6 +470,7 @@ def build_four_class_warnings(df: pd.DataFrame) -> dict:
             "keyDateLabel": "初验批复日期",
             "deadline": deadline_str,
             "projectStatus": (str(row["工程状态"]) if pd.notna(row["工程状态"]) else "") if "工程状态" in row.index else "",
+            "constructionUnit": (str(row["施工单位"]).strip() if pd.notna(row["施工单位"]) else "") if "施工单位" in row.index else "",
             "daysLabel": days_label,
             "suggestion": suggestion,
         })
@@ -523,6 +525,7 @@ def build_four_class_warnings(df: pd.DataFrame) -> dict:
             "keyDateLabel": "终验批复日期",
             "deadline": deadline_str,
             "projectStatus": (str(row["工程状态"]) if pd.notna(row["工程状态"]) else "") if "工程状态" in row.index else "",
+            "constructionUnit": (str(row["施工单位"]).strip() if pd.notna(row["施工单位"]) else "") if "施工单位" in row.index else "",
             "daysLabel": days_label,
             "suggestion": suggestion,
         })
@@ -565,6 +568,7 @@ def build_four_class_warnings(df: pd.DataFrame) -> dict:
             "keyDateLabel": "立项批复日期",
             "deadline": deadline_str,
             "projectStatus": (str(row["工程状态"]) if pd.notna(row["工程状态"]) else "") if "工程状态" in row.index else "",
+            "constructionUnit": (str(row["施工单位"]).strip() if pd.notna(row["施工单位"]) else "") if "施工单位" in row.index else "",
             "daysLabel": days_label,
             "suggestion": suggestion,
         })

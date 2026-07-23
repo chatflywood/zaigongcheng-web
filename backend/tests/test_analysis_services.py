@@ -386,6 +386,48 @@ class TestFourClassWarnings:
         # total = hit_count + warn_count
         assert result['total'] == result['hit_count'] + result['warn_count']
 
+    @patch('services.analysis.datetime')
+    def test_construction_unit_present(self, mock_dt):
+        """源表有「施工单位」列时，预警 item 应带上 constructionUnit"""
+        mock_dt.now.return_value = self.FIXED_TODAY
+        df = make_four_class_df()
+        df['施工单位'] = [
+            '施工单位甲', '施工单位乙', '施工单位丙', '施工单位丁',
+            '施工单位戊', '施工单位己', '施工单位庚',
+        ]
+        result = build_four_class_warnings(df)
+        assert len(result['items']) > 0
+        for item in result['items']:
+            assert 'constructionUnit' in item
+            assert item['constructionUnit']  # 非空
+        # 定点：GC007 列账不及时应映射到「施工单位庚」
+        gc007 = [w for w in result['items'] if w['code'] == 'GC007']
+        assert len(gc007) > 0
+        assert all(w['constructionUnit'] == '施工单位庚' for w in gc007)
+
+    @patch('services.analysis.datetime')
+    def test_construction_unit_missing_column(self, mock_dt):
+        """源表无「施工单位」列时不报错，constructionUnit 为空字符串"""
+        mock_dt.now.return_value = self.FIXED_TODAY
+        df = make_four_class_df()
+        assert '施工单位' not in df.columns
+        result = build_four_class_warnings(df)
+        assert len(result['items']) > 0
+        for item in result['items']:
+            assert 'constructionUnit' in item
+            assert item['constructionUnit'] == ''
+
+    @patch('services.analysis.datetime')
+    def test_construction_unit_nan_becomes_empty(self, mock_dt):
+        """施工单位为 NaN 时输出空字符串，不把 'nan' 写进清单"""
+        mock_dt.now.return_value = self.FIXED_TODAY
+        df = make_four_class_df()
+        df['施工单位'] = [float('nan')] * len(df)
+        result = build_four_class_warnings(df)
+        assert len(result['items']) > 0
+        for item in result['items']:
+            assert item['constructionUnit'] == ''
+
 
 # ──────────────────────────────────────────────────────────────
 # build_transfer_priority
