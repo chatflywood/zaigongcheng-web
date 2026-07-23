@@ -14,10 +14,15 @@
     <div v-show="batchTab === 'budget'">
     <div v-if="!hasData" class="upload-section">
       <div class="upload-shell">
-        <div class="upload-page-header">
-          <h1>预算立项</h1>
-          <p>上传预算执行情况，自动生成立项进度、专业分布与项目明细</p>
-        </div>
+        <header class="page-head is-intake">
+          <div class="page-head-l">
+            <span class="eyebrow">预算立项 / Budget Allocation</span>
+            <h1 class="page-title-h1">预算立项</h1>
+            <div class="page-meta">
+              <span>上传预算执行情况，自动生成立项进度、专业分布与项目明细</span>
+            </div>
+          </div>
+        </header>
         <div class="upload-container">
           <div class="upload-copy">
             <div class="upload-copy-top">
@@ -398,8 +403,8 @@
     <!-- ══════════════════════════════════════════════════════════ -->
     <div v-show="batchTab === 'batch'" class="batch-view">
 
-      <div class="batch-view-head">
-        <div class="batch-head-left">
+      <header class="page-head">
+        <div class="page-head-l">
           <span class="eyebrow">投资预算 / Budget Batches</span>
           <h1 class="page-title-h1">批次下达台账</h1>
           <div class="page-meta">
@@ -410,7 +415,7 @@
             <span v-if="batchData.batches.length">累计下达 <strong>{{ formatBatchNum(grandTotal) }}</strong> 万元</span>
           </div>
         </div>
-        <div class="batch-head-actions">
+        <div class="page-actions">
           <button class="btn ghost" @click="openSpecialtyPanel">
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M11.5 9v5M9 11.5h5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
             管理专业
@@ -420,7 +425,7 @@
             新增批次
           </button>
         </div>
-      </div>
+      </header>
 
       <!-- 加载中 -->
       <div v-if="batchLoading" class="batch-loading-wrap">
@@ -1598,28 +1603,7 @@ async function confirmDeleteSpecialty(s) {
   margin: 0 auto;
 }
 
-.upload-page-header {
-  margin-bottom: 12px;
-  padding-left: 0;
-  text-align: left;
-  align-items: flex-start;
-  justify-items: flex-start;
-}
-
-.upload-page-header h1 {
-  margin: 0 0 8px;
-  font-size: 18px;
-  font-weight: 500;
-  color: var(--ink);
-  line-height: 1.2;
-}
-
-.upload-page-header p {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--ink-4);
-}
+/* 空态页头复用全局 .page-head.is-intake */
 
 .upload-container {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -2074,10 +2058,6 @@ async function confirmDeleteSpecialty(s) {
     border-radius: 18px;
   }
 
-  .upload-page-header h1 {
-    font-size: 22px;
-  }
-
   .inline-target-header h3 {
     font-size: 20px;
   }
@@ -2177,15 +2157,8 @@ async function confirmDeleteSpecialty(s) {
   padding: 1px 6px; font-size: 11px; font-weight: 600;
 }
 
-/* 批次视图框架 */
+/* 批次视图框架（页头走全局 .page-head） */
 .batch-view { padding: 36px 4px 56px; }
-.batch-view-head {
-  display: flex; align-items: flex-start; justify-content: space-between;
-  padding-bottom: 28px; margin-bottom: 36px; gap: 24px;
-  border-bottom: 1px solid var(--line);
-}
-.batch-head-actions { display: flex; gap: 8px; flex-shrink: 0; margin-top: 4px; }
-.batch-head-left { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 
 /* 加载 */
 .batch-loading-wrap {

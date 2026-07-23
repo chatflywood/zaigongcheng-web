@@ -128,7 +128,10 @@ describe('初始状态', () => {
 
   it('无数据时隐藏仪表盘', () => {
     const wrapper = mountDashboard()
-    expect(wrapper.find('.page-head').exists()).toBe(false)
+    // 空态也用统一 .page-head；数据看板壳是 .page + .upload-strip
+    expect(wrapper.find('.page').exists()).toBe(false)
+    expect(wrapper.find('.upload-strip').exists()).toBe(false)
+    expect(wrapper.find('.page-head.is-intake').exists()).toBe(true)
   })
 
   it('hasData 初始值为 false', () => {

@@ -4,7 +4,7 @@
     <!-- Fullscreen nav (presentation mode only) -->
     <nav v-if="presentationMode" class="ki-pres-nav">
       <div style="display:flex;align-items:center;gap:10px">
-        <div class="ki-nav-mark">ZT</div>
+        <div class="ki-nav-mark">CTC</div>
         <span style="font-size:16px;font-weight:500;color:var(--ink)">工程数据分析</span>
       </div>
       <div style="font-size:12px;color:var(--ink-3);font-family:var(--font-mono)">
@@ -29,11 +29,11 @@
         </div>
       </div>
       <div class="page-actions">
-        <button class="ki-btn ghost" @click="togglePresentationMode">
+        <button class="btn ghost" @click="togglePresentationMode">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 5V2h3M11 2h3v3M2 11v3h3M14 11v3h-3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
           {{ presentationMode ? '退出展示' : '投屏' }}
         </button>
-        <button class="ki-btn primary" @click="exportPNG" :disabled="exportLoading">
+        <button class="btn primary" @click="exportPNG" :disabled="exportLoading">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 12v1.5h10V12M5 8l3 3 3-3M8 3v8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
           {{ exportLoading ? '生成中…' : '导出 PNG' }}
         </button>
@@ -635,7 +635,8 @@ async function exportPNG() {
 .ki-fullscreen .ki-kpi-val { font-size: 28px; }
 .ki-fullscreen .ki-kpi-label { font-size: 15px; }
 .ki-fullscreen .ki-summary-text { font-size: 15px; line-height: 1.75; }
-.ki-fullscreen .page-title-h1 { font-size: 28px; }
+/* 全屏态仅放大标题，页头结构/字阶走全局 style.css */
+.ki-fullscreen .page-title-h1 { font-size: 34px; }
 .ki-fullscreen .ki-right-section-head { padding: 10px 22px; }
 .ki-fullscreen .warning-item { padding: 0 22px; }
 .ki-fullscreen .mgr-row { padding: 0 22px; }
@@ -659,7 +660,7 @@ async function exportPNG() {
 }
 .ki-exit-btn:hover { background: var(--paper-2); }
 
-/* ── Buttons ── */
+/* 摘要条内小按钮仍用 ki-btn；页头主按钮已切到全局 .btn */
 .ki-btn {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 7px 12px; border-radius: var(--r-md);
@@ -673,34 +674,6 @@ async function exportPNG() {
 .ki-btn.ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
 .ki-btn.ghost:hover { background: var(--paper-2); }
 .ki-btn svg { width: 12px; height: 12px; opacity: 0.7; }
-
-/* ── Page Header ── */
-.page-head {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  margin-bottom: 20px;
-  padding-bottom: 0; border-bottom: none; gap: 16px;
-}
-.page-head-l { flex: 1; }
-.eyebrow {
-  font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--accent); font-family: var(--font-mono);
-  display: inline; gap: 0; font-weight: 400;
-}
-.eyebrow::after { display: none; }
-.page-title-h1 {
-  font-size: 22px; font-weight: 650; color: var(--ink); margin: 4px 0 6px;
-  letter-spacing: -0.02em;
-}
-.page-meta {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 11.5px; color: var(--ink-3); font-family: var(--font-mono);
-}
-.ph-sep {
-  width: 1px; height: 10px; background: var(--line-2);
-}
-.page-actions {
-  display: flex; gap: 8px; align-items: center; flex-shrink: 0;
-}
 
 /* ── Summary banner ── */
 .ki-summary-banner {

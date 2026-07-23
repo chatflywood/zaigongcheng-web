@@ -3,14 +3,15 @@
     <!-- ── Upload-only state (no data yet) ── -->
     <div v-if="!hasData" class="upload-section">
       <div class="upload-shell">
-        <div class="upload-page-header">
-          <div class="upload-page-header-row">
-            <div>
-              <h1>在建工程</h1>
-              <p>设置当期目标，上传明细后自动生成支出进度与管理员排名</p>
+        <header class="page-head is-intake">
+          <div class="page-head-l">
+            <span class="eyebrow">在建工程 / Capex Tracking</span>
+            <h1 class="page-title-h1">在建工程</h1>
+            <div class="page-meta">
+              <span>设置当期目标，上传明细后自动生成支出进度与管理员排名</span>
             </div>
           </div>
-        </div>
+        </header>
         <div class="upload-container">
           <div class="upload-copy">
             <div class="upload-copy-top">
@@ -113,10 +114,10 @@
       <header class="page-head">
         <div class="page-head-l">
           <span class="eyebrow">在建工程 / Capex Tracking</span>
-          <h1 class="page-title">在建工程进度</h1>
+          <h1 class="page-title-h1">在建工程进度</h1>
           <div class="page-meta">
             <span>在建工程分析.xlsx</span>
-            <span class="sep"></span>
+            <span class="ph-sep"></span>
             <span>共 {{ summaryRows.length }} 人 · 年度目标
               <template v-if="!editingTarget">
                 {{ targetValue || '—' }} 万
@@ -131,7 +132,7 @@
               </template>
             </span>
             <template v-if="displayAnalysisDate">
-              <span class="sep"></span>
+              <span class="ph-sep"></span>
               <span>{{ displayAnalysisDate }}</span>
             </template>
           </div>
@@ -1323,32 +1324,10 @@ onUnmounted(() => {})
 
 /* .btn / .btn.ghost 共享自 styles/shared.css（v1.34.1） */
 
-/* ── Page header ─────────────────────────────────── */
+/* ── Page shell（页头样式走全局 style.css） ───────── */
 .page {
   max-width: 1180px; margin: 0 auto; padding: 56px 40px;
 }
-.page-head {
-  display: flex; align-items: flex-end; justify-content: space-between;
-  gap: 24px; padding-bottom: 28px; margin-bottom: 36px;
-  border-bottom: 1px solid var(--line);
-}
-.page-head-l { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.eyebrow {
-  font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;
-  color: var(--accent); font-weight: 500;
-  display: flex; align-items: center; gap: 8px;
-}
-.eyebrow::after { content: ''; width: 28px; height: 1px; background: currentColor; opacity: 0.5; }
-.page-title {
-  font-size: 30px; font-weight: 500; letter-spacing: -0.02em;
-  color: var(--ink); margin: 0; line-height: 1.15;
-}
-.page-meta {
-  display: flex; align-items: center; gap: 18px;
-  color: var(--ink-3); font-size: 12px; margin-top: 4px;
-}
-.page-meta .sep { width: 3px; height: 3px; background: var(--ink-4); border-radius: 50%; }
-.page-actions { display: flex; align-items: center; gap: 8px; }
 
 /* ── Upload strip ────────────────────────────────── */
 .upload-strip {
@@ -1544,10 +1523,7 @@ onUnmounted(() => {})
 .dashboard { }
 .upload-section { padding: 0; }
 .upload-shell { max-width: 860px; width: 100%; }
-.upload-page-header { margin-bottom: 20px; }
-.upload-page-header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.upload-page-header h1 { font-size: 22px; font-weight: 500; color: var(--ink); margin-bottom: 4px; letter-spacing: -0.01em; }
-.upload-page-header p { font-size: 13px; color: var(--ink-3); }
+/* 空态页头复用全局 .page-head.is-intake */
 .upload-container { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-bottom: 18px; }
 .upload-copy {
   position: relative; display: flex; flex-direction: column; padding: 22px;
