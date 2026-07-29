@@ -7,6 +7,7 @@ import json
 import logging
 from datetime import datetime
 from services.analysis import analyze, build_transfer_priority
+from services.validation import build_zaigong_validation, format_validation_message
 from models import ZaigongRecord, AppConfig, get_db
 
 router = APIRouter()
@@ -173,11 +174,14 @@ async def upload_excel(file: UploadFile = File(...), target: float = Query(503.0
         except Exception:
             pass  # 推送失败不影响上传结果
 
+        metrics = cleaned_data.get("metrics") or {}
+        validation = build_zaigong_validation(df, metrics)
         return {
             "success": True,
-            "message": "分析完成",
+            "message": format_validation_message(validation, "分析完成"),
             "filename": file.filename,
             "rows": len(df),
+            "validation": validation,
             "data": cleaned_data
         }
     except ValueError as e:

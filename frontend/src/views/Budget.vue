@@ -525,7 +525,7 @@
       :records="historyRecords"
       :current-record-id="currentRecordId"
       title="预算立项历史记录"
-      subtitle="选择某次上传记录，直接恢复当时的预算分析结果。"
+      subtitle="快照为上传当时计算结果（不可变）。选择某次上传可回溯查看。"
       kicker-class="budget-kicker"
       @view-snapshot="onViewHistorySnapshot"
     >
@@ -669,7 +669,7 @@ const shouldShowHistoryCompare = computed(() => Boolean(props.historyComparison)
 const viewingSnapshotLabel = computed(() => {
   if (props.snapshotLabel) return props.snapshotLabel
   if (!isViewingHistory.value) return ''
-  return '当前查看：历史快照'
+  return '当前查看：历史快照（上传当时计算结果，不可变）'
 })
 
 const compareOverview = computed(() => {
@@ -777,6 +777,8 @@ async function processFile(file) {
       clearSelectedFile()
       showUpload.value = false
       emit('dataUpdate', result.data)
+      uploadMessage.value = result.message || result.validation?.summary_text || '分析完成'
+      uploadMessageType.value = 'info'
     }
   } catch (error) {
     uploadMessage.value = '分析失败：' + (error.message || '未知错误')

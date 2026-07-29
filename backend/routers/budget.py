@@ -7,6 +7,7 @@ import re
 import json
 import logging
 from services.budget import analyze_budget
+from services.validation import build_budget_validation, format_validation_message
 from models import ZaigongRecord, BudgetRecord, get_db
 
 router = APIRouter()
@@ -28,7 +29,11 @@ def clean_nan(obj):
 
 
 def load_budget_sheets(contents: bytes):
-    """读取预算汇总和项目明细，兼容年份变化的 sheet 名。"""
+    """读取预算汇总和项目明细，兼容年份变化的 sheet 名。
+
+    返回 (df_summary, df_projects, project_sheet_name)。
+    第三个返回值供校验摘要使用；旧调用方若只解包两个值仍可用切片兼容。
+    """
     workbook = pd.ExcelFile(BytesIO(contents))
     df_summary = pd.read_excel(workbook, sheet_name="预算下达及立项进度")
 
@@ -41,7 +46,7 @@ def load_budget_sheets(contents: bytes):
     )
     df_projects = pd.read_excel(workbook, sheet_name=project_sheet_name) if project_sheet_name else None
 
-    return df_summary, df_projects
+    return df_summary, df_projects, project_sheet_name
 
 
 def build_zaigong_spend_summary_from_record(record):
@@ -120,13 +125,16 @@ async def upload_budget(file: UploadFile = File(...)):
         if len(contents) > 20 * 1024 * 1024:
             return JSONResponse(status_code=400, content={"success": False, "message": "文件大小不能超过 20MB"})
 
-        df_summary, df_projects = load_budget_sheets(contents)
+        df_summary, df_projects, project_sheet_name = load_budget_sheets(contents)
         spend_summary = get_latest_zaigong_spend_summary()
 
         result = analyze_budget(df_summary, df_projects, spend_summary)
 
         # 清理 NaN 值
         cleaned_data = clean_nan(result)
+        validation = build_budget_validation(
+            df_summary, df_projects, cleaned_data, project_sheet_name=project_sheet_name
+        )
 
         db = get_db()
         try:
@@ -147,8 +155,9 @@ async def upload_budget(file: UploadFile = File(...)):
 
         return {
             "success": True,
-            "message": "分析完成",
+            "message": format_validation_message(validation, "分析完成"),
             "filename": file.filename,
+            "validation": validation,
             "data": cleaned_data
         }
     except ValueError as e:

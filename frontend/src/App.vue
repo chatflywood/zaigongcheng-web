@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, onUnmounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useGlobalData } from './composables/useGlobalData'
 import { useHistoryCenter } from './composables/useHistoryCenter'
@@ -7,6 +7,10 @@ import { useAppTools } from './composables/useAppTools'
 
 const router = useRouter()
 const route = useRoute()
+const backupInputEl = ref(null)
+function triggerLocalRestorePicker() {
+  backupInputEl.value?.click?.()
+}
 
 const {
   zaigongData, budgetData, zaigongLatestData, budgetLatestData,
@@ -35,8 +39,8 @@ const {
 const {
   showDataManager, dmZaigongFile, dmZaigongFileName, dmZaigongMsg, dmZaigongMsgType, dmZaigongLoading,
   dmBudgetFile, dmBudgetFileName, dmBudgetMsg, dmBudgetMsgType, dmBudgetLoading,
-  dmTargetValue, dmZaigongInput, dmBudgetInput,
-  openDataManager, dmPickZaigong, dmPickBudget,
+  dmTargetValue, dmRateTarget, dmZaigongInput, dmBudgetInput,
+  openDataManager, persistDmRateTarget, dmPickZaigong, dmPickBudget,
   dmOnZaigongFile, dmOnBudgetFile, dmDropZaigong, dmDropBudget,
   dmUploadZaigong, dmUploadBudget,
   daysSince, dmFreshClass,
@@ -45,6 +49,8 @@ const {
   openNotifyModal, saveNotify, testNotify, clearNotify,
   moreMenuOpen, briefGenerating, navPushing, presentationMode,
   toggleMoreMenu, closeMoreMenu, handleGenerateBrief, handleNavPush, togglePresentationMode,
+  backupStatus, backupLoading, backupMsg, backupMsgType,
+  handleExportBackup, handleRestoreBackupFile, formatBytes,
 } = useAppTools()
 
 // ── 当前路由相关 ──
@@ -182,7 +188,7 @@ onUnmounted(() => {
       <div class="sidebar-foot">
         <strong>当月窗口</strong>
         <span>{{ currentMonthLabel }}</span>
-        <span class="side-version">v0.5 · 内部预览</span>
+        <span class="side-version">v1.35.0 · 本机数据</span>
       </div>
     </aside>
 
@@ -214,7 +220,10 @@ onUnmounted(() => {
                 <button class="dm-analyze-btn" :disabled="!zaigongData && !zaigongLatestData" @click="dmAnalyze('zaigong')">分析</button>
               </div>
             </div>
-            <div v-if="zaigongLatestDate" class="dm-freshness" :class="dmFreshClass(daysSince(zaigongLatestDate))">上次上传 {{ zaigongLatestDate }} · 距今 {{ daysSince(zaigongLatestDate) }} 天</div>
+            <div class="dm-freshness" :class="zaigongLatestDate ? dmFreshClass(daysSince(zaigongLatestDate)) : 'stale-none'">
+              <template v-if="zaigongLatestDate">上次上传 {{ zaigongLatestDate }} · 距今 {{ daysSince(zaigongLatestDate) }} 天</template>
+              <template v-else>尚未上传在建工程数据</template>
+            </div>
             <div class="dm-target-row">
               <span class="dm-target-label">当期资本性支出目标</span>
               <div class="dm-target-input-wrap">
@@ -245,7 +254,26 @@ onUnmounted(() => {
                 <button class="dm-analyze-btn" :disabled="!budgetData && !budgetLatestData" @click="dmAnalyze('budget')">分析</button>
               </div>
             </div>
-            <div v-if="budgetLatestDate" class="dm-freshness" :class="dmFreshClass(daysSince(budgetLatestDate))">上次上传 {{ budgetLatestDate }} · 距今 {{ daysSince(budgetLatestDate) }} 天</div>
+            <div class="dm-freshness" :class="budgetLatestDate ? dmFreshClass(daysSince(budgetLatestDate)) : 'stale-none'">
+              <template v-if="budgetLatestDate">上次上传 {{ budgetLatestDate }} · 距今 {{ daysSince(budgetLatestDate) }} 天</template>
+              <template v-else>尚未上传预算数据</template>
+            </div>
+            <div class="dm-target-row">
+              <span class="dm-target-label">当期转固率目标</span>
+              <div class="dm-target-input-wrap">
+                <input
+                  type="number"
+                  v-model.number="dmRateTarget"
+                  min="1"
+                  max="100"
+                  step="1"
+                  placeholder="如 60"
+                  @change="persistDmRateTarget"
+                  @blur="persistDmRateTarget"
+                />
+                <span class="dm-target-unit">%</span>
+              </div>
+            </div>
             <div class="dm-zone" @dragover.prevent @drop.prevent="dmDropBudget" @click="dmPickBudget">
               <template v-if="dmBudgetFileName">
                 <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="#047857" stroke-width="1.2"/><path d="M6 10l3 3 5-5" stroke="#047857" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -260,6 +288,32 @@ onUnmounted(() => {
             <input ref="dmBudgetInput" type="file" accept=".xlsx,.xls" hidden @change="dmOnBudgetFile" />
             <div v-if="dmBudgetMsg" class="dm-msg" :class="dmBudgetMsgType">{{ dmBudgetMsg }}</div>
             <button class="dm-upload-btn" :disabled="dmBudgetLoading || !dmBudgetFileName" @click="dmUploadBudget">{{ dmBudgetLoading ? '上传中…' : '上传预算数据' }}</button>
+          </div>
+
+          <div class="dm-card dm-backup-card">
+            <div class="dm-backup-row">
+              <div class="dm-backup-left">
+                <div class="dm-backup-title-row">
+                  <div class="dm-card-title"><span class="dm-card-icon">③</span>数据备份与恢复</div>
+                  <span class="dm-status status-ok">本机</span>
+                </div>
+                <p class="dm-backup-hint">包含分析库与档案 · 恢复将覆盖当前数据</p>
+                <div v-if="backupStatus" class="dm-backup-meta">
+                  <span class="dm-backup-chip">数据库 {{ formatBytes(backupStatus.db_size) }}</span>
+                  <span class="dm-backup-chip">档案 {{ backupStatus.archive_count || 0 }} 个 · {{ formatBytes(backupStatus.archive_total_size) }}</span>
+                </div>
+              </div>
+              <div class="dm-backup-actions">
+                <button class="dm-backup-btn dm-backup-btn-primary" :disabled="backupLoading" @click="handleExportBackup">
+                  {{ backupLoading ? '处理中…' : '导出备份' }}
+                </button>
+                <button class="dm-backup-btn dm-backup-btn-ghost" :disabled="backupLoading" @click="triggerLocalRestorePicker">
+                  从备份恢复
+                </button>
+                <input ref="backupInputEl" type="file" accept=".zip" hidden @change="handleRestoreBackupFile" />
+              </div>
+            </div>
+            <div v-if="backupMsg" class="dm-msg" :class="backupMsgType">{{ backupMsg }}</div>
           </div>
         </div>
       </div>
@@ -481,12 +535,13 @@ onUnmounted(() => {
 .dm-status { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 99px; }
 .dm-status.status-ok { background: var(--ok-soft, #d1fae5); color: var(--ok); }
 .dm-status.status-none { background: var(--paper-2); color: var(--ink-3); }
-.dm-freshness { font-size: 11.5px; font-family: var(--font-mono); padding: 6px 10px; border-radius: var(--r-md); }
+.dm-freshness { font-size: 11.5px; font-family: var(--font-mono); padding: 6px 10px; border-radius: var(--r-md); min-height: 30px; display: flex; align-items: center; box-sizing: border-box; }
 .dm-freshness.stale-ok { background: var(--ok-soft, #d1fae5); color: var(--ok); }
 .dm-freshness.stale-warn { background: var(--warn-soft); color: #92400e; }
 .dm-freshness.stale-bad { background: var(--bad-soft); color: var(--bad); }
-.dm-target-row { display: flex; align-items: center; gap: 8px; }
-.dm-target-label { font-size: 12px; color: var(--ink-3); white-space: nowrap; flex-shrink: 0; }
+.dm-freshness.stale-none { background: var(--paper-2, var(--surface-2)); color: var(--ink-4); }
+.dm-target-row { display: flex; align-items: center; gap: 8px; min-height: 36px; }
+.dm-target-label { font-size: 12px; color: var(--ink-3); white-space: nowrap; flex-shrink: 0; min-width: 7.5em; }
 .dm-target-input-wrap { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line-2); border-radius: var(--r-md); padding: 5px 10px; background: var(--paper); flex: 1; }
 .dm-target-input-wrap input { border: none; outline: none; background: transparent; font-size: 14px; color: var(--ink); width: 100%; font-variant-numeric: tabular-nums; }
 .dm-target-unit { font-size: 12px; color: var(--ink-3); white-space: nowrap; }
@@ -503,6 +558,94 @@ onUnmounted(() => {
 .dm-upload-btn:hover:not(:disabled) { opacity: 0.88; }
 .dm-upload-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .modal-close { background: none; border: none; font-size: 18px; color: var(--ink-4); cursor: pointer; line-height: 1; padding: 0 4px; }
+
+/* ── Backup bar: full-width footer under the 2-col upload grid ── */
+.dm-backup-card {
+  grid-column: 1 / -1;
+  padding: 14px 16px;
+  background: var(--paper);
+  border-style: dashed;
+}
+.dm-backup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 20px;
+  flex-wrap: wrap;
+}
+.dm-backup-left {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+.dm-backup-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dm-backup-hint {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+.dm-backup-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.dm-backup-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 99px;
+  background: var(--surface-2, var(--paper-2));
+  border: 1px solid var(--line);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.dm-backup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.dm-backup-btn {
+  padding: 7px 14px;
+  border-radius: var(--r-md);
+  font-size: 12.5px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s, background 0.15s;
+}
+.dm-backup-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.dm-backup-btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+.dm-backup-btn-primary:hover:not(:disabled) { opacity: 0.88; }
+.dm-backup-btn-ghost {
+  background: transparent;
+  color: var(--ink-2);
+  border: 1px solid var(--line-2);
+}
+.dm-backup-btn-ghost:hover:not(:disabled) {
+  border-color: var(--ink-3);
+  color: var(--ink);
+}
+.gh-snapshot-note {
+  margin: 0 16px 10px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ink-4);
+}
 
 /* ── History center overlay ── */
 .gh-overlay { position: fixed; inset: 0; z-index: 1200; display: flex; justify-content: flex-end; background: rgba(31,29,24,0.4); backdrop-filter: blur(4px); }

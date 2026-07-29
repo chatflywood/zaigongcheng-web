@@ -1,5 +1,46 @@
 # 功能更新日志
 
+## v1.35.0 (2026-07-29)
+
+### P0：数字信任 + 备份恢复 + 快照语义 + 文档对齐
+
+承接优化清单 P0-1～P0-5，先锁「算得对 / 传得对 / 丢不了 / 说得清」。
+
+#### P0-1 口径黄金样例测试
+- 新增 `backend/tests/test_golden_metrics.py`
+- 固定在建工程样例：资本支出 150 万、待收货 20 万、本月 15 万、综合转固率 `1 - 55/205`、目标 500 时进度 30%
+- 固定预算样例：年度预算 300、已占用 80、预占用 10、立项进度 30%、年度支出 60、支出进度 20%
+- 公式改动必须显式改黄金测试，防止静默漂移
+
+#### P0-2 上传校验摘要
+- 新增 `backend/services/validation.py`
+- 在建上传响应增加 `validation`：行数、管理员数、金额 checksum（万）、四类预警排除行、缺列/空管理员 warnings、`summary_text`
+- 预算上传响应增加 `validation`：专业数、项目数、预算/占用/支出 checksum、立项/支出进度
+- 上传成功 `message` 直接带摘要文案；Dashboard / Budget / 数据管理面板展示
+
+#### P0-3 一键备份 / 恢复
+- 新增 `backend/services/backup.py` + `routers/backup.py`（`/api/backup/status|export|restore`）
+- 备份 zip：`analysis.db` + `uploads/archive/*` + `backup_manifest.json`
+- 恢复前覆盖当前库与档案；非法 zip / 缺 manifest 返回 400；防 zip-slip
+- 前端「数据管理」面板新增「③ 数据备份与恢复」：导出 / 从备份恢复（二次确认）
+- 测试：`tests/test_backup_router.py` 6 例（service 往返 + 路由）
+
+#### P0-4 文档矛盾清理
+- PRD / requirements：删除「预算仍可能依赖本地源文件回查」过时限制
+- 统一导航信息架构：侧栏「上传历史」中心 + 独立「数据档案」页（Archive）
+- 明确非目标：无登录鉴权、单机本机数据
+- README / CLAUDE 同步 v1.35.0、备份接口、测试用例数
+
+#### P0-5 历史快照语义写死
+- 产品约定：**快照 = 上传当时计算结果（不可变）**，口径变更不自动重算历史
+- UI：历史中心注记、HistoryPanel 副文案、全局 snapshotLabel、上传 checklist 同步该语义
+
+### 版本
+- `frontend/package.json` / `backend/main.py` → **1.35.0**
+- 后端测试：124 → **136**（+6 golden +6 backup）
+
+---
+
 ## v1.34.5 (2026-07-23)
 
 ### P0 工程卫生：版本对齐 + Electron 本机绑定 + 仓库清理 + 施工单位护栏

@@ -1,7 +1,7 @@
 {
   "name": "zaigongcheng-app",
   "productName": "工程建设数据驾舱",
-  "version": "1.34.5",
+  "version": "1.35.0",
   "description": "在建工程和预算下达的自动化分析系统",
   "main": "electron/main.cjs",
   "private": true,

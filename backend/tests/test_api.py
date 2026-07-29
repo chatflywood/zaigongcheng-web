@@ -238,7 +238,7 @@ class TestBudgetLogic:
         """测试项目明细 sheet 可以兼容年份变化。"""
         from routers.budget import load_budget_sheets
 
-        df_summary, df_projects = load_budget_sheets(
+        df_summary, df_projects, _sheet = load_budget_sheets(
             create_budget_excel(project_sheet_name="2027年新建项目明细").getvalue()
         )
 

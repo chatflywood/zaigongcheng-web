@@ -37,7 +37,7 @@
                 </div>
                 <div class="check-item">
                   <span class="check-icon">✓</span>
-                  <span>同名文件自动覆盖，保留历史快照可随时回溯</span>
+                  <span>同名文件自动覆盖；历史快照保留上传当时计算结果，可随时回溯（不可变）</span>
                 </div>
                 <div class="check-item">
                   <span class="check-icon">✓</span>
@@ -464,7 +464,7 @@
       :records="historyRecords"
       :current-record-id="currentRecordId"
       title="历史记录中心"
-      :subtitle="`${historyRecords.length} 条记录 · 选择某次上传可恢复快照`"
+      :subtitle="`${historyRecords.length} 条记录 · 快照为上传当时计算结果（不可变），选择可回溯查看`"
       @view-snapshot="onViewHistorySnapshot"
     >
       <template #kpi-capital="{ record }">{{ formatNum(record.dashboard_snapshot?.metrics?.capital || 0) }}<em>万元</em></template>
@@ -594,8 +594,10 @@ function persistRateTarget(val) {
   try {
     if (val && val > 0 && val <= 100) {
       localStorage.setItem('zaigong_rate_target', String(val))
+      window.dispatchEvent(new CustomEvent('zaigong-rate-target-changed', { detail: Number(val) }))
     } else {
       localStorage.removeItem('zaigong_rate_target')
+      window.dispatchEvent(new CustomEvent('zaigong-rate-target-changed', { detail: null }))
     }
   } catch {}
 }
@@ -1103,7 +1105,9 @@ async function processFile(file) {
       emit('dataUpdate', data)
       emit('warningsUpdate', result.data?.four_class_warnings || null)
       await fetchCompareData()
-      uploadMessage.value = ''
+      // 上传校验摘要：展示行数/checksum/注意项，便于确认传对表
+      uploadMessage.value = result.message || result.validation?.summary_text || '分析完成'
+      uploadMessageType.value = 'info'
     } else {
       uploadMessage.value = result?.message || '上传分析失败，请稍后重试'
       uploadMessageType.value = 'error'
@@ -1288,12 +1292,22 @@ watch(
 )
 
 // ── Lifecycle ──
+function onRateTargetChanged(e) {
+  const next = e?.detail
+  rateTarget.value = (next && next > 0 && next <= 100) ? Number(next) : loadPersistedRateTarget()
+}
+let onEscKey = null
 onMounted(() => {
   if (!historyRecords.value.length) loadHistoryList()
-  const onKey = (e) => { if (e.key === 'Escape' && modalVisible.value) closeModal() }
-  document.addEventListener('keydown', onKey)
+  onEscKey = (e) => { if (e.key === 'Escape' && modalVisible.value) closeModal() }
+  document.addEventListener('keydown', onEscKey)
+  // 数据管理面板与本页共用 zaigong_rate_target，同页改完即时同步
+  window.addEventListener('zaigong-rate-target-changed', onRateTargetChanged)
 })
-onUnmounted(() => {})
+onUnmounted(() => {
+  if (onEscKey) document.removeEventListener('keydown', onEscKey)
+  window.removeEventListener('zaigong-rate-target-changed', onRateTargetChanged)
+})
 </script>
 
 <style scoped>

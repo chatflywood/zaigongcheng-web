@@ -71,7 +71,7 @@ cd frontend && npm run electron:build
 cd backend && uvicorn main:app --reload
 
 # 后端测试（FastAPI 集成 + 服务层单元，无需启 uvicorn）
-cd backend && python -m pytest tests/ -q --ignore=tests/test_api.py   # 124 用例
+cd backend && python -m pytest tests/ -q --ignore=tests/test_api.py   # 136 用例
 cd backend && python -m pytest tests/test_api.py                        # 黑盒 HTTP，需先启 uvicorn
 
 # 重启前后端（解决 Vite 缓存旧 CSS/JS 导致页面错乱）
@@ -103,10 +103,20 @@ cd frontend && npm run dev
 
 ## 前端优化路线图
 
-> 用户说"继续优化"时按此清单推进。每步需 300/300 测试全绿 + 目视确认 + 分步提交。
+> 用户说"继续优化"时按此清单推进。每步需测试全绿 + 目视确认 + 分步提交。
 > 下次接手时先读此段，按"推荐执行顺序"从下一个待办开始。
 
 ### 已完成
+
+#### v1.35.0 (2026-07-29) — P0 数字信任 / 备份 / 快照语义 / 文档
+
+- ✅ P0-1 口径黄金样例：`tests/test_golden_metrics.py`（在建+预算 KPI 锁定）
+- ✅ P0-2 上传校验摘要：`services/validation.py`，上传响应带 `validation` + 前端展示
+- ✅ P0-3 一键备份恢复：`/api/backup/*` + 数据管理面板入口
+- ✅ P0-4 文档矛盾清理：PRD/requirements/README 对齐 v1.35.0；删除「本地回查」过时限制
+- ✅ P0-5 快照语义写死：历史 = 上传当时计算结果（不可变），UI/文档一致
+- 后端 124 → 136 用例全绿
+
 
 #### v1.32.0 (2026-07-02) — 四波重构，净减 2086 行
 
@@ -135,6 +145,13 @@ cd frontend && npm run dev
 - 300/300 测试全绿 + build 通过
 
 **所有 P2-P5 路线图项已于 v1.34.0 / v1.34.1 完成。** 后续若新增弹窗组件又复制 `.modal-close / .loader-ring` 各 ≥3 次，再回过头抽 `shared.css` 第二波。
+
+### 下一步（P1 建议）
+
+1. Electron：健康检查 + userData 数据目录，或文档降级为实验性
+2. Budget 批次域物理拆页
+3. analysis 路由瘦身（导出下沉 service）
+4. 口径 SSOT 单页 / 全局状态收敛 / test_api 并入 ASGI
 
 ### 重构约定（沿用 v1.32.0/v1.33.0/v1.34.0/v1.34.1 验证过的模式）
 

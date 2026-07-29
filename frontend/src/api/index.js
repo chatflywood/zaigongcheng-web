@@ -229,3 +229,25 @@ export async function exportTransferPriority(recordId, targetRate) {
   )
   return response.data
 }
+
+// ── 数据备份 / 恢复 ──
+
+export async function getBackupStatus() {
+  const response = await axios.get(`${API_BASE}/backup/status`)
+  return response.data
+}
+
+export async function exportBackup() {
+  const response = await axios.get(`${API_BASE}/backup/export`, { responseType: 'blob' })
+  return response
+}
+
+export async function restoreBackup(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const response = await axios.post(`${API_BASE}/backup/restore`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return response.data
+}
+

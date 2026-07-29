@@ -119,7 +119,7 @@ async function openZaigongSnapshot(recordId) {
   zaigongDate.value = cur.file_date
     ? formatFileDate(cur.file_date)
     : formatHistoryTime(cur.uploaded_at)
-  zaigongSnapshotLabel.value = '当前查看：全局历史快照'
+  zaigongSnapshotLabel.value = '当前查看：历史快照（上传当时计算结果，不可变）'
   zaigongFourClassWarnings.value = cur.four_class_warnings || null
 }
 
@@ -129,7 +129,7 @@ async function openBudgetSnapshot(recordId) {
   const cur = result.data.current
   budgetData.value = cur.data
   budgetDate.value = formatHistoryTime(cur.uploaded_at)
-  budgetSnapshotLabel.value = '当前查看：全局历史快照'
+  budgetSnapshotLabel.value = '当前查看：历史快照（上传当时计算结果，不可变）'
 }
 
 // ── 启动时加载最新数据 ──

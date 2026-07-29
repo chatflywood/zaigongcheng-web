@@ -214,7 +214,7 @@ class TestBuildZaigongSpendSummary:
 class TestBudgetHelpers:
     def test_load_budget_sheets_year_agnostic(self):
         """项目明细 sheet 名年份无关：『2027年新建项目明细』也应命中正则。"""
-        df_summary, df_projects = budget_mod.load_budget_sheets(
+        df_summary, df_projects, _sheet = budget_mod.load_budget_sheets(
             create_budget_excel(project_sheet_name="2027年新建项目明细").getvalue()
         )
         assert len(df_summary) == 4                 # 表头 + 传输 + 5G + 合计
@@ -228,7 +228,7 @@ class TestBudgetHelpers:
         with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
             df.to_excel(writer, sheet_name="预算下达及立项进度", index=False, header=False)
         buffer.seek(0)
-        _, df_projects = budget_mod.load_budget_sheets(buffer.getvalue())
+        _, df_projects, _sheet = budget_mod.load_budget_sheets(buffer.getvalue())
         assert df_projects is None
 
     def test_clean_nan_recursive(self):

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import analysis, budget, ai, notify, report, archive, budget_batch
+from routers import analysis, budget, ai, notify, report, archive, budget_batch, backup
 from models import init_db
 import os
 import logging
@@ -12,7 +12,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 
-app = FastAPI(title="在建工程分析系统", version="1.34.5")
+app = FastAPI(title="在建工程分析系统", version="1.35.0")
 
 # 初始化数据库
 init_db()
@@ -35,7 +35,8 @@ app.include_router(notify.router, prefix="/api/notify", tags=["通知"])
 app.include_router(report.router, prefix="/api/report", tags=["月报"])
 app.include_router(archive.router, prefix="/api/archive", tags=["数据档案"])
 app.include_router(budget_batch.router, prefix="/api/budget-batch", tags=["投资批次"])
+app.include_router(backup.router, prefix="/api/backup", tags=["数据备份"])
 
 @app.get("/")
 async def root():
-    return {"message": "在建工程分析系统 API", "version": "1.34.5"}
+    return {"message": "在建工程分析系统 API", "version": "1.35.0"}

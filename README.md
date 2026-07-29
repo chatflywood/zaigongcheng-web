@@ -34,12 +34,15 @@ zaigongcheng-web/
 ├── backend/
 │   ├── main.py              # FastAPI 主入口
 │   ├── requirements.txt     # Python 依赖
-│   ├── routers/             # API 路由
+│   ├── routers/             # API 路由（analysis/budget/ai/notify/report/archive/budget_batch/backup）
 │   │   ├── analysis.py      # 在建工程分析接口
-│   │   └── budget.py        # 预算分析接口
+│   │   ├── budget.py        # 预算分析接口
+│   │   └── backup.py        # 数据备份 / 恢复
 │   └── services/            # 业务逻辑
 │       ├── analysis.py      # 在建工程核心计算逻辑
-│       └── budget.py        # 预算分析计算逻辑
+│       ├── budget.py        # 预算分析计算逻辑
+│       ├── validation.py    # 上传校验摘要
+│       └── backup.py        # 备份打包与恢复
 │
 └── frontend/
     ├── src/
@@ -97,7 +100,7 @@ npm install
 ### 运行测试
 
 ```bash
-# 后端测试（124 个用例，不含需先启 uvicorn 的黑盒 test_api.py）
+# 后端测试（136 个用例，不含需先启 uvicorn 的黑盒 test_api.py）
 cd ~/Documents/zaigongcheng-web/backend
 python -m pytest tests/ -q --ignore=tests/test_api.py
 
@@ -174,6 +177,18 @@ npm run dev
 
 ---
 
+### 4. 数据备份与恢复（v1.35.0）
+
+- 入口：侧栏 **数据管理** → 「③ 数据备份与恢复」
+- 导出：`GET /api/backup/export` → zip（`analysis.db` + `uploads/archive` + manifest）
+- 恢复：`POST /api/backup/restore`（覆盖当前库与档案，需二次确认）
+- 建议：重大上传或口径调整前先导出一份备份
+
+### 5. 历史快照语义
+
+- 每条历史上传记录保存**上传当时的计算结果**
+- 查看快照不会按当前算法重算；口径变更不影响已落库快照
+
 ## 页面说明
 
 ### 导航栏
@@ -188,11 +203,13 @@ npm run dev
 - 以上 4 个状态模块仅在在建工程/预算立项视图显示
 - 在关键指标视图下会自动隐藏，避免干扰核心指标阅读
 
-导航栏仍包含三个页面入口：
+侧栏主要入口：
 - **在建工程** - 在建工程数据分析
 - **预算立项** - 预算下达及立项进度
 - **关键指标** - 三大核心指标总览（需上传两个分析数据后才可访问）
-- **历史记录** - 统一查看在建工程和预算立项历史版本，并在历史中心内完成双版本对比
+- **数据档案** - 年度文档上传与在线预览
+- **上传历史** - 历史记录中心（快照回溯 + 双版本对比；快照不可变）
+- **数据管理** - 上传入口 + 本机备份/恢复
 
 已上传数据的页面标签会显示蓝色指示点。
 
