@@ -1,9 +1,32 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, shell } = require('electron');
 const path = require('path');
+const { pathToFileURL } = require('url');
 const { spawn } = require('child_process');
 
 let mainWindow;
 let backendProcess;
+
+function isSafeExternalUrl(rawUrl) {
+  try {
+    const url = new URL(rawUrl);
+    return ['https:', 'http:', 'mailto:'].includes(url.protocol);
+  } catch {
+    return false;
+  }
+}
+
+function isAppNavigation(rawUrl) {
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol === 'file:') {
+      const appIndex = pathToFileURL(path.join(__dirname, '../dist/index.html'));
+      return url.origin === appIndex.origin && url.pathname === appIndex.pathname;
+    }
+    return url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname) && url.port === '5173';
+  } catch {
+    return false;
+  }
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -11,7 +34,9 @@ function createWindow() {
     height: 900,
     webPreferences: {
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      sandbox: true,
+      webSecurity: true
     },
     title: '工程建设数据驾舱',
     icon: path.join(__dirname, '../public/favicon.svg')
@@ -26,6 +51,23 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
+
+  // 文档预览中的链接不得把应用窗口导航到不可信页面，也不得创建新窗口。
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isSafeExternalUrl(url)) {
+      void shell.openExternal(url);
+    }
+    return { action: 'deny' };
+  });
+
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (!isAppNavigation(url)) {
+      event.preventDefault();
+      if (isSafeExternalUrl(url)) {
+        void shell.openExternal(url);
+      }
+    }
+  });
 
   mainWindow.on('closed', () => {
     mainWindow = null;

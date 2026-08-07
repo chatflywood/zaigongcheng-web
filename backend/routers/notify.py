@@ -9,7 +9,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from models import AppConfig, ZaigongRecord, BudgetRecord, get_db
 from routers.analysis import build_dashboard_snapshot
-from services.notify import push_record, send_test
+from services.notify import push_record, send_test, validate_webhook_url
 
 router = APIRouter()
 
@@ -63,16 +63,11 @@ async def save_notify_config(body: dict):
     webhook_url = (body.get("webhook_url") or "").strip()
     auto_push = bool(body.get("auto_push", False))
 
-    VALID_PREFIXES = (
-        "https://qyapi.weixin.qq.com/",
-        "https://open.feishu.cn/",
-        "https://open.larksuite.com/",
-    )
-    if webhook_url and not any(webhook_url.startswith(p) for p in VALID_PREFIXES):
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "message": "Webhook URL 格式不正确，支持飞书（open.feishu.cn）或企业微信（qyapi.weixin.qq.com）"},
-        )
+    if webhook_url:
+        try:
+            webhook_url = validate_webhook_url(webhook_url)
+        except ValueError as exc:
+            return JSONResponse(status_code=400, content={"success": False, "message": str(exc)})
 
     db = get_db()
     try:
@@ -111,6 +106,10 @@ async def manual_push(record_id: int):
                 status_code=400,
                 content={"success": False, "message": "尚未配置 Webhook，请先点右上角 🔔 填写飞书或企业微信的 Webhook 地址"},
             )
+        try:
+            webhook_url = validate_webhook_url(webhook_url)
+        except ValueError as exc:
+            return JSONResponse(status_code=400, content={"success": False, "message": str(exc)})
 
         record = db.query(ZaigongRecord).filter(ZaigongRecord.id == record_id).first()
         if not record:
@@ -149,6 +148,10 @@ async def test_push(body: dict):
             db.close()
     if not webhook_url:
         return JSONResponse(status_code=400, content={"success": False, "message": "请先输入 Webhook URL"})
+    try:
+        webhook_url = validate_webhook_url(webhook_url)
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"success": False, "message": str(exc)})
 
     try:
         result = await send_test(webhook_url)

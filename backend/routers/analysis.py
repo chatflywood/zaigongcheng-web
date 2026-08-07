@@ -17,6 +17,19 @@ logger = logging.getLogger(__name__)
 # 全年资本性支出目标（单位：万元）
 YEARLY_TARGET = 503.0
 
+_SPREADSHEET_FORMULA_PREFIXES = ("=", "+", "-", "@")
+
+
+def neutralize_spreadsheet_formula(value):
+    """Prevent user-controlled text from becoming an active spreadsheet formula."""
+    if not isinstance(value, str) or not value:
+        return value
+
+    candidate = value.lstrip(" \t\r\n")
+    if candidate.startswith(_SPREADSHEET_FORMULA_PREFIXES) or value[0] in "\t\r\n":
+        return "'" + value
+    return value
+
 
 def clean_nan(obj):
     """清理数据中的 NaN 和 Infinity 值"""
@@ -435,7 +448,7 @@ def _build_manager_sheet(wb, manager, details, mgr_row, file_date, *, create_she
 
     def cell_style(ws, row, col, value, *, bold=False, size=10, color="000000",
                    bg=None, align="center", wrap=False, num_fmt=None):
-        c = ws.cell(row=row, column=col, value=value)
+        c = ws.cell(row=row, column=col, value=neutralize_spreadsheet_formula(value))
         c.font = Font(name="微软雅黑", size=size, bold=bold, color=color)
         if bg:
             c.fill = PatternFill("solid", fgColor=bg)
@@ -781,7 +794,7 @@ async def export_transfer_priority(record_id: int, target_rate: float = Query(No
 
         def cell_style(ws, row, col, value, *, bold=False, size=9, color="000000",
                        bg=None, align="left", wrap=False, num_fmt=None):
-            c = ws.cell(row=row, column=col, value=value)
+            c = ws.cell(row=row, column=col, value=neutralize_spreadsheet_formula(value))
             c.font = Font(name="微软雅黑", size=size, bold=bold, color=color)
             if bg:
                 c.fill = PatternFill("solid", fgColor=bg)
@@ -916,7 +929,11 @@ async def export_transfer_priority(record_id: int, target_rate: float = Query(No
                 ]
 
                 for col, val in enumerate(row_data, 1):
-                    c = ws.cell(row=current_row, column=col, value=val)
+                    c = ws.cell(
+                        row=current_row,
+                        column=col,
+                        value=neutralize_spreadsheet_formula(val),
+                    )
                     c.fill = PatternFill("solid", fgColor=row_bg)
                     c.alignment = Alignment(
                         horizontal="center" if col not in (2, 3, 4, 11) else "left",
@@ -1207,7 +1224,7 @@ async def export_four_class_excel(record_id: int):
 
                 for col, value in enumerate(row_data, 1):
                     cell = ws1.cell(row=current_row, column=col)
-                    cell.value = value
+                    cell.value = neutralize_spreadsheet_formula(value)
                     cell.font = Font(name="微软雅黑", size=9, color=text_color if col == 3 else "000000")
                     cell.fill = PatternFill("solid", fgColor=row_bg)
                     cell.alignment = Alignment(horizontal="left" if col in [5, 13, 15] else "center", vertical="center", wrap_text=True)

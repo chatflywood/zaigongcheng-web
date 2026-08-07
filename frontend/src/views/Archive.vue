@@ -218,7 +218,68 @@
 import { ref, computed, onMounted } from 'vue'
 import * as XLSX from 'xlsx'
 import mammoth from 'mammoth'
+import DOMPurify from 'dompurify'
 import { listArchives, uploadArchive, deleteArchive, getArchiveFileUrl } from '../api'
+
+const MAX_PREVIEW_BYTES = 25 * 1024 * 1024
+const MAX_PREVIEW_SHEETS = 20
+const MAX_PREVIEW_ROWS = 5000
+const MAX_PREVIEW_COLUMNS = 200
+const MAX_PREVIEW_CELLS = 100000
+
+/**
+ * Office 文档属于不可信输入。转换器生成的 HTML 必须先清洗，并进一步
+ * 收紧链接与图片协议，避免 javascript:、外链图片跟踪和 Electron 导航。
+ */
+function sanitizePreviewHtml(html) {
+  const clean = DOMPurify.sanitize(String(html || ''), {
+    USE_PROFILES: { html: true },
+    FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'meta', 'link', 'base', 'svg', 'math'],
+    FORBID_ATTR: ['style', 'srcset'],
+    ALLOW_UNKNOWN_PROTOCOLS: false,
+  })
+
+  const template = document.createElement('template')
+  template.innerHTML = clean
+
+  for (const anchor of template.content.querySelectorAll('a[href]')) {
+    const href = (anchor.getAttribute('href') || '').trim()
+    if (!/^(?:https?:|mailto:|#)/i.test(href)) {
+      anchor.removeAttribute('href')
+      continue
+    }
+    if (!href.startsWith('#')) {
+      anchor.setAttribute('target', '_blank')
+      anchor.setAttribute('rel', 'noopener noreferrer')
+    }
+  }
+
+  for (const image of template.content.querySelectorAll('img[src]')) {
+    const src = (image.getAttribute('src') || '').trim()
+    if (!/^data:image\/(?:png|jpeg|gif|webp);base64,/i.test(src)) {
+      image.removeAttribute('src')
+    }
+  }
+
+  return template.innerHTML
+}
+
+function assertPreviewableWorkbook(wb) {
+  if (wb.SheetNames.length > MAX_PREVIEW_SHEETS) {
+    throw new Error(`工作表数量超过 ${MAX_PREVIEW_SHEETS} 个，已停止在线预览`)
+  }
+
+  for (const name of wb.SheetNames) {
+    const sheet = wb.Sheets[name]
+    if (!sheet?.['!ref']) continue
+    const range = XLSX.utils.decode_range(sheet['!ref'])
+    const rows = range.e.r - range.s.r + 1
+    const columns = range.e.c - range.s.c + 1
+    if (rows > MAX_PREVIEW_ROWS || columns > MAX_PREVIEW_COLUMNS || rows * columns > MAX_PREVIEW_CELLS) {
+      throw new Error(`工作表「${name}」规模过大，已停止在线预览`)
+    }
+  }
+}
 
 const CATEGORIES = [
   { key: '年度建设情况', label: '年度建设情况', icon: 'chart', desc: '全年工程建设汇总、评分排名、专业指标' },
@@ -336,19 +397,35 @@ async function openPreview(rec) {
     const res = await fetch(url)
     if (!res.ok) throw new Error('文件获取失败')
     const buf = await res.arrayBuffer()
+    if (buf.byteLength > MAX_PREVIEW_BYTES) {
+      throw new Error('文件超过 25MB，请下载后在本机查看')
+    }
 
     if (isExcel(rec.ext)) {
-      const wb = XLSX.read(buf, { type: 'array' })
+      const wb = XLSX.read(buf, {
+        type: 'array',
+        dense: true,
+        sheetRows: MAX_PREVIEW_ROWS + 1,
+        cellFormula: false,
+        cellHTML: false,
+        cellStyles: false,
+      })
+      assertPreviewableWorkbook(wb)
       const htmlMap = {}
       for (const name of wb.SheetNames) {
-        htmlMap[name] = XLSX.utils.sheet_to_html(wb.Sheets[name], { editable: false })
+        const html = XLSX.utils.sheet_to_html(wb.Sheets[name], {
+          editable: false,
+          header: '',
+          footer: '',
+        })
+        htmlMap[name] = sanitizePreviewHtml(html)
       }
       sheetHtmlMap.value = htmlMap
       sheets.value = wb.SheetNames.map(n => ({ name: n }))
       activeSheet.value = wb.SheetNames[0]
     } else if (isWord(rec.ext)) {
       const result = await mammoth.convertToHtml({ arrayBuffer: buf })
-      docxHtml.value = result.value
+      docxHtml.value = sanitizePreviewHtml(result.value)
     }
   } catch (e) {
     previewError.value = '预览失败：' + e.message

@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import analysis, budget, ai, notify, report, archive, budget_batch, backup
 from models import init_db
+from security import RequestBodyLimitMiddleware
 import os
 import logging
 
@@ -13,6 +14,7 @@ logging.basicConfig(
 )
 
 app = FastAPI(title="在建工程分析系统", version="1.35.0")
+app.add_middleware(RequestBodyLimitMiddleware)
 
 # 初始化数据库
 init_db()

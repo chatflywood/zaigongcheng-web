@@ -24,7 +24,10 @@ vi.mock('../../api', () => ({
 // ── Mock XLSX ──
 vi.mock('xlsx', () => ({
   read: vi.fn(() => ({ SheetNames: ['Sheet1'], Sheets: { Sheet1: {} } })),
-  utils: { sheet_to_html: vi.fn(() => '<table><tr><td>test</td></tr></table>') },
+  utils: {
+    decode_range: vi.fn(() => ({ s: { r: 0, c: 0 }, e: { r: 0, c: 0 } })),
+    sheet_to_html: vi.fn(() => '<table><tr><td>test</td></tr></table>'),
+  },
 }))
 
 // ── Mock mammoth ──
@@ -361,6 +364,28 @@ describe('删除确认', () => {
 // ──────────────────────────────────────────────────────────────
 
 describe('工具函数', () => {
+  it('清洗预览 HTML 中的脚本、事件与危险链接', () => {
+    const wrapper = mountArchive()
+    const clean = wrapper.vm.sanitizePreviewHtml(
+      '<table><tr><td onclick="alert(1)">ok</td></tr></table>' +
+      '<script>alert(1)</script><img src="x" onerror="alert(1)">' +
+      '<a href="javascript:alert(1)">bad</a><a href="https://example.com">safe</a>',
+    )
+    expect(clean).toContain('<table>')
+    expect(clean).toContain('https://example.com')
+    expect(clean).not.toMatch(/script|onclick|onerror|javascript:/i)
+    expect(clean).not.toContain('src="x"')
+  })
+
+  it('拒绝超出预览复杂度上限的工作簿', () => {
+    const wrapper = mountArchive()
+    const workbook = {
+      SheetNames: Array.from({ length: 21 }, (_, i) => `Sheet${i}`),
+      Sheets: {},
+    }
+    expect(() => wrapper.vm.assertPreviewableWorkbook(workbook)).toThrow('工作表数量超过')
+  })
+
   it('formatSize 格式化字节', () => {
     const wrapper = mountArchive()
     expect(wrapper.vm.formatSize(500)).toBe('500 B')

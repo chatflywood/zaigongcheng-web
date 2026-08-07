@@ -68,10 +68,10 @@ async def restore_backup(file: UploadFile = File(...)):
         )
     try:
         content = await file.read()
-        if len(content) > 500 * 1024 * 1024:
+        if len(content) > 128 * 1024 * 1024:
             return JSONResponse(
                 status_code=400,
-                content={"success": False, "message": "备份文件不能超过 500MB"},
+                content={"success": False, "message": "备份文件不能超过 128MB"},
             )
         result = restore_backup_zip(content)
         result["restored_at"] = datetime.now().isoformat(timespec="seconds")

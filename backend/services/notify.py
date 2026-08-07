@@ -4,6 +4,7 @@
 根据 Webhook URL 自动识别平台。
 """
 import httpx
+from urllib.parse import urlsplit
 from datetime import datetime
 from typing import Optional
 
@@ -230,7 +231,40 @@ def _wework_text(record_data: dict, budget_data: Optional[dict]) -> str:
 
 # ── HTTP 发送 ─────────────────────────────────────────────
 
+_WEBHOOK_PATHS = {
+    "qyapi.weixin.qq.com": ("/cgi-bin/webhook/send",),
+    "open.feishu.cn": ("/open-apis/bot/v2/hook/", "/openapi/bot/v2/hook/"),
+    "open.larksuite.com": ("/open-apis/bot/v2/hook/", "/openapi/bot/v2/hook/"),
+}
+
+
+def validate_webhook_url(raw_url: str) -> str:
+    """仅允许企业微信/飞书官方 HTTPS webhook，阻断 SSRF 目的地址。"""
+    url = (raw_url or "").strip()
+    try:
+        parsed = urlsplit(url)
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("Webhook URL 格式不正确") from exc
+
+    host = (parsed.hostname or "").lower().rstrip(".")
+    allowed_paths = _WEBHOOK_PATHS.get(host)
+    if (
+        parsed.scheme.lower() != "https"
+        or not allowed_paths
+        or parsed.username is not None
+        or parsed.password is not None
+        or port not in (None, 443)
+        or parsed.fragment
+        or not any(parsed.path.startswith(prefix) for prefix in allowed_paths)
+    ):
+        raise ValueError("Webhook URL 格式不正确，仅支持企业微信或飞书官方 HTTPS Webhook")
+
+    return url
+
+
 async def _post(url: str, payload: dict) -> dict:
+    url = validate_webhook_url(url)
     async with httpx.AsyncClient(timeout=10.0, trust_env=False) as client:
         resp = await client.post(url, json=payload)
         resp.raise_for_status()

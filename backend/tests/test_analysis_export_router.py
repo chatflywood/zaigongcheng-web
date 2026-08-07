@@ -124,6 +124,21 @@ def _find_data_row(ws, code: str):
 
 
 class TestFourClassExportRouter:
+    def test_formula_neutralizer_preserves_plain_values(self):
+        assert analysis_mod.neutralize_spreadsheet_formula("普通项目") == "普通项目"
+        assert analysis_mod.neutralize_spreadsheet_formula(123) == 123
+
+    @pytest.mark.parametrize("value", [
+        "=HYPERLINK(\"https://evil.test\",\"打开\")",
+        "+SUM(1,1)",
+        "-1+2",
+        "@SUM(1,1)",
+        "  =CMD()",
+        "\t=CMD()",
+    ])
+    def test_formula_neutralizer_prefixes_dangerous_text(self, value):
+        assert analysis_mod.neutralize_spreadsheet_formula(value).startswith("'")
+
     @pytest.mark.asyncio
     async def test_export_header_includes_construction_unit(self, test_db):
         Session = test_db
@@ -167,6 +182,29 @@ class TestFourClassExportRouter:
         row = _find_data_row(ws, "GC001")
         assert row is not None
         assert row[12].value == "一公司"
+
+    @pytest.mark.asyncio
+    async def test_export_neutralizes_formula_cells(self, test_db):
+        Session = test_db
+        db = Session()
+        try:
+            rec = _seed_record(
+                db,
+                items=[_item(code="GC-FORMULA", name='=HYPERLINK("https://evil.test","打开")')],
+            )
+            rid = rec.id
+        finally:
+            db.close()
+
+        async with build_client() as c:
+            r = await c.get(f"/api/zaigong/four-class-warnings/{rid}/export")
+
+        assert r.status_code == 200
+        ws = _load_workbook(r).active
+        row = _find_data_row(ws, "GC-FORMULA")
+        assert row is not None
+        assert row[4].data_type != "f"
+        assert row[4].value.startswith("'=")
 
     @pytest.mark.asyncio
     async def test_export_fallback_raw_data_when_unit_missing(self, test_db):

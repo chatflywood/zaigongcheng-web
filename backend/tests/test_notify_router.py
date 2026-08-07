@@ -84,6 +84,18 @@ class TestNotifyConfig:
             assert r.status_code == 400
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("url", [
+        "https://open.feishu.cn.evil.test/open-apis/bot/v2/hook/key",
+        "https://open.feishu.cn@127.0.0.1/open-apis/bot/v2/hook/key",
+        "https://open.feishu.cn:8443/open-apis/bot/v2/hook/key",
+        "https://qyapi.weixin.qq.com/other/path?key=xxx",
+    ])
+    async def test_save_host_confusion_and_wrong_paths_rejected(self, test_db, url):
+        async with build_client() as c:
+            r = await c.post("/api/notify/config", json={"webhook_url": url, "auto_push": False})
+        assert r.status_code == 400
+
+    @pytest.mark.asyncio
     async def test_save_qyapi_url_accepted(self, test_db):
         async with build_client() as c:
             r = await c.post("/api/notify/config",
@@ -133,6 +145,18 @@ class TestNotifyPush:
                                  json={"webhook_url": "https://open.feishu.cn/openapi/bot/v2/hook/abcd1234"})
             assert r.status_code == 200
             assert r.json()["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_test_push_rejects_ssrf_before_network_call(self, test_db):
+        send_mock = AsyncMock(return_value={"errcode": 0})
+        async with build_client() as c:
+            with patch.object(notify_mod, "send_test", new=send_mock):
+                r = await c.post(
+                    "/api/notify/test",
+                    json={"webhook_url": "https://127.0.0.1/internal"},
+                )
+        assert r.status_code == 400
+        send_mock.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_test_push_platform_error_mocked(self, test_db):

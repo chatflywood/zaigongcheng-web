@@ -49,6 +49,7 @@ class TestAIRouterUnit:
     @pytest.mark.asyncio
     async def test_analyze_returns_not_configured_when_env_missing(self, monkeypatch):
         monkeypatch.setattr(ai, "get_ai_env", lambda: (None, None, "https://api.minimax.chat/v1/text/chatcompletion_v2"))
+        monkeypatch.setattr(ai, "_fetch_history_from_db", lambda: [])
         payload = {
             "metrics": {
                 "year_target": 503.0,
@@ -81,6 +82,7 @@ class TestAIRouterUnit:
             raise ValueError("MiniMax 返回内容为空或格式不支持")
 
         monkeypatch.setattr(ai, "call_minimax", _raise_empty)
+        monkeypatch.setattr(ai, "_fetch_history_from_db", lambda: [])
         payload = {
             "metrics": {
                 "year_target": 503.0,

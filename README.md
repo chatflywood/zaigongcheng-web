@@ -8,6 +8,14 @@
 
 本项目用于分析在建工程数据和预算下达立项进度数据，自动计算关键指标并生成可视化大屏展示。
 
+## 安全边界
+
+- 桌面端和本地后端默认只监听 `127.0.0.1`；如需局域网部署，必须在前方增加鉴权和可信反向代理。
+- 档案中的 Excel / Word 内容均视为不可信输入：在线预览有体积和复杂度限制，转换后的 HTML 会先清洗再展示。
+- 飞书和企业微信 Webhook 仅接受官方 HTTPS 地址；其他主机、端口和路径会被拒绝。
+- Excel 导出会把疑似公式的用户文本转为普通文本，防止打开文件时执行公式。
+- 写请求在 multipart 或 JSON 解析前有请求体上限；Excel 上传 21MB、档案上传 51MB、备份恢复 129MB（包含表单封装余量）。
+
 ## 文档索引
 
 - [需求文档](./docs/requirements.md)：记录业务目标、页面功能、数据口径、模板要求和后续迭代方向
@@ -81,7 +89,7 @@ zaigongcheng-web/
 
 ### 环境要求
 
-- Python 3.9+
+- Python 3.10+
 - Node.js 16+
 - npm 或 yarn
 
@@ -100,11 +108,11 @@ npm install
 ### 运行测试
 
 ```bash
-# 后端测试（136 个用例，不含需先启 uvicorn 的黑盒 test_api.py）
+# 后端测试（安全提交树 152 个用例，不含需先启 uvicorn 的黑盒 test_api.py）
 cd ~/Documents/zaigongcheng-web/backend
 python -m pytest tests/ -q --ignore=tests/test_api.py
 
-# 前端测试（300 个用例，覆盖全部页面 + API 层）
+# 前端测试（302 个用例，覆盖全部页面 + API 层）
 cd ~/Documents/zaigongcheng-web/frontend
 npm run test
 ```
