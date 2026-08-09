@@ -113,6 +113,33 @@ class TestNotifyConfig:
             body = (await c.get("/api/notify/config")).json()
             assert body["configured"] is False
 
+    @pytest.mark.asyncio
+    async def test_save_quantum_webhook_then_get_masked_url(self, test_db):
+        async with build_client() as c:
+            url = "https://imtwo.zdxlz.com/im-external/v1/webhook/send?key=robot-key-123456"
+            r = await c.post("/api/notify/config", json={
+                "provider": "quantum",
+                "webhook_url": url,
+                "auto_push": True,
+            })
+            assert r.status_code == 200
+
+            body = (await c.get("/api/notify/config")).json()
+            assert body["provider"] == "quantum"
+            assert body["configured"] is True
+            assert body["masked_url"].endswith("123456")
+            assert url not in str(body)
+
+    @pytest.mark.asyncio
+    async def test_save_quantum_webhook_without_key_rejected(self, test_db):
+        async with build_client() as c:
+            r = await c.post("/api/notify/config", json={
+                "provider": "quantum",
+                "webhook_url": "https://imtwo.zdxlz.com/im-external/v1/webhook/send",
+                "auto_push": False,
+            })
+        assert r.status_code == 400
+
 
 class TestNotifyPush:
     @pytest.mark.asyncio
@@ -165,3 +192,18 @@ class TestNotifyPush:
                 r = await c.post("/api/notify/test",
                                  json={"webhook_url": "https://open.feishu.cn/openapi/bot/v2/hook/abcd1234"})
             assert r.status_code == 502
+
+    @pytest.mark.asyncio
+    async def test_quantum_test_uses_saved_webhook(self, test_db):
+        async with build_client() as c:
+            url = "https://imtwo.zdxlz.com/im-external/v1/webhook/send?key=robot-key"
+            await c.post("/api/notify/config", json={
+                "provider": "quantum",
+                "webhook_url": url,
+                "auto_push": False,
+            })
+            send_mock = AsyncMock(return_value={"errcode": 0})
+            with patch.object(notify_mod, "send_test", new=send_mock):
+                r = await c.post("/api/notify/test", json={"provider": "quantum"})
+        assert r.status_code == 200
+        send_mock.assert_awaited_once_with(url)

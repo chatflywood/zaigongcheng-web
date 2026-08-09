@@ -202,6 +202,16 @@ describe('通知接口', () => {
     })
   })
 
+  it('saveNotifyConfig 支持量子密信配置对象', async () => {
+    const payload = {
+      provider: 'quantum',
+      webhook_url: 'https://imtwo.zdxlz.com/im-external/v1/webhook/send?key=robot-key',
+      auto_push: true,
+    }
+    await api.saveNotifyConfig(payload)
+    expect(mockAxios.post).toHaveBeenCalledWith(`${BASE}/notify/config`, payload)
+  })
+
   it('clearNotifyConfig POST /notify/config/clear', async () => {
     await api.clearNotifyConfig()
     expect(mockAxios.post).toHaveBeenCalledWith(`${BASE}/notify/config/clear`)
@@ -212,6 +222,15 @@ describe('通知接口', () => {
     expect(mockAxios.post).toHaveBeenCalledWith(`${BASE}/notify/test`, {
       webhook_url: 'https://hook.example.com',
     })
+  })
+
+  it('testNotifyWebhook 支持量子密信配置对象', async () => {
+    const payload = {
+      provider: 'quantum',
+      webhook_url: 'https://imtwo.zdxlz.com/im-external/v1/webhook/send?key=robot-key',
+    }
+    await api.testNotifyWebhook(payload)
+    expect(mockAxios.post).toHaveBeenCalledWith(`${BASE}/notify/test`, payload)
   })
 
   it('pushNotify POST /notify/push/:id', async () => {

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-企业微信通知配置与推送接口
+企业微信、飞书、量子密信通知配置与推送接口
 """
 import json
 import logging
@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 
 WEBHOOK_KEY = "wework_webhook_url"
 AUTO_PUSH_KEY = "wework_auto_push"
+PROVIDER_KEY = "notify_provider"
+VALID_PROVIDERS = {"wework", "feishu", "quantum"}
 
 
 def _get_config(db, key: str) -> Optional[str]:
@@ -33,21 +35,43 @@ def _set_config(db, key: str, value: str):
     db.commit()
 
 
+def _mask(value: str, visible: int = 6) -> str:
+    if not value:
+        return ""
+    if len(value) <= visible:
+        return "*" * len(value)
+    return "*" * (len(value) - visible) + value[-visible:]
+
+
+def _detect_webhook_provider(url: str) -> str:
+    if "imtwo.zdxlz.com" in url:
+        return "quantum"
+    return "feishu" if "open.feishu.cn" in url or "open.larksuite.com" in url else "wework"
+
+
+def _get_provider(db) -> str:
+    provider = _get_config(db, PROVIDER_KEY) or ""
+    if provider in VALID_PROVIDERS:
+        return provider
+    webhook_url = _get_config(db, WEBHOOK_KEY) or ""
+    return _detect_webhook_provider(webhook_url) if webhook_url else "wework"
+
+
 # ── 配置接口 ──────────────────────────────────────────────
 
 @router.get("/config")
 def get_notify_config():
-    """获取通知配置（webhook URL 脱敏展示）"""
+    """获取通知配置；所有 URL、ID 和密钥均只返回脱敏状态。"""
     db = get_db()
     try:
         url = _get_config(db, WEBHOOK_KEY) or ""
         auto_push = _get_config(db, AUTO_PUSH_KEY) or "false"
-        # 脱敏：只显示末尾 8 位
-        masked = ("*" * (len(url) - 8) + url[-8:]) if len(url) > 8 else ("*" * len(url))
+        provider = _get_provider(db)
         return {
             "success": True,
+            "provider": provider,
             "configured": bool(url),
-            "masked_url": masked if url else "",
+            "masked_url": _mask(url, 8),
             "auto_push": auto_push == "true",
         }
     finally:
@@ -58,21 +82,31 @@ def get_notify_config():
 async def save_notify_config(body: dict):
     """
     保存通知配置
-    body: { webhook_url: str, auto_push: bool }
+    body: {
+      provider: wework|feishu|quantum, webhook_url: str,
+      auto_push: bool
+    }
     """
     webhook_url = (body.get("webhook_url") or "").strip()
     auto_push = bool(body.get("auto_push", False))
 
-    if webhook_url:
+    db = get_db()
+    try:
+        provider = str(body.get("provider") or (_detect_webhook_provider(webhook_url) if webhook_url else _get_provider(db))).strip()
+        if provider not in VALID_PROVIDERS:
+            return JSONResponse(status_code=400, content={"success": False, "message": "不支持的通知平台"})
+
+        webhook_url = webhook_url or (_get_config(db, WEBHOOK_KEY) or "")
         try:
             webhook_url = validate_webhook_url(webhook_url)
         except ValueError as exc:
             return JSONResponse(status_code=400, content={"success": False, "message": str(exc)})
+        actual_provider = _detect_webhook_provider(webhook_url)
+        if actual_provider != provider:
+            return JSONResponse(status_code=400, content={"success": False, "message": "Webhook 地址与所选平台不匹配"})
+        _set_config(db, WEBHOOK_KEY, webhook_url)
 
-    db = get_db()
-    try:
-        if webhook_url:
-            _set_config(db, WEBHOOK_KEY, webhook_url)
+        _set_config(db, PROVIDER_KEY, provider)
         _set_config(db, AUTO_PUSH_KEY, "true" if auto_push else "false")
         return {"success": True, "message": "配置已保存"}
     finally:
@@ -81,13 +115,14 @@ async def save_notify_config(body: dict):
 
 @router.post("/config/clear")
 def clear_notify_config():
-    """清除 webhook URL"""
+    """清除全部通知平台凭证。"""
     db = get_db()
     try:
-        row = db.query(AppConfig).filter(AppConfig.key == WEBHOOK_KEY).first()
-        if row:
+        keys = [WEBHOOK_KEY, AUTO_PUSH_KEY, PROVIDER_KEY]
+        rows = db.query(AppConfig).filter(AppConfig.key.in_(keys)).all()
+        for row in rows:
             db.delete(row)
-            db.commit()
+        db.commit()
         return {"success": True, "message": "已清除"}
     finally:
         db.close()
@@ -100,16 +135,19 @@ async def manual_push(record_id: int):
     """手动推送指定记录的数据播报"""
     db = get_db()
     try:
+        provider = _get_provider(db)
         webhook_url = _get_config(db, WEBHOOK_KEY) or ""
         if not webhook_url:
             return JSONResponse(
                 status_code=400,
-                content={"success": False, "message": "尚未配置 Webhook，请先点右上角 🔔 填写飞书或企业微信的 Webhook 地址"},
+                content={"success": False, "message": "尚未配置通知渠道，请先打开通知设置完成配置"},
             )
         try:
             webhook_url = validate_webhook_url(webhook_url)
         except ValueError as exc:
             return JSONResponse(status_code=400, content={"success": False, "message": str(exc)})
+        if _detect_webhook_provider(webhook_url) != provider:
+            return JSONResponse(status_code=400, content={"success": False, "message": "Webhook 地址与所选平台不匹配"})
 
         record = db.query(ZaigongRecord).filter(ZaigongRecord.id == record_id).first()
         if not record:
@@ -121,7 +159,14 @@ async def manual_push(record_id: int):
         budget_record = db.query(BudgetRecord).order_by(BudgetRecord.id.desc()).first()
         budget_data = json.loads(budget_record.budget_data) if budget_record and budget_record.budget_data else None
 
-        result = await push_record(webhook_url, snapshot, budget_data)
+        try:
+            result = await push_record(webhook_url, snapshot, budget_data)
+        except Exception as exc:
+            logger.exception("手动消息推送失败")
+            return JSONResponse(
+                status_code=502,
+                content={"success": False, "message": f"消息推送失败：{type(exc).__name__}"},
+            )
 
         if result.get("errcode") == 0 or result.get("code") == 0:
             return {"success": True, "message": "推送成功"}
@@ -137,27 +182,29 @@ async def manual_push(record_id: int):
 
 @router.post("/test")
 async def test_push(body: dict):
-    """向指定 webhook 发送测试消息；若不传 webhook_url 则使用已保存的配置"""
+    """向指定通知渠道发送测试消息；未传的字段使用已保存配置。"""
     webhook_url = (body.get("webhook_url") or "").strip()
-    if not webhook_url:
-        db = get_db()
-        try:
-            row = db.query(AppConfig).filter(AppConfig.key == WEBHOOK_KEY).first()
-            webhook_url = row.value if row else ""
-        finally:
-            db.close()
-    if not webhook_url:
-        return JSONResponse(status_code=400, content={"success": False, "message": "请先输入 Webhook URL"})
+    db = get_db()
     try:
-        webhook_url = validate_webhook_url(webhook_url)
-    except ValueError as exc:
-        return JSONResponse(status_code=400, content={"success": False, "message": str(exc)})
+        provider = str(body.get("provider") or (_detect_webhook_provider(webhook_url) if webhook_url else _get_provider(db))).strip()
+        if provider not in VALID_PROVIDERS:
+            return JSONResponse(status_code=400, content={"success": False, "message": "不支持的通知平台"})
+        webhook_url = webhook_url or (_get_config(db, WEBHOOK_KEY) or "")
+        if not webhook_url:
+            return JSONResponse(status_code=400, content={"success": False, "message": "请先输入 Webhook URL"})
+        try:
+            webhook_url = validate_webhook_url(webhook_url)
+        except ValueError as exc:
+            return JSONResponse(status_code=400, content={"success": False, "message": str(exc)})
+        if _detect_webhook_provider(webhook_url) != provider:
+            return JSONResponse(status_code=400, content={"success": False, "message": "Webhook 地址与所选平台不匹配"})
+    finally:
+        db.close()
 
     try:
         result = await send_test(webhook_url)
-        # 企业微信 errcode=0，飞书 code=0，均视为成功
         if result.get("errcode") == 0 or result.get("code") == 0:
-            return {"success": True, "message": "测试消息发送成功，请在飞书/企业微信中查看"}
+            return {"success": True, "message": "测试消息发送成功，请在所选平台中查看"}
         else:
             errmsg = result.get("errmsg") or result.get("msg") or "未知错误"
             return JSONResponse(

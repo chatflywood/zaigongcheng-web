@@ -28,6 +28,7 @@ const dmBudgetInput = ref(null)
 // ── 通知设置 ──
 
 const notifyModalVisible = ref(false)
+const notifyProvider = ref('wework')
 const notifyWebhookInput = ref('')
 const notifyAutoPush = ref(false)
 const notifyConfigured = ref(false)
@@ -193,6 +194,7 @@ export function useAppTools() {
     try {
       const res = await getNotifyConfig()
       if (res.success) {
+        notifyProvider.value = res.provider || 'wework'
         notifyConfigured.value = res.configured
         notifyMaskedUrl.value = res.masked_url
         notifyAutoPush.value = res.auto_push
@@ -203,16 +205,23 @@ export function useAppTools() {
   }
 
   async function saveNotify() {
-    if (!notifyWebhookInput.value.trim() && !notifyConfigured.value) {
+    if (!notifyWebhookInput.value.trim() && !notifyMaskedUrl.value) {
       notifyMsg.value = '请输入 Webhook URL'; notifyMsgType.value = 'error'; return
     }
     notifySaving.value = true; notifyMsg.value = ''
     try {
-      const res = await saveNotifyConfig(notifyWebhookInput.value.trim(), notifyAutoPush.value)
+      const payload = {
+        provider: notifyProvider.value,
+        auto_push: notifyAutoPush.value,
+        webhook_url: notifyWebhookInput.value.trim(),
+      }
+      const res = await saveNotifyConfig(payload)
       if (res.success) {
         notifyMsg.value = '配置已保存'; notifyMsgType.value = 'success'; notifyConfigured.value = true
         const cfg = await getNotifyConfig()
-        if (cfg.success) notifyMaskedUrl.value = cfg.masked_url
+        if (cfg.success) {
+          notifyMaskedUrl.value = cfg.masked_url
+        }
         notifyWebhookInput.value = ''
       } else {
         notifyMsg.value = res.message || '保存失败'; notifyMsgType.value = 'error'
@@ -224,14 +233,15 @@ export function useAppTools() {
 
   async function testNotify() {
     const url = notifyWebhookInput.value.trim()
-    if (!url && !notifyConfigured.value) {
+    if (!url && !notifyMaskedUrl.value) {
       notifyMsg.value = '请先输入 Webhook URL 再测试'; notifyMsgType.value = 'error'; return
     }
     notifyTesting.value = true; notifyMsg.value = ''
     try {
-      const res = await testNotifyWebhook(url)
+      const payload = { provider: notifyProvider.value, webhook_url: url }
+      const res = await testNotifyWebhook(payload)
       if (res.success) {
-        notifyMsg.value = '✅ 测试消息已发送，请在群内查看'; notifyMsgType.value = 'success'
+        notifyMsg.value = '✅ 测试消息已发送，请在所选平台中查看'; notifyMsgType.value = 'success'
       } else {
         notifyMsg.value = res.message || '发送失败'; notifyMsgType.value = 'error'
       }
@@ -241,11 +251,12 @@ export function useAppTools() {
   }
 
   async function clearNotify() {
-    if (!confirm('确认清除 Webhook 配置？')) return
+    if (!confirm('确认清除通知配置？')) return
     try {
       await clearNotifyConfig()
       notifyConfigured.value = false; notifyMaskedUrl.value = ''
       notifyWebhookInput.value = ''; notifyAutoPush.value = false
+      notifyProvider.value = 'wework'
       notifyMsg.value = '已清除'; notifyMsgType.value = 'success'
     } catch (e) {
       notifyMsg.value = '清除失败'; notifyMsgType.value = 'error'
@@ -277,7 +288,7 @@ export function useAppTools() {
     navPushing.value = true
     try {
       const res = await pushNotify(zaigongLatestRecordId.value)
-      if (res.success) alert('推送成功，请在飞书/企业微信中查看')
+      if (res.success) alert('推送成功，请在已配置的通知平台中查看')
       else alert(res.message || '推送失败')
     } catch (e) {
       alert(e?.response?.data?.message || e?.message || '推送失败')
@@ -382,7 +393,7 @@ export function useAppTools() {
     dmUploadZaigong, dmUploadBudget,
     daysSince, dmFreshClass,
     // 通知
-    notifyModalVisible, notifyWebhookInput, notifyAutoPush, notifyConfigured, notifyMaskedUrl,
+    notifyModalVisible, notifyProvider, notifyWebhookInput, notifyAutoPush, notifyConfigured, notifyMaskedUrl,
     notifySaving, notifyTesting, notifyMsg, notifyMsgType,
     openNotifyModal, saveNotify, testNotify, clearNotify,
     // 工具栏

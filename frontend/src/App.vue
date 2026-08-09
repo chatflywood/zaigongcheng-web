@@ -44,7 +44,7 @@ const {
   dmOnZaigongFile, dmOnBudgetFile, dmDropZaigong, dmDropBudget,
   dmUploadZaigong, dmUploadBudget,
   daysSince, dmFreshClass,
-  notifyModalVisible, notifyWebhookInput, notifyAutoPush, notifyConfigured, notifyMaskedUrl,
+  notifyModalVisible, notifyProvider, notifyWebhookInput, notifyAutoPush, notifyConfigured, notifyMaskedUrl,
   notifySaving, notifyTesting, notifyMsg, notifyMsgType,
   openNotifyModal, saveNotify, testNotify, clearNotify,
   moreMenuOpen, briefGenerating, navPushing, presentationMode,
@@ -461,9 +461,18 @@ onUnmounted(() => {
             <button v-if="notifyConfigured" class="notify-clear-btn" @click="clearNotify">清除</button>
           </div>
           <div class="notify-field">
+            <label>推送平台</label>
+            <select v-model="notifyProvider" class="notify-input notify-select">
+              <option value="wework">企业微信</option>
+              <option value="feishu">飞书</option>
+              <option value="quantum">中国电信量子密信</option>
+            </select>
+          </div>
+          <div class="notify-field">
             <label>Webhook URL</label>
-            <input v-model="notifyWebhookInput" type="text" placeholder="飞书或企业微信 Webhook URL" class="notify-input" />
-            <p class="notify-hint">飞书：添加自定义机器人 → 复制 Webhook<br>企业微信：群聊 → 添加群机器人 → 复制 Webhook</p>
+            <input v-model="notifyWebhookInput" type="text" :placeholder="notifyProvider === 'quantum' ? '量子密信群机器人 Webhook URL' : (notifyProvider === 'feishu' ? '飞书 Webhook URL' : '企业微信 Webhook URL')" class="notify-input" />
+            <p v-if="notifyProvider === 'quantum'" class="notify-hint">量子密信：群聊设置 → 群机器人 → 添加机器人 → 复制 Webhook URL</p>
+            <p v-else class="notify-hint">飞书：添加自定义机器人 → 复制 Webhook<br>企业微信：群聊 → 添加群机器人 → 复制 Webhook</p>
           </div>
           <div class="notify-field notify-toggle-row">
             <label>上传后自动推送</label>
@@ -727,6 +736,7 @@ onUnmounted(() => {
 .notify-field label { font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
 .notify-input { width: 100%; padding: 7px 10px; font-size: 12.5px; border: 1px solid var(--line-2); border-radius: var(--r-md); outline: none; color: var(--ink); background: var(--surface); }
 .notify-input:focus { border-color: var(--accent); }
+.notify-select { appearance: auto; }
 .notify-hint { margin: 0; font-size: 11px; color: var(--ink-4); line-height: 1.5; }
 .notify-toggle-row { flex-direction: row !important; align-items: center; justify-content: space-between; }
 .toggle-switch { position: relative; display: inline-block; width: 36px; height: 20px; cursor: pointer; }

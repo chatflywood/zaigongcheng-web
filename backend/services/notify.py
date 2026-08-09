@@ -1,17 +1,20 @@
 # -*- coding: utf-8 -*-
 """
-消息推送服务 - 支持企业微信群机器人 / 飞书自定义机器人
+消息推送服务 - 支持企业微信群机器人 / 飞书自定义机器人 / 量子密信群机器人
 根据 Webhook URL 自动识别平台。
 """
 import httpx
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 from datetime import datetime
 from typing import Optional
 
 
 def _detect_platform(url: str) -> str:
-    if "open.feishu.cn" in url or "open.larksuite.com" in url:
+    host = (urlsplit(url).hostname or "").lower().rstrip(".")
+    if host in {"open.feishu.cn", "open.larksuite.com"}:
         return "feishu"
+    if host == "imtwo.zdxlz.com":
+        return "quantum"
     return "wework"
 
 
@@ -229,12 +232,53 @@ def _wework_text(record_data: dict, budget_data: Optional[dict]) -> str:
     return "\n".join(lines)
 
 
+def _quantum_text(record_data: dict, budget_data: Optional[dict]) -> str:
+    """量子密信群机器人的 text 类型使用纯文本，不输出 Markdown/HTML 标记。"""
+    m = _extract(record_data, budget_data)
+    rate_status = "已达标" if m["rate_pct"] >= 60 else f"差距 {m['rate_gap']:.1f}pct"
+    lines = ["工程建设进度播报", f"数据日期：{m['date_str']}", "", "四项核心指标"]
+    if m["has_budget"]:
+        lines.append(f"📋 立项进度：{m['approval_pct']:.1f}%　已占用 {m['occupied']:.1f}万 + 预占用 {m['preoccupied']:.1f}万")
+    lines.append(f"💰 当期资本性支出：{m['capital_pct']:.1f}%　{m['capital']:.1f}万 / 目标 {m['year_target']:.0f}万")
+    if m["has_budget"]:
+        lines.append(f"📈 全年资本性支出：{m['annual_pct']:.1f}%　年度支出 {m['annual_spend']:.1f}万 / 预算 {m['budget_total']:.1f}万")
+    lines.append(f"⚡ 综合转固率：{m['rate_pct']:.2f}%　年度目标60%，{rate_status}")
+
+    lines.append("")
+    if m["total_warnings"] > 0:
+        lines.append(f"⚠️ 四类预警（共 {m['total_warnings']} 项）")
+        categories = [
+            (m["overdue_transfer"], "预转固不及时"),
+            (m["overdue_close"], "关闭不及时"),
+            (m["long_construction"], "长期在建"),
+            (m["abnormal"], "异常在建"),
+        ] + [(items, label) for label, items in m["other_types"].items()]
+        for items, label in categories:
+            if not items:
+                continue
+            lines.append(f"{label}：{len(items)} 项")
+            for item in items[:3]:
+                name = item.get("name") or item.get("工程名称", "")
+                manager = item.get("manager") or item.get("工程管理员", "")
+                days = item.get("daysLabel", "")
+                prefix = f"【{days}】" if days else ""
+                lines.append(f"· {prefix}{name}（{manager}）")
+            if len(items) > 3:
+                lines.append(f"· …共 {len(items)} 项")
+    else:
+        lines.append("✅ 暂无四类预警")
+
+    lines += ["", f"在建工程数据驾驶舱自动推送 · {datetime.now().strftime('%H:%M')}"]
+    return "\n".join(lines)
+
+
 # ── HTTP 发送 ─────────────────────────────────────────────
 
 _WEBHOOK_PATHS = {
     "qyapi.weixin.qq.com": ("/cgi-bin/webhook/send",),
     "open.feishu.cn": ("/open-apis/bot/v2/hook/", "/openapi/bot/v2/hook/"),
     "open.larksuite.com": ("/open-apis/bot/v2/hook/", "/openapi/bot/v2/hook/"),
+    "imtwo.zdxlz.com": ("/im-external/v1/webhook/send",),
 }
 
 
@@ -249,6 +293,8 @@ def validate_webhook_url(raw_url: str) -> str:
 
     host = (parsed.hostname or "").lower().rstrip(".")
     allowed_paths = _WEBHOOK_PATHS.get(host)
+    is_quantum = host == "imtwo.zdxlz.com"
+    quantum_query = parse_qs(parsed.query, keep_blank_values=True) if is_quantum else {}
     if (
         parsed.scheme.lower() != "https"
         or not allowed_paths
@@ -257,8 +303,10 @@ def validate_webhook_url(raw_url: str) -> str:
         or port not in (None, 443)
         or parsed.fragment
         or not any(parsed.path.startswith(prefix) for prefix in allowed_paths)
+        or (is_quantum and parsed.path != "/im-external/v1/webhook/send")
+        or (is_quantum and (set(quantum_query) != {"key"} or len(quantum_query["key"]) != 1 or not quantum_query["key"][0]))
     ):
-        raise ValueError("Webhook URL 格式不正确，仅支持企业微信或飞书官方 HTTPS Webhook")
+        raise ValueError("Webhook URL 格式不正确，仅支持企业微信、飞书或量子密信官方 HTTPS Webhook")
 
     return url
 
@@ -279,6 +327,12 @@ async def push_record(webhook_url: str, record_data: dict, budget_data: Optional
     if platform == "feishu":
         result = await _post(webhook_url, _feishu_payload(record_data, budget_data))
         return {"errcode": 0} if result.get("code") == 0 else result
+    elif platform == "quantum":
+        result = await _post(webhook_url, {
+            "type": "text",
+            "textMsg": {"content": _quantum_text(record_data, budget_data)},
+        })
+        return {"errcode": 0} if result.get("ok") is True or result.get("code") in (0, 200) else result
     else:
         return await _post(webhook_url, {
             "msgtype": "markdown",
@@ -303,6 +357,12 @@ async def send_test(webhook_url: str) -> dict:
         }
         result = await _post(webhook_url, payload)
         return {"errcode": 0} if result.get("code") == 0 else result
+    elif platform == "quantum":
+        result = await _post(webhook_url, {
+            "type": "text",
+            "textMsg": {"content": "在建工程数据驾驶舱 Webhook 配置成功！\n这是一条测试消息，可以忽略。"},
+        })
+        return {"errcode": 0} if result.get("ok") is True or result.get("code") in (0, 200) else result
     else:
         msg = (
             "## ✅ 在建工程数据驾驶舱 - 测试消息\n"

@@ -166,13 +166,19 @@ async def upload_excel(file: UploadFile = File(...), target: float = Query(503.0
         finally:
             db.close()
 
-        # 自动推送（如果配置了 webhook 且开启了自动推送）
+        # 自动推送（支持企业微信、飞书和量子密信；失败不影响上传）
         try:
             db2 = get_db()
-            webhook_row = db2.query(AppConfig).filter(AppConfig.key == "wework_webhook_url").first()
-            auto_row = db2.query(AppConfig).filter(AppConfig.key == "wework_auto_push").first()
+            notify_keys = {
+                "wework_webhook_url", "wework_auto_push",
+            }
+            notify_config = {
+                row.key: row.value
+                for row in db2.query(AppConfig).filter(AppConfig.key.in_(notify_keys)).all()
+            }
             db2.close()
-            if webhook_row and webhook_row.value and auto_row and auto_row.value == "true":
+            webhook_url = notify_config.get("wework_webhook_url") or ""
+            if webhook_url and notify_config.get("wework_auto_push") == "true":
                 import asyncio
                 from services.notify import push_record
                 from models import BudgetRecord
@@ -183,7 +189,7 @@ async def upload_excel(file: UploadFile = File(...), target: float = Query(503.0
                 if new_record:
                     snapshot = build_dashboard_snapshot(new_record)
                     budget_data = json.loads(budget_record.budget_data) if budget_record and budget_record.budget_data else None
-                    asyncio.create_task(push_record(webhook_row.value, snapshot, budget_data))
+                    asyncio.create_task(push_record(webhook_url, snapshot, budget_data))
         except Exception:
             pass  # 推送失败不影响上传结果
 

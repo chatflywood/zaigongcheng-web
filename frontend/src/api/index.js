@@ -102,11 +102,11 @@ export async function getNotifyConfig() {
   return response.data
 }
 
-export async function saveNotifyConfig(webhookUrl, autoPush) {
-  const response = await axios.post(`${API_BASE}/notify/config`, {
-    webhook_url: webhookUrl,
-    auto_push: autoPush,
-  })
+export async function saveNotifyConfig(configOrWebhookUrl, autoPush) {
+  const payload = typeof configOrWebhookUrl === 'object'
+    ? configOrWebhookUrl
+    : { webhook_url: configOrWebhookUrl, auto_push: autoPush }
+  const response = await axios.post(`${API_BASE}/notify/config`, payload)
   return response.data
 }
 
@@ -115,8 +115,11 @@ export async function clearNotifyConfig() {
   return response.data
 }
 
-export async function testNotifyWebhook(webhookUrl) {
-  const response = await axios.post(`${API_BASE}/notify/test`, { webhook_url: webhookUrl })
+export async function testNotifyWebhook(configOrWebhookUrl) {
+  const payload = typeof configOrWebhookUrl === 'object'
+    ? configOrWebhookUrl
+    : { webhook_url: configOrWebhookUrl }
+  const response = await axios.post(`${API_BASE}/notify/test`, payload)
   return response.data
 }
 
@@ -250,4 +253,3 @@ export async function restoreBackup(file) {
   })
   return response.data
 }
-
