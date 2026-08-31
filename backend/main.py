@@ -13,7 +13,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 
-app = FastAPI(title="在建工程分析系统", version="1.35.0")
+app = FastAPI(title="在建工程分析系统", version="1.36.0")
 app.add_middleware(RequestBodyLimitMiddleware)
 
 # 初始化数据库
@@ -41,4 +41,4 @@ app.include_router(backup.router, prefix="/api/backup", tags=["数据备份"])
 
 @app.get("/")
 async def root():
-    return {"message": "在建工程分析系统 API", "version": "1.35.0"}
+    return {"message": "在建工程分析系统 API", "version": "1.36.0"}

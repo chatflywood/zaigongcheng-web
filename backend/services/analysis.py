@@ -44,7 +44,10 @@ NUMERIC_COLUMNS = [
 ]
 
 # 工程管理员自定义排序顺序
-ADMIN_SORT_ORDER = ["伍建勋", "张文", "袁爱平", "魏东"]
+ADMIN_SORT_ORDER = [
+    "伍建勋", "张文", "袁爱平", "魏东",
+    "管理员A", "管理员B", "管理员C", "管理员D", "管理员E", "管理员F",
+]
 
 
 def load_dataframe(df: pd.DataFrame) -> pd.DataFrame:

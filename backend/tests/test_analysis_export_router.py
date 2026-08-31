@@ -62,6 +62,9 @@ def _seed_record(
     *,
     items,
     raw_rows=None,
+    detail_rows=None,
+    summary_rows=None,
+    metrics=None,
     file_date="0701",
     analysis_date="2026-07-01",
 ):
@@ -76,9 +79,9 @@ def _seed_record(
     rec = ZaigongRecord(
         source_filename="test.xlsx",
         file_date=file_date,
-        summary_data=json.dumps([], ensure_ascii=False),
-        metrics_data=json.dumps({}, ensure_ascii=False),
-        detail_data=json.dumps([], ensure_ascii=False),
+        summary_data=json.dumps(summary_rows or [], ensure_ascii=False),
+        metrics_data=json.dumps(metrics or {}, ensure_ascii=False),
+        detail_data=json.dumps(detail_rows or [], ensure_ascii=False),
         four_class_warnings=json.dumps(four_class, ensure_ascii=False),
         raw_data=json.dumps(raw_rows or [], ensure_ascii=False),
         uploaded_at=datetime.now(),
@@ -266,3 +269,148 @@ class TestFourClassExportRouter:
             r = await c.get("/api/zaigong/four-class-warnings/99999/export")
         assert r.status_code == 404
         assert r.json()["success"] is False
+
+
+class TestAllManagerDetailsExportRouter:
+    @pytest.mark.asyncio
+    async def test_single_manager_export_keeps_original_sheet_layout(self, test_db):
+        Session = test_db
+        db = Session()
+        try:
+            rec = _seed_record(
+                db,
+                items=[],
+                detail_rows=[
+                    {
+                        "工程名称": "项目A",
+                        "工程管理员": "张三",
+                        "施工单位": "施工一队",
+                        "在建工程期末余额": 10,
+                    },
+                ],
+                summary_rows=[{"工程管理员": "张三"}],
+            )
+            rid = rec.id
+        finally:
+            db.close()
+
+        async with build_client() as c:
+            r = await c.get(
+                f"/api/zaigong/manager-details/{rid}/export",
+                params={"manager": "张三"},
+            )
+
+        assert r.status_code == 200
+        wb = _load_workbook(r)
+        assert wb.sheetnames == ["张三工程明细"]
+        assert [cell.value for cell in wb.active[10]][:4] == ["编号", "工程名称", "施工单位", "结转额"]
+        assert wb.active["C11"].value == "施工一队"
+
+    @pytest.mark.asyncio
+    async def test_export_starts_with_all_projects_summary_sheet(self, test_db):
+        detail_rows = [
+            {
+                "工程名称": "项目A",
+                "工程管理员": "张三",
+                "施工单位": "施工一队",
+                "结转额": 20,
+                "在建工程期末余额": 100,
+                "本年累计资本性支出": 10000,
+            },
+            {
+                "工程名称": "项目B",
+                "工程管理员": "李四",
+                "constructionUnit": "施工二队",
+                "结转额": 10,
+                "在建工程期末余额": 50,
+                "本年累计资本性支出": 20000,
+            },
+        ]
+        Session = test_db
+        db = Session()
+        try:
+            rec = _seed_record(
+                db,
+                items=[],
+                detail_rows=detail_rows,
+                summary_rows=[
+                    {"工程管理员": "张三"},
+                    {"工程管理员": "李四"},
+                    {"工程管理员": "合计", "转固率": 0.7317},
+                ],
+            )
+            rid = rec.id
+        finally:
+            db.close()
+
+        async with build_client() as c:
+            r = await c.get(f"/api/zaigong/manager-details/{rid}/export-all")
+
+        assert r.status_code == 200
+        wb = _load_workbook(r)
+        assert wb.sheetnames == ["全部工程汇总", "张三工程明细", "李四工程明细"]
+
+        assert [cell.value for cell in wb["张三工程明细"][10]][:4] == [
+            "编号", "工程名称", "施工单位", "结转额",
+        ]
+        assert wb["张三工程明细"]["C11"].value == "施工一队"
+        assert wb["李四工程明细"]["C11"].value == "施工二队"
+
+        ws = wb["全部工程汇总"]
+        headers = [cell.value for cell in ws[10]]
+        assert headers[:4] == ["编号", "工程名称", "工程管理员", "施工单位"]
+        assert ws["B11"].value == "项目A"
+        assert ws["C11"].value == "张三"
+        assert ws["D11"].value == "施工一队"
+        assert ws["B12"].value == "项目B"
+        assert ws["C12"].value == "李四"
+        assert ws["D12"].value == "施工二队"
+        assert ws["C7"].value == pytest.approx(0.7317)
+        assert ws["J13"].value == pytest.approx(0.7317)
+        assert ws.auto_filter.ref == "A10:J12"
+
+    @pytest.mark.asyncio
+    async def test_summary_rate_falls_back_to_saved_core_metric(self, test_db):
+        Session = test_db
+        db = Session()
+        try:
+            rec = _seed_record(
+                db,
+                items=[],
+                detail_rows=[{"工程名称": "项目A", "工程管理员": "张三", "在建工程期末余额": 10}],
+                summary_rows=[{"工程管理员": "张三"}],
+                metrics={"total_rate": 0.625},
+            )
+            rid = rec.id
+        finally:
+            db.close()
+
+        async with build_client() as c:
+            r = await c.get(f"/api/zaigong/manager-details/{rid}/export-all")
+
+        assert r.status_code == 200
+        ws = _load_workbook(r)["全部工程汇总"]
+        assert ws["C7"].value == pytest.approx(0.625)
+        assert ws["J12"].value == pytest.approx(0.625)
+
+    @pytest.mark.asyncio
+    async def test_summary_sheet_contains_all_projects_even_without_summary_manager(self, test_db):
+        Session = test_db
+        db = Session()
+        try:
+            rec = _seed_record(
+                db,
+                items=[],
+                detail_rows=[{"工程名称": "未分配项目", "在建工程期末余额": 1}],
+            )
+            rid = rec.id
+        finally:
+            db.close()
+
+        async with build_client() as c:
+            r = await c.get(f"/api/zaigong/manager-details/{rid}/export-all")
+
+        assert r.status_code == 200
+        wb = _load_workbook(r)
+        assert wb.sheetnames == ["全部工程汇总"]
+        assert wb["全部工程汇总"]["C11"].value == "未分配"

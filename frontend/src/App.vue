@@ -471,8 +471,7 @@ onUnmounted(() => {
           <div class="notify-field">
             <label>Webhook URL</label>
             <input v-model="notifyWebhookInput" type="text" :placeholder="notifyProvider === 'quantum' ? '量子密信群机器人 Webhook URL' : (notifyProvider === 'feishu' ? '飞书 Webhook URL' : '企业微信 Webhook URL')" class="notify-input" />
-            <p v-if="notifyProvider === 'quantum'" class="notify-hint">量子密信：群聊设置 → 群机器人 → 添加机器人 → 复制 Webhook URL</p>
-            <p v-else class="notify-hint">飞书：添加自定义机器人 → 复制 Webhook<br>企业微信：群聊 → 添加群机器人 → 复制 Webhook</p>
+            <p class="notify-hint">飞书：添加自定义机器人 → 复制 Webhook<br>企业微信：群聊 → 添加群机器人 → 复制 Webhook<br>量子密信：群聊设置 → 群机器人 → 添加机器人 → 复制 Webhook URL</p>
           </div>
           <div class="notify-field notify-toggle-row">
             <label>上传后自动推送</label>

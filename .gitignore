@@ -40,3 +40,10 @@ backend/uploads/
 # AI assistant config
 .claude/
 frontend/.claude/
+.zcode/
+.v2c/
+.video_agent/
+
+# Competition materials (videos / PPT / scripts, ~1.4GB — keep local only)
+competition/
+demo/

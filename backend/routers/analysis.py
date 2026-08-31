@@ -417,7 +417,20 @@ def _detail_num(d, *keys):
     return v
 
 
-def _build_manager_sheet(wb, manager, details, mgr_row, file_date, *, create_sheet=True):
+def _build_manager_sheet(
+    wb,
+    manager,
+    details,
+    mgr_row,
+    file_date,
+    *,
+    create_sheet=True,
+    include_manager=False,
+    include_construction_unit=False,
+    sheet_title=None,
+    report_title=None,
+    detail_title=None,
+):
     """
     在工作簿中为指定管理员生成一个完整的明细 sheet。
     create_sheet=True 时新建 sheet（用于多管理员导出），False 时使用 active sheet（单管理员导出）。
@@ -426,7 +439,7 @@ def _build_manager_sheet(wb, manager, details, mgr_row, file_date, *, create_she
     from openpyxl.utils import get_column_letter
 
     ws = wb.active if not create_sheet else wb.create_sheet()
-    ws.title = f"{manager}工程明细"[:31]
+    ws.title = (sheet_title or f"{manager}工程明细")[:31]
 
     # 财务摘要（汇总值优先取 summary 行【万元】，缺失时回退到明细合计）
     s_balance = _num(mgr_row, "在建工程期末余额", "balance") or sum(_detail_num(d, "在建工程期末余额", "balance") for d in details)
@@ -437,8 +450,6 @@ def _build_manager_sheet(wb, manager, details, mgr_row, file_date, *, create_she
     s_transfer = _num(mgr_row, "结转额", "transfer") or sum(_detail_num(d, "结转额", "transfer") for d in details)
     s_pending = _num(mgr_row, "已下单待收货", "pending") or sum(_detail_num(d, "已下单待收货", "pending") for d in details)
     s_rate = _num(mgr_row, "转固率", "rate")
-    if not s_rate:
-        s_rate = (s_transfer / s_balance) if s_balance > 0 else 0.0
 
     # ── 颜色常量 ──
     C_NAVY    = "1B2A4A"
@@ -464,13 +475,18 @@ def _build_manager_sheet(wb, manager, details, mgr_row, file_date, *, create_she
             c.number_format = num_fmt
         return c
 
-    headers = ["编号", "工程名称", "结转额", "本年累计资本性支出", "已下单待收货", "本月资本性支出", "在建工程期末余额", "转固率"]
+    headers = ["编号", "工程名称"]
+    if include_manager:
+        headers.append("工程管理员")
+    if include_construction_unit:
+        headers.append("施工单位")
+    headers.extend(["结转额", "本年累计资本性支出", "已下单待收货", "本月资本性支出", "在建工程期末余额", "转固率"])
     total_cols = len(headers)
     last_col_letter = get_column_letter(total_cols)
 
     # ── 第1行：总标题 ──
     ws.merge_cells(f"A1:{last_col_letter}1")
-    ws["A1"].value = f"中国电信股份有限公司仙桃分公司  工程管理员「{manager}」在建工程明细"
+    ws["A1"].value = report_title or f"中国电信股份有限公司仙桃分公司  工程管理员「{manager}」在建工程明细"
     ws["A1"].font = Font(name="微软雅黑", size=15, bold=True, color=C_WHITE)
     ws["A1"].fill = PatternFill("solid", fgColor=C_NAVY)
     ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
@@ -537,7 +553,7 @@ def _build_manager_sheet(wb, manager, details, mgr_row, file_date, *, create_she
     # ── 明细表标题 ──
     table_title_row = 9
     ws.merge_cells(f"A{table_title_row}:{last_col_letter}{table_title_row}")
-    ws[f"A{table_title_row}"].value = "▌ 所属工程明细"
+    ws[f"A{table_title_row}"].value = detail_title or "▌ 所属工程明细"
     ws[f"A{table_title_row}"].font = Font(name="微软雅黑", size=11, bold=True, color=C_NAVY)
     ws[f"A{table_title_row}"].fill = PatternFill("solid", fgColor="F2F6FC")
     ws[f"A{table_title_row}"].alignment = Alignment(horizontal="left", vertical="center", indent=1)
@@ -557,15 +573,23 @@ def _build_manager_sheet(wb, manager, details, mgr_row, file_date, *, create_she
         row_vals = [
             (idx, "center", None),
             (item.get("工程名称") or item.get("name") or "", "left", None),
+        ]
+        if include_manager:
+            row_vals.append((item.get("工程管理员") or item.get("manager") or "未分配", "left", None))
+        if include_construction_unit:
+            row_vals.append((item.get("施工单位") or item.get("constructionUnit") or "", "left", None))
+        row_vals.extend([
             (_detail_num(item, "结转额", "transfer"), "right", "#,##0.00"),
             (_detail_num(item, "本年累计资本性支出", "capital"), "right", "#,##0.00"),
             (_detail_num(item, "已下单待收货", "pending"), "right", "#,##0.00"),
             (_detail_num(item, "本月资本性支出", "monthSpend"), "right", "#,##0.00"),
             (_detail_num(item, "在建工程期末余额", "balance"), "right", "#,##0.00"),
             (_num(item, "转固率", "rate"), "right", "0.00%"),
-        ]
+        ])
+        extra_cols = int(include_manager) + int(include_construction_unit)
+        negative_cols = (4 + extra_cols, 6 + extra_cols)
         for col, (val, align, fmt) in enumerate(row_vals, 1):
-            color = C_BAD if (col in (4, 6) and isinstance(val, (int, float)) and val < 0) else "000000"
+            color = C_BAD if (col in negative_cols and isinstance(val, (int, float)) and val < 0) else "000000"
             cell_style(ws, cur, col, val, size=10, align=align, color=color,
                        bg=("FAFAFA" if idx % 2 == 0 else None), num_fmt=fmt)
         ws.row_dimensions[cur].height = 20
@@ -575,24 +599,37 @@ def _build_manager_sheet(wb, manager, details, mgr_row, file_date, *, create_she
     total_vals = [
         ("", "center", None),
         ("合计", "center", None),
+    ]
+    if include_manager:
+        total_vals.append(("", "center", None))
+    if include_construction_unit:
+        total_vals.append(("", "center", None))
+    total_vals.extend([
         (sum(_detail_num(d, "结转额", "transfer") for d in details_sorted), "right", "#,##0.00"),
         (sum(_detail_num(d, "本年累计资本性支出", "capital") for d in details_sorted), "right", "#,##0.00"),
         (sum(_detail_num(d, "已下单待收货", "pending") for d in details_sorted), "right", "#,##0.00"),
         (sum(_detail_num(d, "本月资本性支出", "monthSpend") for d in details_sorted), "right", "#,##0.00"),
         (sum(_detail_num(d, "在建工程期末余额", "balance") for d in details_sorted), "right", "#,##0.00"),
         (s_rate, "right", "0.00%"),
-    ]
+    ])
     for col, (val, align, fmt) in enumerate(total_vals, 1):
         cell_style(ws, cur, col, val, bold=True, size=10, color=C_NAVY, bg=C_TOTAL_BG, align=align, num_fmt=fmt)
     ws.row_dimensions[cur].height = 24
 
     # ── 列宽 ──
-    col_widths = [6, 44, 14, 18, 16, 14, 18, 10]
+    col_widths = [6, 44]
+    if include_manager:
+        col_widths.append(14)
+    if include_construction_unit:
+        col_widths.append(24)
+    col_widths.extend([14, 18, 16, 14, 18, 10])
     for col, width in enumerate(col_widths, 1):
         ws.column_dimensions[get_column_letter(col)].width = width
 
     # ── 冻结表头 ──
     ws.freeze_panes = f"A{header_row + 1}"
+    if include_manager and details_sorted:
+        ws.auto_filter.ref = f"A{header_row}:{last_col_letter}{cur - 1}"
 
 
 @router.get("/manager-details/{record_id}/export")
@@ -623,7 +660,15 @@ async def export_manager_details(record_id: int, manager: str = Query(...)):
         file_date = record.file_date or ""
 
         wb = Workbook()
-        _build_manager_sheet(wb, manager, details, mgr_row, file_date, create_sheet=False)
+        _build_manager_sheet(
+            wb,
+            manager,
+            details,
+            mgr_row,
+            file_date,
+            create_sheet=False,
+            include_construction_unit=True,
+        )
 
         output = io.BytesIO()
         wb.save(output)
@@ -642,7 +687,8 @@ async def export_manager_details(record_id: int, manager: str = Query(...)):
 @router.get("/manager-details/{record_id}/export-all")
 async def export_all_manager_details(record_id: int):
     """
-    导出全部管理员的在建工程明细 Excel，每个管理员一个 sheet。
+    导出全部管理员的在建工程明细 Excel。
+    首个 sheet 汇总全部工程，其后每个管理员一个 sheet。
     """
     from openpyxl import Workbook
     from fastapi.responses import StreamingResponse
@@ -657,6 +703,7 @@ async def export_all_manager_details(record_id: int):
 
         detail_data = json.loads(record.detail_data) if record.detail_data else []
         summary_data = json.loads(record.summary_data) if record.summary_data else []
+        metrics_data = json.loads(record.metrics_data) if record.metrics_data else {}
 
         if not detail_data:
             return JSONResponse(status_code=404, content={"success": False, "message": "无明细数据"})
@@ -678,9 +725,31 @@ async def export_all_manager_details(record_id: int):
 
         file_date = record.file_date or ""
 
+        # 汇总页必须沿用系统核心指标的综合转固率口径，不能用结转额/期末余额替代。
+        overview_row = next(
+            (r for r in summary_data if (r.get("工程管理员") or r.get("manager")) == "合计"),
+            {},
+        ).copy()
+        if not any(k in overview_row and overview_row[k] not in (None, "") for k in ("转固率", "rate")):
+            overview_row["转固率"] = _num(metrics_data, "total_rate", "rate")
+
         wb = Workbook()
         # 删除默认 sheet，后续由 _build_manager_sheet 创建
         wb.remove(wb.active)
+
+        _build_manager_sheet(
+            wb,
+            "全部管理员",
+            detail_data,
+            overview_row,
+            file_date,
+            create_sheet=True,
+            include_manager=True,
+            include_construction_unit=True,
+            sheet_title="全部工程汇总",
+            report_title="中国电信股份有限公司仙桃分公司  全部在建工程汇总",
+            detail_title="▌ 全部在建工程明细",
+        )
 
         for manager in mgr_order:
             details = [d for d in detail_data if (d.get("工程管理员") or d.get("manager")) == manager]
@@ -688,7 +757,15 @@ async def export_all_manager_details(record_id: int):
                 continue
             mgr_row = next((r for r in summary_data
                             if (r.get("工程管理员") or r.get("manager")) == manager), {})
-            _build_manager_sheet(wb, manager, details, mgr_row, file_date, create_sheet=True)
+            _build_manager_sheet(
+                wb,
+                manager,
+                details,
+                mgr_row,
+                file_date,
+                create_sheet=True,
+                include_construction_unit=True,
+            )
 
         if not wb.sheetnames:
             return JSONResponse(status_code=404, content={"success": False, "message": "无管理员明细数据"})

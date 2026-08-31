@@ -8,8 +8,13 @@ from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 import os
 
-# 数据库路径
-DB_PATH = os.path.join(os.path.dirname(__file__), "data", "analysis.db")
+# 数据库路径；竞赛演示环境可通过环境变量使用独立数据库。
+DB_PATH = os.path.abspath(
+    os.environ.get(
+        "ANALYSIS_DB_PATH",
+        os.path.join(os.path.dirname(__file__), "data", "analysis.db"),
+    )
+)
 
 # 确保 data 目录存在
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)

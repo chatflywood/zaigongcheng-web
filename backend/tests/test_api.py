@@ -60,6 +60,18 @@ def create_test_excel():
         '工程物资': [10, 20, 15],
         '在建工程年初数': [400, 500, 450],
         '工程物资年初数': [5, 10, 8],
+        '工程编码': ['GC001', 'GC002', 'GC003'],
+        '一级专业': ['无线网', '传输网', '数据网'],
+        '验收类型': ['一次验收', '一次验收', '两次验收'],
+        '工程关闭状态': ['在建', '在建', '在建'],
+        '立项批复日期': [None, None, None],
+        '初验批复日期': [None, None, None],
+        '预转固日期': [None, None, None],
+        '应预转固日期': [None, None, None],
+        '决算转固日期': [None, None, None],
+        '终验批复日期': [None, None, None],
+        '应关闭日期': [None, None, None],
+        '长期挂账建议关闭日期': [None, None, None],
     }
     df = pd.DataFrame(data)
     buffer = BytesIO()
@@ -82,8 +94,8 @@ def create_budget_excel(project_sheet_name="2026年新建项目明细"):
 
     buffer = BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        summary_df.to_excel(writer, sheet_name="预算下达及立项进度", index=False, header=False)
-        projects_df.to_excel(writer, sheet_name=project_sheet_name, index=False, header=False)
+        summary_df.to_excel(writer, sheet_name="预算下达及立项进度", index=False, header=True)
+        projects_df.to_excel(writer, sheet_name=project_sheet_name, index=False, header=True)
     buffer.seek(0)
     return buffer
 
