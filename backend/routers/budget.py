@@ -9,6 +9,7 @@ import logging
 from services.budget import analyze_budget
 from services.validation import build_budget_validation, format_validation_message
 from models import ZaigongRecord, BudgetRecord, get_db
+from services.periods import new_period, period_of, ordered_records, select_source, linkage
 
 router = APIRouter()
 
@@ -91,7 +92,7 @@ def get_latest_zaigong_spend_summary():
     """获取最近一次在建工程上传数据的一级专业年度支出汇总。"""
     db = get_db()
     try:
-        latest = db.query(ZaigongRecord).order_by(ZaigongRecord.uploaded_at.desc()).first()
+        latest = select_source(db, ZaigongRecord)
         if not latest:
             return {}
         return build_zaigong_spend_summary_from_record(latest)
@@ -105,12 +106,13 @@ def build_budget_snapshot(record: BudgetRecord) -> dict:
         "id": record.id,
         "uploaded_at": record.uploaded_at.isoformat(),
         "source_filename": record.source_filename,
+        "period": period_of(record),
         "data": json.loads(record.budget_data) if record.budget_data else {},
     }
 
 
 @router.post("/upload")
-async def upload_budget(file: UploadFile = File(...)):
+async def upload_budget(file: UploadFile = File(...), business_date: str | None = None):
     """
     上传预算 Excel 文件，返回分析结果
     """
@@ -126,34 +128,43 @@ async def upload_budget(file: UploadFile = File(...)):
             return JSONResponse(status_code=400, content={"success": False, "message": "文件大小不能超过 20MB"})
 
         df_summary, df_projects, project_sheet_name = load_budget_sheets(contents)
-        spend_summary = get_latest_zaigong_spend_summary()
+        period = new_period(file.filename, business_date)
+        db = get_db()
+        try:
+            source = select_source(db, ZaigongRecord, period["business_date"])
+            spend_summary = build_zaigong_spend_summary_from_record(source)
+            source_link = linkage(period, source)
+        finally:
+            db.close()
 
         result = analyze_budget(df_summary, df_projects, spend_summary)
 
         # 清理 NaN 值
         cleaned_data = clean_nan(result)
+        cleaned_data["period"] = period
+        cleaned_data["source_link"] = source_link
         validation = build_budget_validation(
             df_summary, df_projects, cleaned_data, project_sheet_name=project_sheet_name
         )
 
         db = get_db()
         try:
-            existing = db.query(BudgetRecord).filter(
-                BudgetRecord.source_filename == file.filename
-            ).first()
-            if existing:
-                db.delete(existing)
-
             record = BudgetRecord(
                 source_filename=file.filename,
                 budget_data=json.dumps(cleaned_data, ensure_ascii=False),
             )
             db.add(record)
             db.commit()
+            record_id = record.id
         finally:
             db.close()
 
+        validation["warnings"].extend(source_link["warnings"])
+        validation["summary_text"] += "；" + "；".join(source_link["warnings"]) if source_link["warnings"] else ""
+        cleaned_data["record_id"] = record_id
         return {
+            "record_id": record_id,
+            "period": period,
             "success": True,
             "message": format_validation_message(validation, "分析完成"),
             "filename": file.filename,
@@ -181,12 +192,18 @@ async def refresh_budget_spend():
     """
     db = get_db()
     try:
-        record = db.query(BudgetRecord).order_by(BudgetRecord.uploaded_at.desc()).first()
+        record = select_source(db, BudgetRecord)
         if not record or not record.budget_data:
             return {"success": False, "message": "暂无预算记录，请先上传预算文件"}
 
         stored = json.loads(record.budget_data)
-        spend_summary = get_latest_zaigong_spend_summary()
+        period = period_of(record)
+        source = select_source(db, ZaigongRecord, period.get("business_date"))
+        spend_summary = build_zaigong_spend_summary_from_record(source)
+        stored["period"] = period
+        stored["source_link"] = linkage(period, source)
+        stored["record_id"] = record.id
+        stored["view_kind"] = "live"
 
         # 按专业更新 annual_spend
         categories = stored.get("categories", [])
@@ -202,8 +219,7 @@ async def refresh_budget_spend():
         stored["categories"] = categories
 
         cleaned = clean_nan(stored)
-        record.budget_data = json.dumps(cleaned, ensure_ascii=False)
-        db.commit()
+        # Derived live view only: never write back into the upload snapshot.
 
         return {"success": True, "data": cleaned}
     except Exception as e:
@@ -218,9 +234,7 @@ async def get_budget_history(limit: int = 10):
     """获取预算分析历史记录。"""
     db = get_db()
     try:
-        records = db.query(BudgetRecord).order_by(
-            BudgetRecord.uploaded_at.desc()
-        ).limit(limit).all()
+        records = ordered_records(db, BudgetRecord)[:limit]
 
         return {
             "success": True,
@@ -229,6 +243,7 @@ async def get_budget_history(limit: int = 10):
                     "id": record.id,
                     "uploaded_at": record.uploaded_at.isoformat(),
                     "source_filename": record.source_filename,
+                    "period": period_of(record),
                 }
                 for record in records
             ]
@@ -242,9 +257,7 @@ async def get_budget_history_snapshot(record_id: int):
     """获取指定预算历史快照。"""
     db = get_db()
     try:
-        all_records = db.query(BudgetRecord).order_by(
-            BudgetRecord.uploaded_at.desc()
-        ).all()
+        all_records = ordered_records(db, BudgetRecord)
 
         if not all_records:
             return JSONResponse(

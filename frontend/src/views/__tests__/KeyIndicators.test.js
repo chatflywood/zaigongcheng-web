@@ -574,3 +574,10 @@ describe('Gauge 动画', () => {
     expect(wrapper.vm.animatedGauges).toHaveLength(4)
   })
 })
+
+
+it('历史数据的时序目标使用业务月份', () => {
+  const wrapper = mountKI({ zaigongData: { period: { business_date: '2026-03-20' }, metrics: { rate: .3 } } })
+  expect(wrapper.vm.transferTimelineTarget).toBe('15.0')
+  wrapper.unmount()
+})

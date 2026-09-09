@@ -67,7 +67,7 @@ export function useHistoryPanel({ type }) {
 
   async function openHistoryPanel() {
     historyVisible.value = true
-    if (!historyRecords.value.length) await loadHistoryList()
+    await loadHistoryList()
   }
 
   function closeHistoryPanel() {

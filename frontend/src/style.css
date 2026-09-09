@@ -250,3 +250,10 @@ input, textarea, select { font-family: inherit; }
 .ds-pill.bad { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
 .ds-pill.info { background: var(--info-soft); color: var(--info); border-color: transparent; }
 .ds-pill .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+/* Business period and source status remain visible in report/presentation views. */
+.period-input { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0; font-size: 13px; }
+.period-input input { padding: 6px 8px; border: 1px solid #c9c5ba; border-radius: 6px; background: #fffef9; color: #333; }
+.period-input small { color: #666; }
+.period-status { padding: 10px 16px; margin-bottom: 12px; background: #fffef9; border: 1px solid #ddd8cb; border-radius: 8px; font-size: 13px; }
+.period-warning { margin-top: 4px; color: #945114; }

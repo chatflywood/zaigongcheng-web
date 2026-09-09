@@ -19,7 +19,7 @@ const {
   zaigongDate, budgetDate,
   zaigongSnapshotLabel, budgetSnapshotLabel,
   zaigongFourClassWarnings,
-  canShowKeyIndicators, readinessText,
+  canShowKeyIndicators, readinessText, periodNotice,
   onZaigongRestoreLatest, onBudgetRestoreLatest, restoreCurrentModuleLatest,
   loadLatestDataOnMount,
   formatHistoryTime, formatFileDate,
@@ -39,7 +39,7 @@ const {
 const {
   showDataManager, dmZaigongFile, dmZaigongFileName, dmZaigongMsg, dmZaigongMsgType, dmZaigongLoading,
   dmBudgetFile, dmBudgetFileName, dmBudgetMsg, dmBudgetMsgType, dmBudgetLoading,
-  dmTargetValue, dmRateTarget, dmZaigongInput, dmBudgetInput,
+  dmZaigongBusinessDate, dmBudgetBusinessDate, dmTargetValue, dmRateTarget, dmZaigongInput, dmBudgetInput,
   openDataManager, persistDmRateTarget, dmPickZaigong, dmPickBudget,
   dmOnZaigongFile, dmOnBudgetFile, dmDropZaigong, dmDropBudget,
   dmUploadZaigong, dmUploadBudget,
@@ -194,6 +194,10 @@ onUnmounted(() => {
 
     <!-- ── Canvas（路由出口） ─────────────────────────────── -->
     <main class="app-canvas">
+      <div v-if="zaigongData || budgetData" class="period-status" role="status">
+        <div>工程数据：{{ zaigongData?.period?.business_date || '日期未确认' }} · 预算数据：{{ budgetData?.period?.business_date || '日期未确认' }}</div>
+        <div v-if="periodNotice" class="period-warning">{{ periodNotice }}</div>
+      </div>
       <router-view v-slot="{ Component }">
         <keep-alive>
           <component :is="Component" />
@@ -221,7 +225,7 @@ onUnmounted(() => {
               </div>
             </div>
             <div class="dm-freshness" :class="zaigongLatestDate ? dmFreshClass(daysSince(zaigongLatestDate)) : 'stale-none'">
-              <template v-if="zaigongLatestDate">上次上传 {{ zaigongLatestDate }} · 距今 {{ daysSince(zaigongLatestDate) }} 天</template>
+              <template v-if="zaigongLatestDate">数据日期 {{ zaigongLatestDate }} · 距今 {{ daysSince(zaigongLatestDate) }} 天</template>
               <template v-else>尚未上传在建工程数据</template>
             </div>
             <div class="dm-target-row">
@@ -231,6 +235,7 @@ onUnmounted(() => {
                 <span class="dm-target-unit">万元</span>
               </div>
             </div>
+            <label class="period-input">数据截至日期 <input v-model="dmZaigongBusinessDate" type="date" /><small>留空从文件名识别完整年月日</small></label>
             <div class="dm-zone" @dragover.prevent @drop.prevent="dmDropZaigong" @click="dmPickZaigong">
               <template v-if="dmZaigongFileName">
                 <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="#047857" stroke-width="1.2"/><path d="M6 10l3 3 5-5" stroke="#047857" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -255,7 +260,7 @@ onUnmounted(() => {
               </div>
             </div>
             <div class="dm-freshness" :class="budgetLatestDate ? dmFreshClass(daysSince(budgetLatestDate)) : 'stale-none'">
-              <template v-if="budgetLatestDate">上次上传 {{ budgetLatestDate }} · 距今 {{ daysSince(budgetLatestDate) }} 天</template>
+              <template v-if="budgetLatestDate">数据日期 {{ budgetLatestDate }} · 距今 {{ daysSince(budgetLatestDate) }} 天</template>
               <template v-else>尚未上传预算数据</template>
             </div>
             <div class="dm-target-row">
@@ -274,6 +279,7 @@ onUnmounted(() => {
                 <span class="dm-target-unit">%</span>
               </div>
             </div>
+            <label class="period-input">数据截至日期 <input v-model="dmBudgetBusinessDate" type="date" /><small>留空从文件名识别完整年月日</small></label>
             <div class="dm-zone" @dragover.prevent @drop.prevent="dmDropBudget" @click="dmPickBudget">
               <template v-if="dmBudgetFileName">
                 <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="#047857" stroke-width="1.2"/><path d="M6 10l3 3 5-5" stroke="#047857" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>

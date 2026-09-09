@@ -318,7 +318,7 @@ const props = {
   get zaigongDate()       { return _props.zaigongDate       ?? globalData.zaigongDate.value },
   get budgetDate()        { return _props.budgetDate        ?? globalData.budgetDate.value },
   get fourClassWarnings() { return _props.fourClassWarnings ?? globalData.zaigongFourClassWarnings.value },
-  get recordId()          { return _props.recordId          ?? globalData.zaigongLatestRecordId.value },
+  get recordId()          { return _props.recordId          ?? globalData.zaigongData.value?.record_id ?? globalData.zaigongLatestRecordId.value },
 }
 
 const presentationMode = computed(() => appTools.presentationMode.value)
@@ -402,7 +402,8 @@ const transferRate = computed(() => {
 })
 
 const transferTimelineTarget = computed(() => {
-  const month = new Date().getMonth() + 1 // 1–12
+  const businessDate = props.zaigongData?.period?.business_date
+  const month = businessDate ? Number(businessDate.slice(5, 7)) : new Date().getMonth() + 1
   return ((60 * month) / 12).toFixed(1)
 })
 

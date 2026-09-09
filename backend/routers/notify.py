@@ -2,6 +2,7 @@
 """
 企业微信、飞书、量子密信通知配置与推送接口
 """
+from services.periods import select_source, period_of
 import json
 import logging
 from typing import Optional
@@ -156,7 +157,7 @@ async def manual_push(record_id: int):
         snapshot = build_dashboard_snapshot(record)
 
         # 加载最新预算数据
-        budget_record = db.query(BudgetRecord).order_by(BudgetRecord.id.desc()).first()
+        budget_record = select_source(db, BudgetRecord, period_of(record).get("business_date"))
         budget_data = json.loads(budget_record.budget_data) if budget_record and budget_record.budget_data else None
 
         try:

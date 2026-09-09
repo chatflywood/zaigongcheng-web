@@ -20,6 +20,8 @@ const dmBudgetFileName = ref('')
 const dmBudgetMsg = ref('')
 const dmBudgetMsgType = ref('info')
 const dmBudgetLoading = ref(false)
+const dmZaigongBusinessDate = ref('')
+const dmBudgetBusinessDate = ref('')
 const dmTargetValue = ref(null)
 const dmRateTarget = ref(null) // 当期转固率目标（%），与 Dashboard 共用 localStorage
 const dmZaigongInput = ref(null)
@@ -137,13 +139,13 @@ export function useAppTools() {
     dmZaigongMsg.value = '上传中…'
     try {
       const { uploadExcel } = await import('../api')
-      const result = await uploadExcel(dmZaigongFile.value, dmTargetValue.value)
+      const result = await uploadExcel(dmZaigongFile.value, dmTargetValue.value, dmZaigongBusinessDate.value)
       if (result.success) {
         localStorage.setItem('zaigong_target_value', dmTargetValue.value)
         const dashData = result.data?.dashboard || result.data
-        onZaigongDataUpdate(dashData)
         zaigongFourClassWarnings.value = result.data?.four_class_warnings || null
         zaigongLatestFourClassWarnings.value = result.data?.four_class_warnings || null
+        await onZaigongDataUpdate(dashData)
         dmZaigongFileName.value = ''
         dmZaigongFile.value = null
         dmZaigongMsg.value = result.message || result.validation?.summary_text || '上传成功'
@@ -166,9 +168,9 @@ export function useAppTools() {
     dmBudgetMsg.value = '上传中…'
     try {
       const { uploadBudget } = await import('../api')
-      const result = await uploadBudget(dmBudgetFile.value)
+      const result = await uploadBudget(dmBudgetFile.value, dmBudgetBusinessDate.value)
       if (result.success) {
-        onBudgetDataUpdate(result.data)
+        await onBudgetDataUpdate(result.data)
         dmBudgetFileName.value = ''
         dmBudgetFile.value = null
         dmBudgetMsg.value = result.message || result.validation?.summary_text || '上传成功'
@@ -387,7 +389,7 @@ export function useAppTools() {
     // 数据管理
     showDataManager, dmZaigongFile, dmZaigongFileName, dmZaigongMsg, dmZaigongMsgType, dmZaigongLoading,
     dmBudgetFile, dmBudgetFileName, dmBudgetMsg, dmBudgetMsgType, dmBudgetLoading,
-    dmTargetValue, dmRateTarget, dmZaigongInput, dmBudgetInput,
+    dmZaigongBusinessDate, dmBudgetBusinessDate, dmTargetValue, dmRateTarget, dmZaigongInput, dmBudgetInput,
     openDataManager, persistDmRateTarget, dmPickZaigong, dmPickBudget,
     dmOnZaigongFile, dmOnBudgetFile, dmDropZaigong, dmDropBudget,
     dmUploadZaigong, dmUploadBudget,

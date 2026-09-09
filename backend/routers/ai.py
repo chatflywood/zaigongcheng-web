@@ -417,36 +417,38 @@ def build_prompt(
 }}"""
 
 
-def _fetch_history_from_db(limit: int = 6) -> list[dict]:
+def _fetch_history_from_db(limit: int = 6, analysis_date: str = None) -> list[dict]:
     """从数据库查询历史记录，格式化为 compute_trend_signals 所需结构。
-    跳过最新一条（当前数据已通过请求指标体现），取之前的 limit 条。
+    按业务月份取同年更早月份，每月只取最后一个版本。
     """
     db = get_db()
     try:
-        records = (
-            db.query(ZaigongRecord)
-            .order_by(ZaigongRecord.uploaded_at.desc())
-            .limit(limit + 1)
-            .all()
-        )
+        from services.periods import ordered_records, period_of
+        records = ordered_records(db, ZaigongRecord)
+        cutoff = analysis_date or (period_of(records[0]).get("business_date") if records else None)
+        if not cutoff:
+            return []
+        seen_months = set()
         history = []
-        for r in records[1:]:  # 跳过最新记录，避免与当前指标重复
+        for r in records:
             if not r.metrics_data:
                 continue
             metrics = json.loads(r.metrics_data)
-            month = r.uploaded_at.strftime("%Y-%m")
-            fd = r.file_date or ""
-            if len(fd) >= 6:
-                try:
-                    month = f"{fd[:4]}-{fd[4:6]}"
-                except Exception:
-                    pass
+            business_date = period_of(r).get("business_date")
+            if not business_date:
+                continue  # Upload time is not a confirmed business period.
+            month = business_date[:7]
+            if business_date[:4] != cutoff[:4] or month >= cutoff[:7] or month in seen_months:
+                continue
+            seen_months.add(month)
             history.append({
                 "month": month,
                 "total_capital": float(metrics.get("total_current", 0) or 0),
                 "pending": float(metrics.get("total_pending", 0) or 0),
                 "rate": float(metrics.get("total_rate", 0) or 0),
             })
+            if len(history) >= limit:
+                break
         return history
     finally:
         db.close()
@@ -892,7 +894,7 @@ async def analyze(request: AnalyzeRequest):
     )
 
     # 趋势信号：优先从数据库查询历史，保证数据一致性；仅在 DB 无历史时才回退到请求体中的数据
-    history_records = _fetch_history_from_db() or request.history_records or []
+    history_records = _fetch_history_from_db(analysis_date=request.analysis_date) or request.history_records or []
     trend_signals = compute_trend_signals(
         {
             "total_current": request.metrics.total_current,
@@ -902,6 +904,7 @@ async def analyze(request: AnalyzeRequest):
             "year_target": request.metrics.year_target,
         },
         history_records,
+        analysis_date=parse_analysis_date(request.analysis_date).date().isoformat(),
     )
 
     fallback = build_fallback_analysis(

@@ -3,7 +3,7 @@
 数据库模型
 """
 from sqlalchemy import Column, Integer, String, Float, DateTime, Text, create_engine, UniqueConstraint, text
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 import os

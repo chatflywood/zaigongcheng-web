@@ -60,13 +60,14 @@
                 </div>
                 <div class="check-item">
                   <span class="check-icon purple">✓</span>
-                  <span>同名文件自动覆盖，<b>保留历史快照</b>可随时回溯</span>
+                  <span>同名文件保存新版本，<b>保留历史快照</b>可随时回溯</span>
                 </div>
               </div>
             </div>
           </div>
 
           <div class="upload-box">
+            <label class="period-input">数据截至日期 <input v-model="businessDate" type="date" /> <small>留空时从文件名识别完整年月日；无法识别将标注未确认</small></label>
             <div class="upload-zone budget-upload-zone" @dragover.prevent @drop.prevent="handleDrop" @click="triggerFileInput">
               <template v-if="selectedFileName">
                 <div class="selected-file-banner">
@@ -597,11 +598,12 @@ const props = {
 }
 
 const emit = (event, ...args) => {
-  if (event === 'dataUpdate') globalData.onBudgetDataUpdate(...args)
+  if (event === 'dataUpdate') return globalData.onBudgetDataUpdate(...args)
   if (event === 'restoreLatest') globalData.onBudgetRestoreLatest()
 }
 
 // fileInput 由 useFileUpload 提供
+const businessDate = ref('')
 const loading = ref(false)
 const hasData = ref(false)
 const data = ref({})
@@ -655,8 +657,9 @@ const {
 watch(() => props.initialData, (newData) => {
   if (newData) {
     applyBudgetData(newData)
-    isViewingHistory.value = false
-    snapshotDisplayDate.value = null
+    currentRecordId.value = newData.record_id || null
+    isViewingHistory.value = Boolean(props.snapshotLabel)
+    snapshotDisplayDate.value = props.snapshotLabel ? props.analysisDate : null
   }
 }, { immediate: true })
 
@@ -767,16 +770,16 @@ async function processSelectedFile() {
 async function processFile(file) {
   loading.value = true
   try {
-    const result = await uploadBudget(file)
+    const result = await uploadBudget(file, businessDate.value)
     if (result.success) {
       applyBudgetData(result.data)
       isViewingHistory.value = false
       snapshotDisplayDate.value = null
-      currentRecordId.value = null
+      currentRecordId.value = result.record_id || null
       localComparison.value = null
       clearSelectedFile()
       showUpload.value = false
-      emit('dataUpdate', result.data)
+      await emit('dataUpdate', result.data)
       uploadMessage.value = result.message || result.validation?.summary_text || '分析完成'
       uploadMessageType.value = 'info'
     }
@@ -793,6 +796,7 @@ async function processFile(file) {
 async function onViewHistorySnapshot(recordId) {
   const snapshot = await viewHistorySnapshot(recordId)
   if (snapshot) {
+    globalData.applyBudgetSnapshot(snapshot.current)
     applyBudgetData(snapshot.current.data)
     currentRecordId.value = snapshot.current.id
     isViewingHistory.value = true

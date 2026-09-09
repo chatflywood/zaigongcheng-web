@@ -2,20 +2,21 @@ import axios from 'axios'
 
 const API_BASE = (import.meta.env.VITE_API_BASE || 'http://localhost:8000/api').replace(/\/$/, '')
 
-export async function uploadExcel(file, target) {
+export async function uploadExcel(file, target, businessDate) {
   const formData = new FormData()
   formData.append('file', file)
   const response = await axios.post(`${API_BASE}/zaigong/upload`, formData, {
-    params: { target },
+    params: { target, ...(businessDate ? { business_date: businessDate } : {}) },
     headers: { 'Content-Type': 'multipart/form-data' }
   })
   return response.data
 }
 
-export async function uploadBudget(file) {
+export async function uploadBudget(file, businessDate) {
   const formData = new FormData()
   formData.append('file', file)
   const response = await axios.post(`${API_BASE}/budget/upload`, formData, {
+    ...(businessDate ? { params: { business_date: businessDate } } : {}),
     headers: { 'Content-Type': 'multipart/form-data' }
   })
   return response.data

@@ -9,6 +9,7 @@ from datetime import datetime
 from services.analysis import analyze, build_transfer_priority
 from services.validation import build_zaigong_validation, format_validation_message
 from models import ZaigongRecord, AppConfig, get_db
+from services.periods import new_period, period_of, ordered_records, select_source
 
 router = APIRouter()
 
@@ -64,8 +65,11 @@ def build_dashboard_snapshot(record: ZaigongRecord) -> dict:
         "uploaded_at": record.uploaded_at.isoformat(),
         "source_filename": record.source_filename,
         "file_date": record.file_date,
+        "period": period_of(record),
         "target_value": record.target_value,
         "dashboard": {
+            "period": period_of(record),
+            "record_id": record.id,
             "metrics": {
                 "capital": raw_metrics.get("total_current", 0),
                 "pending": raw_metrics.get("total_pending", 0),
@@ -100,7 +104,7 @@ def build_dashboard_snapshot(record: ZaigongRecord) -> dict:
 
 
 @router.post("/upload")
-async def upload_excel(file: UploadFile = File(...), target: float = Query(503.0)):
+async def upload_excel(file: UploadFile = File(...), target: float = Query(503.0), business_date: str | None = None):
     """
     上传 Excel 文件，返回分析结果，并保存到数据库
     """
@@ -109,7 +113,7 @@ async def upload_excel(file: UploadFile = File(...), target: float = Query(503.0
         return JSONResponse(status_code=400, content={"success": False, "message": "仅支持 Excel 文件（.xlsx / .xls）"})
 
     # 目标值校验
-    if target <= 0:
+    if not math.isfinite(target) or target <= 0:
         return JSONResponse(status_code=400, content={"success": False, "message": "目标值必须大于 0"})
 
     try:
@@ -129,10 +133,13 @@ async def upload_excel(file: UploadFile = File(...), target: float = Query(503.0
         )
 
         # 执行分析
-        result = analyze(df, year_target=target)
+        period = new_period(file.filename, business_date)
+        result = analyze(df, year_target=target, analysis_date=period["business_date"])
 
         # 清理 NaN 值
         cleaned_data = clean_nan(result["data"])
+        cleaned_data["metrics"]["period"] = period
+        cleaned_data["dashboard"]["period"] = period
 
         # 从文件名提取日期（如 "在建工程明细总表(实时)(20260320).xlsx" -> "20260320"）
         import re
@@ -143,17 +150,10 @@ async def upload_excel(file: UploadFile = File(...), target: float = Query(503.0
         # 保存到数据库
         db = get_db()
         try:
-            # 检查是否已存在相同文件名的记录，存在则删除
-            existing = db.query(ZaigongRecord).filter(
-                ZaigongRecord.source_filename == file.filename
-            ).first()
-            if existing:
-                db.delete(existing)
-
             record = ZaigongRecord(
                 uploaded_at=datetime.now(),
                 source_filename=file.filename,
-                file_date=file_date,
+                file_date=period["business_date"].replace("-", "") if period["business_date"] else file_date,
                 summary_data=json.dumps(cleaned_data.get("summary", []), ensure_ascii=False),
                 metrics_data=json.dumps(cleaned_data.get("metrics", {}), ensure_ascii=False),
                 detail_data=json.dumps(cleaned_data.get("dashboard", {}).get("detail", []), ensure_ascii=False),
@@ -163,6 +163,7 @@ async def upload_excel(file: UploadFile = File(...), target: float = Query(503.0
             )
             db.add(record)
             db.commit()
+            record_id = record.id
         finally:
             db.close()
 
@@ -183,8 +184,8 @@ async def upload_excel(file: UploadFile = File(...), target: float = Query(503.0
                 from services.notify import push_record
                 from models import BudgetRecord
                 db3 = get_db()
-                new_record = db3.query(ZaigongRecord).order_by(ZaigongRecord.id.desc()).first()
-                budget_record = db3.query(BudgetRecord).order_by(BudgetRecord.id.desc()).first()
+                new_record = db3.query(ZaigongRecord).filter(ZaigongRecord.id == record_id).first()
+                budget_record = select_source(db3, BudgetRecord, period["business_date"])
                 db3.close()
                 if new_record:
                     snapshot = build_dashboard_snapshot(new_record)
@@ -195,9 +196,15 @@ async def upload_excel(file: UploadFile = File(...), target: float = Query(503.0
 
         metrics = cleaned_data.get("metrics") or {}
         validation = build_zaigong_validation(df, metrics)
+        if not period["business_date"]:
+            validation["warnings"].append("数据日期未确认；请指定数据日期后重新上传")
+            validation["summary_text"] += "；数据日期未确认"
+        cleaned_data["dashboard"]["record_id"] = record_id
         return {
             "success": True,
             "message": format_validation_message(validation, "分析完成"),
+            "record_id": record_id,
+            "period": period,
             "filename": file.filename,
             "rows": len(df),
             "validation": validation,
@@ -219,13 +226,11 @@ async def upload_excel(file: UploadFile = File(...), target: float = Query(503.0
 @router.get("/history")
 async def get_history(limit: int = Query(10, ge=1, le=100)):
     """
-    获取历史记录列表（按实际上传时间降序）
+    获取历史记录列表（业务日期优先，同日按上传时间及 ID 降序）
     """
     db = get_db()
     try:
-        records = db.query(ZaigongRecord).order_by(
-            ZaigongRecord.uploaded_at.desc()
-        ).limit(limit).all()
+        records = ordered_records(db, ZaigongRecord)[:limit]
 
         return {
             "success": True,
@@ -235,6 +240,7 @@ async def get_history(limit: int = Query(10, ge=1, le=100)):
                     "uploaded_at": r.uploaded_at.isoformat(),
                     "source_filename": r.source_filename,
                     "file_date": r.file_date,
+                    "period": period_of(r),
                     "target_value": r.target_value,
                     "metrics": json.loads(r.metrics_data) if r.metrics_data else {}
                 }
@@ -246,23 +252,33 @@ async def get_history(limit: int = Query(10, ge=1, le=100)):
 
 
 @router.post("/history/{record_id}/target")
-async def update_target_value(record_id: int, target: float = Query(..., gt=0)):
-    """更新指定记录的目标金额"""
+async def update_target_value(record_id: int, target: float = Query(..., gt=0, allow_inf_nan=False)):
+    """基于指定记录生成目标调整版本，保留原始快照。"""
     db = get_db()
     try:
         record = db.query(ZaigongRecord).filter(ZaigongRecord.id == record_id).first()
         if not record:
             return JSONResponse(status_code=404, content={"success": False, "error": "记录不存在"})
+        # Target edits create a new version; the original snapshot remains intact.
+        parent_id = record.id
+        parent_period = period_of(record)
+        record = ZaigongRecord(**{column.name: getattr(record, column.name)
+            for column in ZaigongRecord.__table__.columns
+            if column.name not in {"id", "uploaded_at"}})
+        db.add(record)
         record.target_value = target
         # 同步更新 metrics_data 中的 year_target 和 deficit
         if record.metrics_data:
             metrics = json.loads(record.metrics_data)
+            metrics["period"] = {**parent_period, "parent_record_id": parent_id, "revision_reason": "target_change"}
             metrics["year_target"] = target
             capital = metrics.get("capital", metrics.get("total_current", 0))
             metrics["deficit"] = round(target - capital, 2)
+            metrics["progress_ratio"] = capital / target
+            metrics["progress_pct"] = capital / target * 100
             record.metrics_data = json.dumps(metrics, ensure_ascii=False)
         db.commit()
-        return {"success": True, "target_value": target}
+        return {"success": True, "target_value": target, "record_id": record.id}
     except Exception as e:
         db.rollback()
         logger.exception("更新目标金额失败")
@@ -278,9 +294,7 @@ async def get_history_snapshot(record_id: int):
     """
     db = get_db()
     try:
-        all_records = db.query(ZaigongRecord).order_by(
-            ZaigongRecord.uploaded_at.desc()
-        ).all()
+        all_records = ordered_records(db, ZaigongRecord)
 
         if not all_records:
             return JSONResponse(
@@ -313,23 +327,21 @@ async def get_history_snapshot(record_id: int):
 async def compare_with_previous():
     """
     获取最近一次数据，用于对比
-    - latest: 数据库中最近一次上传的记录
-    - previous: 数据库中倒数第二次上传的记录（按实际上传时间 uploaded_at 排序）
+    - latest: 数据库中最新业务日期的记录
+    - previous: 业务日期排序的前一个版本
     """
     db = get_db()
     try:
-        # 按实际上传时间降序排序，获取所有记录
-        all_records = db.query(ZaigongRecord).order_by(
-            ZaigongRecord.uploaded_at.desc()
-        ).all()
+        # 按业务日期、上传时间及 ID 排序
+        all_records = ordered_records(db, ZaigongRecord)
 
         if not all_records:
             return {"success": True, "data": None}
 
-        # 获取最新的记录（最近一次上传）
+        # 获取当前业务期间的最新版本
         latest = all_records[0]
 
-        # 获取上一条记录（按实际上传时间，排除同一条记录）
+        # 获取前一个版本
         previous = all_records[1] if len(all_records) > 1 else None
 
         result = {

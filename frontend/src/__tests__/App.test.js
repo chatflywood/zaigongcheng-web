@@ -21,6 +21,7 @@ vi.mock('../api', () => ({
   getHistorySnapshot: vi.fn(() => Promise.resolve({ success: false })),
   getBudgetHistory: vi.fn(() => Promise.resolve({ success: false, data: [] })),
   getBudgetHistorySnapshot: vi.fn(() => Promise.resolve({ success: false })),
+  getBackupStatus: vi.fn(() => Promise.resolve({ success: false })),
   getNotifyConfig: vi.fn(() => Promise.resolve({ success: false })),
   saveNotifyConfig: vi.fn(),
   clearNotifyConfig: vi.fn(),

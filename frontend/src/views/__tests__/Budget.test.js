@@ -654,9 +654,12 @@ describe('批次下达 — 切换与加载', () => {
   })
 
   it('loadBatchData 失败时静默处理', async () => {
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {})
     api.getBatchData.mockRejectedValue(new Error('网络错误'))
     const wrapper = mountBudget()
     await wrapper.vm.loadBatchData()
     expect(wrapper.vm.batchLoading).toBe(false)
+    expect(errorLog).toHaveBeenCalledWith('加载批次数据失败', expect.any(Error))
+    errorLog.mockRestore()
   })
 })

@@ -37,7 +37,7 @@
                 </div>
                 <div class="check-item">
                   <span class="check-icon">✓</span>
-                  <span>同名文件自动覆盖；历史快照保留上传当时计算结果，可随时回溯（不可变）</span>
+                  <span>同名文件保存新版本；历史快照保留上传当时计算结果，可随时回溯（不可变）</span>
                 </div>
                 <div class="check-item">
                   <span class="check-icon">✓</span>
@@ -47,6 +47,7 @@
             </div>
           </div>
           <div class="upload-box">
+            <label class="period-input">数据截至日期 <input v-model="businessDate" type="date" /> <small>留空时从文件名识别完整年月日；无法识别将标注未确认</small></label>
             <div class="upload-zone" @dragover.prevent @drop.prevent="handleDrop" @click="triggerFileInput">
               <template v-if="selectedFileName">
                 <div class="selected-file-banner">
@@ -121,7 +122,7 @@
             <span>共 {{ summaryRows.length }} 人 · 年度目标
               <template v-if="!editingTarget">
                 {{ targetValue || '—' }} 万
-                <button v-if="currentRecordId" class="target-edit-btn" @click="startEditTarget" title="修改目标">
+                <button v-if="currentRecordId && !isViewingHistory && !props.snapshotLabel" class="target-edit-btn" @click="startEditTarget" title="修改目标">
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5l2 2L5 13H3v-2l8.5-8.5z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </button>
               </template>
@@ -569,12 +570,13 @@ const props = {
 }
 
 const emit = (event, ...args) => {
-  if (event === 'dataUpdate') globalData.onZaigongDataUpdate(...args)
+  if (event === 'dataUpdate') return globalData.onZaigongDataUpdate(...args)
   if (event === 'restoreLatest') globalData.onZaigongRestoreLatest()
   if (event === 'warningsUpdate') globalData.onZaigongWarningsUpdate(...args)
 }
 
 // ── Core state ──
+const businessDate = ref('')
 const loading = ref(false)
 const hasData = ref(false)
 const showUpload = ref(false)
@@ -1031,22 +1033,27 @@ async function confirmEditTarget() {
   if (newTarget === targetValue.value) { cancelEditTarget(); return }
   targetSaving.value = true
   try {
-    await updateTargetValue(currentRecordId.value, newTarget)
+    const updated = await updateTargetValue(currentRecordId.value, newTarget)
+    const updatedId = updated?.record_id || currentRecordId.value
     // Refetch snapshot from backend to get recalculated deficit and all derived fields
-    const snapshot = await getHistorySnapshot(currentRecordId.value)
+    const snapshot = await getHistorySnapshot(updatedId)
     if (snapshot.success && snapshot.data?.current) {
       const cur = snapshot.data.current
       applyDashboardData(cur.dashboard)
       currentRecordId.value = cur.id
-      emit('dataUpdate', cur.dashboard)
+      await emit('dataUpdate', cur.dashboard)
     } else {
-      // Fallback: local update if refetch fails
+      // The server has created a new version. Keep its identity even when reloading fails.
+      currentRecordId.value = updatedId
       targetValue.value = newTarget
       if (dashboard.value?.metrics) {
-        const newDeficit = newTarget - (dashboard.value.metrics.capital || 0)
-        dashboard.value = { ...dashboard.value, metrics: { ...dashboard.value.metrics, deficit: newDeficit, yearTarget: newTarget } }
+        const capital = dashboard.value.metrics.capital || 0
+        dashboard.value = { ...dashboard.value, record_id: updatedId, metrics: {
+          ...dashboard.value.metrics, deficit: newTarget - capital,
+          yearTarget: newTarget, progress: capital / newTarget,
+        } }
       }
-      emit('dataUpdate', dashboard.value)
+      await emit('dataUpdate', dashboard.value)
     }
     editingTarget.value = false
   } catch (e) { console.error('更新目标失败', e) }
@@ -1060,7 +1067,7 @@ function applyDashboardData(data) {
   const rawRows = data?.summary || []
   summaryRows.value = rawRows.filter(r => r.manager !== '合计' && r['工程管理员'] !== '合计')
   hasData.value = true
-  currentRecordId.value = null
+  currentRecordId.value = data?.record_id || null
   if (summaryRows.value.length > 0) {
     maxCapital.value = Math.max(...summaryRows.value.map(r => r.capital || r['本年累计资本性支出'] || 0))
   } else { maxCapital.value = 0 }
@@ -1090,7 +1097,7 @@ async function processFile(file) {
   uploadMessage.value = '文件已提交，正在分析，请稍候...'
   uploadMessageType.value = 'info'
   try {
-    const result = await uploadExcel(file, targetValue.value)
+    const result = await uploadExcel(file, targetValue.value, businessDate.value)
     if (result.success) {
       const data = result.data?.dashboard || result.data
       if (!data?.metrics) throw new Error('返回数据格式异常，未获取到分析结果')
@@ -1102,8 +1109,9 @@ async function processFile(file) {
       snapshotDisplayDate.value = null
       showUpload.value = false
       clearSelectedFile()
-      emit('dataUpdate', data)
       emit('warningsUpdate', result.data?.four_class_warnings || null)
+      await emit('dataUpdate', data)
+      if (data.record_id) fourClassWarningsLocal.value = null
       await fetchCompareData()
       // 上传校验摘要：展示行数/checksum/注意项，便于确认传对表
       uploadMessage.value = result.message || result.validation?.summary_text || '分析完成'
@@ -1126,14 +1134,18 @@ async function processFile(file) {
 // viewHistorySnapshot 包装：composable 拉快照后，页面执行 applyHistorySnapshot（写 dashboard/targetValue/previousData 等）
 async function onViewHistorySnapshot(recordId) {
   const snapshot = await viewHistorySnapshot(recordId)
-  if (snapshot) applyHistorySnapshot(snapshot.current, snapshot.previous)
+  if (snapshot) {
+    globalData.applyZaigongSnapshot(snapshot.current)
+    applyHistorySnapshot(snapshot.current, snapshot.previous)
+  }
 }
 
 async function fetchCompareData() {
   try {
     const result = await getCompare()
     if (result.success && result.data) {
-      if (result.data.latest) currentRecordId.value = result.data.latest.id
+      if (isViewingHistory.value || props.snapshotLabel) return
+      if (result.data.latest && !dashboard.value?.record_id) currentRecordId.value = result.data.latest.id
       previousData.value = result.data.previous || null
     } else { previousData.value = null }
   } catch (error) { console.error('获取对比数据失败:', error); previousData.value = null }
@@ -1281,10 +1293,11 @@ watch(
   async (newData) => {
     if (newData) {
       applyDashboardData(newData)
-      const rid = _props.initialRecordId ?? globalData.zaigongLatestRecordId.value
+      const rid = newData.record_id ?? _props.initialRecordId ?? globalData.zaigongLatestRecordId.value
       if (rid) currentRecordId.value = rid
-      isViewingHistory.value = false
-      snapshotDisplayDate.value = null
+      isViewingHistory.value = Boolean(props.snapshotLabel)
+      snapshotDisplayDate.value = props.snapshotLabel ? props.analysisDate : null
+      fourClassWarningsLocal.value = null
       await fetchCompareData()
     }
   },

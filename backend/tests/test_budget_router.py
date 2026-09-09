@@ -377,7 +377,7 @@ class TestBudgetUpload:
 class TestBudgetRefreshSpend:
     @pytest.mark.asyncio
     async def test_refresh_recomputes_spend(self, test_db):
-        """有预算 + 有在建 → annual_spend / annual_spend_total / spend_progress 正确重算并落库。"""
+        """有预算 + 有在建 → annual_spend / annual_spend_total / spend_progress 正确重算且不改写快照。"""
         _seed_budget(test_db(), budget_data={
             "budget_total": 300,
             "annual_spend_total": 0,
@@ -413,12 +413,12 @@ class TestBudgetRefreshSpend:
         assert cat_map["5G"]["annual_spend"] == 80.0
         assert cat_map["5G"]["spend_progress"] == round(80 / 200, 4)
 
-        # 落库验证
+        # 历史快照不随实时刷新改变
         db = test_db()
         try:
             rec = db.query(BudgetRecord).order_by(BudgetRecord.uploaded_at.desc()).first()
             stored = json.loads(rec.budget_data)
-            assert stored["annual_spend_total"] == 130.0
+            assert stored["annual_spend_total"] == 0
         finally:
             db.close()
 

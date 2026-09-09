@@ -770,3 +770,12 @@ describe('History comparison computed', () => {
     expect(wrapper.vm.managerProgressTop5).toEqual([])
   })
 })
+
+it('历史快照的明细记录 ID 不会被最新版本覆盖，历史目标不可编辑', async () => {
+  api.getCompare.mockResolvedValueOnce({ success: true, data: { latest: { id: 99 }, previous: null } })
+  const wrapper = mountDashboard({ initialData: makeDashboardData({ record_id: 7 }), initialRecordId: 99, snapshotLabel: '历史快照' })
+  await flushPromises()
+  expect(wrapper.vm.currentRecordId).toBe(7)
+  expect(wrapper.find('.target-edit-btn').exists()).toBe(false)
+  wrapper.unmount()
+})

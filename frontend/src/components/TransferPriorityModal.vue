@@ -32,7 +32,7 @@ defineProps({
   recordId: { type: [Number, null], default: null },
   computedTarget: { type: Object, default: null },
   displayManagers: { type: Array, default: () => [] },
-  targetRate: { type: String, default: '' },
+  targetRate: { type: [String, Number], default: '' },
 })
 
 const emit = defineEmits(['update:visible', 'update:targetRate', 'export'])

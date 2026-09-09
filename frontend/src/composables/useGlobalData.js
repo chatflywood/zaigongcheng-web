@@ -54,6 +54,10 @@ async function onZaigongDataUpdate(data) {
   zaigongLatestData.value = data
   zaigongSnapshotLabel.value = ''
   if (data) {
+    if (data.record_id) {
+      await loadLatestDataOnMount()
+      return
+    }
     const date = formatUploadDate()
     zaigongDate.value = date
     zaigongLatestDate.value = date
@@ -71,11 +75,15 @@ async function onZaigongDataUpdate(data) {
   }
 }
 
-function onBudgetDataUpdate(data) {
+async function onBudgetDataUpdate(data) {
   budgetData.value = data
   budgetLatestData.value = data
   budgetSnapshotLabel.value = ''
   if (data) {
+    if (data.record_id) {
+      await loadLatestDataOnMount()
+      return
+    }
     const date = formatUploadDate()
     budgetDate.value = date
     budgetLatestDate.value = date
@@ -111,31 +119,35 @@ function onZaigongWarningsUpdate(warnings) {
 
 // ── 快照加载 ──
 
-async function openZaigongSnapshot(recordId) {
-  const result = await getHistorySnapshot(recordId)
-  if (!result.success || !result.data?.current) return
-  const cur = result.data.current
-  zaigongData.value = cur.dashboard
-  zaigongDate.value = cur.file_date
-    ? formatFileDate(cur.file_date)
-    : formatHistoryTime(cur.uploaded_at)
+function applyZaigongSnapshot(cur) {
+  zaigongData.value = { ...cur.dashboard, record_id: cur.id }
+  zaigongDate.value = cur.period?.business_date || '日期未确认'
   zaigongSnapshotLabel.value = '当前查看：历史快照（上传当时计算结果，不可变）'
   zaigongFourClassWarnings.value = cur.four_class_warnings || null
 }
 
+function applyBudgetSnapshot(cur) {
+  budgetData.value = { ...cur.data, record_id: cur.id, period: cur.period || cur.data?.period }
+  budgetDate.value = cur.period?.business_date || '日期未确认'
+  budgetSnapshotLabel.value = '当前查看：历史快照（上传当时计算结果，不可变）'
+}
+
+async function openZaigongSnapshot(recordId) {
+  const result = await getHistorySnapshot(recordId)
+  if (result.success && result.data?.current) applyZaigongSnapshot(result.data.current)
+}
+
 async function openBudgetSnapshot(recordId) {
   const result = await getBudgetHistorySnapshot(recordId)
-  if (!result.success || !result.data?.current?.data) return
-  const cur = result.data.current
-  budgetData.value = cur.data
-  budgetDate.value = formatHistoryTime(cur.uploaded_at)
-  budgetSnapshotLabel.value = '当前查看：历史快照（上传当时计算结果，不可变）'
+  if (result.success && result.data?.current?.data) applyBudgetSnapshot(result.data.current)
 }
 
 // ── 启动时加载最新数据 ──
 
 async function loadLatestDataOnMount() {
   try {
+    zaigongSnapshotLabel.value = ""
+    budgetSnapshotLabel.value = ""
     const [zaigongResult, budgetResult] = await Promise.all([
       getHistory(1),
       getBudgetHistory(1),
@@ -149,9 +161,7 @@ async function loadLatestDataOnMount() {
         zaigongData.value = cur.dashboard
         zaigongLatestData.value = cur.dashboard
         zaigongLatestRecordId.value = cur.id
-        zaigongDate.value = cur.file_date
-          ? formatFileDate(cur.file_date)
-          : formatHistoryTime(cur.uploaded_at)
+        zaigongDate.value = cur.period?.business_date || (cur.file_date ? formatFileDate(cur.file_date) : "日期未确认")
         zaigongLatestDate.value = zaigongDate.value
         zaigongFourClassWarnings.value = cur.four_class_warnings || null
         zaigongLatestFourClassWarnings.value = cur.four_class_warnings || null
@@ -166,7 +176,7 @@ async function loadLatestDataOnMount() {
           budgetData.value = refreshed.data
           budgetLatestData.value = refreshed.data
           budgetLatestRecordId.value = latestBudget.id
-          budgetDate.value = formatHistoryTime(latestBudget.uploaded_at)
+          budgetDate.value = latestBudget.period?.business_date || "日期未确认"
           budgetLatestDate.value = budgetDate.value
         } else {
           throw new Error('refresh failed')
@@ -178,7 +188,7 @@ async function loadLatestDataOnMount() {
           budgetData.value = cur.data
           budgetLatestData.value = cur.data
           budgetLatestRecordId.value = cur.id
-          budgetDate.value = formatHistoryTime(cur.uploaded_at)
+          budgetDate.value = cur.period?.business_date || "日期未确认"
           budgetLatestDate.value = budgetDate.value
         }
       }
@@ -189,6 +199,21 @@ async function loadLatestDataOnMount() {
 }
 
 // ── 计算属性（模块级） ──
+
+const periodNotice = computed(() => {
+  const engineeringDate = zaigongData.value?.period?.business_date
+  const budgetPeriod = budgetData.value?.period?.business_date
+  const notices = [...(budgetData.value?.source_link?.warnings || [])]
+  if (zaigongData.value && !engineeringDate) notices.push('工程数据日期未确认')
+  if (budgetData.value && !budgetPeriod) notices.push('预算数据日期未确认')
+  if (engineeringDate && budgetPeriod && engineeringDate !== budgetPeriod) {
+    notices.push(`当前展示日期不一致：工程 ${engineeringDate}，预算 ${budgetPeriod}`)
+  }
+  const linked = budgetData.value?.source_link?.zaigong_record_id
+  const shown = zaigongData.value?.record_id
+  if (linked && shown && linked !== shown) notices.push(`预算支出使用工程版本 #${linked}，当前工程展示版本 #${shown}`)
+  return [...new Set(notices)].join('；')
+})
 
 const canShowKeyIndicators = computed(() => zaigongData.value && budgetData.value)
 const readinessText = computed(() => {
@@ -209,12 +234,12 @@ export function useGlobalData() {
     zaigongSnapshotLabel, budgetSnapshotLabel,
     zaigongFourClassWarnings, zaigongLatestFourClassWarnings,
     // 计算属性
-    canShowKeyIndicators, readinessText,
+    canShowKeyIndicators, readinessText, periodNotice,
     // 操作
     onZaigongDataUpdate, onBudgetDataUpdate,
     onZaigongRestoreLatest, onBudgetRestoreLatest,
     onZaigongWarningsUpdate,
-    openZaigongSnapshot, openBudgetSnapshot,
+    openZaigongSnapshot, openBudgetSnapshot, applyZaigongSnapshot, applyBudgetSnapshot,
     loadLatestDataOnMount,
     // 工具
     formatUploadDate, formatHistoryTime, formatFileDate,

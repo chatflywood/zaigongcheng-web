@@ -9,6 +9,7 @@ from typing import Optional
 def compute_trend_signals(
     current_metrics: dict,
     history_records: list[dict],
+    analysis_date: Optional[str] = None,
 ) -> dict:
     """
     基于历史数据计算趋势指标
@@ -18,7 +19,7 @@ def compute_trend_signals(
         history_records: 历史快照列表 [{"month": "2026-03", "total_capital": ..., "pending": ..., "rate": ...}]
     """
     if not history_records or len(history_records) < 1:
-        return _compute_fallback_trends(current_metrics)
+        return _compute_fallback_trends(current_metrics, analysis_date)
 
     # 按月份排序（倒序，最新的在前）
     sorted_history = sorted(history_records, key=lambda x: x.get("month", ""), reverse=True)
@@ -60,7 +61,7 @@ def compute_trend_signals(
         avg_monthly_spend = current_metrics.get("total_today_month", 0)
 
     # === 支出节奏分析 ===
-    month_index = datetime.now().month
+    month_index = (datetime.fromisoformat(analysis_date) if analysis_date else datetime.now()).month
     expected_cumulative = avg_monthly_spend * month_index
 
     # === 目标完成预测 ===
@@ -157,13 +158,13 @@ def compute_trend_signals(
     }
 
 
-def _compute_fallback_trends(current_metrics: dict) -> dict:
+def _compute_fallback_trends(current_metrics: dict, analysis_date: Optional[str] = None) -> dict:
     """无历史数据时的趋势计算兜底"""
     avg_monthly = current_metrics.get("total_today_month", 0)
     year_target = current_metrics.get("year_target", 0)
     total_current = current_metrics.get("total_current", 0)
     remaining = year_target - total_current
-    months_left = max(12 - datetime.now().month, 1)
+    months_left = max(12 - (datetime.fromisoformat(analysis_date) if analysis_date else datetime.now()).month, 1)
     required = remaining / months_left if remaining > 0 else 0
 
     return {

@@ -46,6 +46,7 @@ export function useHistoryCenter() {
     const py = v => T + H - Math.min(Math.max(v, 0), YMAX) / YMAX * H
 
     const fmtLabel = r => {
+      if (r.period?.business_date) return r.period.business_date
       if (r.file_date) {
         const fd = String(r.file_date)
         if (fd.length === 4) return `${fd.slice(0, 2)}-${fd.slice(2)}`
@@ -81,6 +82,7 @@ export function useHistoryCenter() {
 
   function getRecordDateLabel(sectionKey, record) {
     if (!record) return '未选择'
+    if (record.period) return `${record.period.business_date || '日期未确认'} · 版本 #${record.id} · 上传 ${formatHistoryTime(record.uploaded_at)}`
     if (sectionKey === 'zaigong' && record.file_date) return formatFileDate(record.file_date)
     return formatHistoryTime(record.uploaded_at)
   }

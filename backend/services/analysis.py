@@ -315,7 +315,7 @@ def parse_date(df, col):
     return pd.to_datetime(df[col], errors="coerce")
 
 
-def build_four_class_warnings(df: pd.DataFrame) -> dict:
+def build_four_class_warnings(df: pd.DataFrame, analysis_date: str = None) -> dict:
     """
     按照Agent规范构建四类工程预警数据
     """
@@ -356,7 +356,7 @@ def build_four_class_warnings(df: pd.DataFrame) -> dict:
     df_work["实际预转固日期"] = df_work["预转固日期"].fillna(df_work["决算转固日期"])
 
     # 当前日期
-    today = datetime.now()
+    today = datetime.fromisoformat(analysis_date) if analysis_date else datetime.now()
     today_ts = pd.Timestamp(today)
     today_str = today.strftime("%Y-%m-%d")
 
@@ -729,7 +729,7 @@ def build_transfer_priority(summary_records: list, detail_records: list, four_cl
     return result
 
 
-def analyze(df: pd.DataFrame, year_target: float = 503.0, month_label: str = None) -> dict:
+def analyze(df: pd.DataFrame, year_target: float = 503.0, month_label: str = None, analysis_date: str = None) -> dict:
     """
     核心分析函数 - 接收 DataFrame，返回分析结果字典
     """
@@ -744,11 +744,11 @@ def analyze(df: pd.DataFrame, year_target: float = 503.0, month_label: str = Non
 
     # 构建大屏数据
     if month_label is None:
-        month_label = datetime.now().strftime("%Y年%m月")
+        month_label = (datetime.fromisoformat(analysis_date) if analysis_date else datetime.now()).strftime("%Y年%m月")
     dashboard_data = build_dashboard_data(summary, metrics, month_label, df_processed)
 
     # 构建四类工程预警
-    four_class = build_four_class_warnings(df)
+    four_class = build_four_class_warnings(df, analysis_date=analysis_date)
 
     return {
         "success": True,

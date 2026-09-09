@@ -47,3 +47,6 @@ frontend/.claude/
 # Competition materials (videos / PPT / scripts, ~1.4GB — keep local only)
 competition/
 demo/
+
+# Isolated local test environment
+.venv/
