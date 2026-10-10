@@ -206,6 +206,7 @@
               <div class="bk-sub">
                 占预算 <span class="mono">{{ data.budget_total > 0 ? ((data.annual_spend_total || 0) / data.budget_total * 100).toFixed(1) : '0.0' }}%</span>
                 <span v-if="data.budget_total > 0 && (data.annual_spend_total || 0) / data.budget_total > 1" style="color:var(--bad)"> ⚠</span>
+                <span v-if="data.source_link?.zaigong_business_date"> · 工程数据截至 {{ data.source_link.zaigong_business_date }}</span>
               </div>
             </div>
             <div>

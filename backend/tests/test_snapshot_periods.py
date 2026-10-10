@@ -105,10 +105,10 @@ async def test_refresh_and_target_edit_do_not_mutate_snapshots(system):
 
 
 @pytest.mark.asyncio
-async def test_cross_year_and_future_sources_are_excluded(system):
+async def test_snapshot_excludes_future_sources_but_live_uses_latest_same_year(system):
     client, _ = system
     await upload_z(client, '2025-12-31', 900)
-    await upload_z(client, '2026-10-01', 600)
+    latest = await upload_z(client, '2026-10-01', 600)
     b1 = await upload_b(client, '2026-09-01')
     current = (await client.get(f'/b/history/{b1}')).json()['data']['current']['data']
     assert current['source_link']['zaigong_record_id'] is None
@@ -116,9 +116,25 @@ async def test_cross_year_and_future_sources_are_excluded(system):
     assert current['source_link']['warnings']
     eligible = await upload_z(client, '2026-08-31', 250)
     live = (await client.post('/b/refresh-spend')).json()['data']
-    assert live['source_link']['zaigong_record_id'] == eligible
-    assert live['annual_spend_total'] == 250
+    assert eligible != latest
+    assert live['source_link']['zaigong_record_id'] == latest
+    assert live['annual_spend_total'] == 600
     assert '日期不一致' in live['source_link']['warnings'][0]
+
+
+@pytest.mark.asyncio
+async def test_live_budget_follows_newer_engineering_data(system):
+    client, _ = system
+    await upload_z(client, '2026-09-21', 1952.5)
+    budget_id = await upload_b(client, '2026-09-21')
+    latest = await upload_z(client, '2026-09-24', 2007.8)
+    live = (await client.post('/b/refresh-spend')).json()['data']
+    assert live['record_id'] == budget_id
+    assert live['annual_spend_total'] == 2007.8
+    assert live['source_link']['zaigong_record_id'] == latest
+    assert round(sum(c['annual_spend'] for c in live['categories']), 2) == 2007.8
+    snapshot = (await client.get(f'/b/history/{budget_id}')).json()['data']['current']['data']
+    assert snapshot['annual_spend_total'] == 1952.5
 
 
 @pytest.mark.asyncio

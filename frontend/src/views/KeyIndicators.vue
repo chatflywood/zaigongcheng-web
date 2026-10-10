@@ -42,13 +42,21 @@
 
     <!-- ── Summary banner ── -->
     <div class="ki-summary-banner" v-if="props.zaigongData?.metrics">
-      <p class="ki-summary-text">
-        当期资本性支出 <strong class="mono">{{ props.zaigongData?.metrics?.capital?.toFixed(2) || '—' }} 万元</strong>（当期目标 {{ displayTargetValue }} 万，进度 <strong style="color:var(--accent)">{{ capitalProgress }}%</strong>），{{ deficitLabel }}。全年支出进度 <strong style="color:var(--accent)">{{ annualCapitalProgress }}%</strong>，立项进度 {{ approvalProgress }}%。整体转固率仅 <strong class="mono" :style="{ color: parseFloat(transferRate) < 60 ? 'var(--bad)' : 'var(--ok)' }">{{ transferRate }}%</strong>（当月时序目标 <strong>{{ transferTimelineTarget }}%</strong>，差距 <strong :style="{ color: parseFloat(transferTimelineGap) < 0 ? 'var(--bad)' : 'var(--ok)' }">{{ Math.abs(parseFloat(transferTimelineGap)) }}pp</strong>{{ parseFloat(transferTimelineGap) < 0 ? ' 落后' : ' 领先' }}）{{ parseFloat(transferRate) < 60 ? '，低于60%期望值，需在下一周期集中推进转固。' : '，已达标。' }}
-      </p>
-      <div class="ki-summary-foot">
-        <span>AUTO-DRAFTED · 基于上传数据</span>
-        <button class="ki-btn ghost" style="height:24px;font-size:11px" @click="copyNarrative">复制文本</button>
+      <div class="ki-summary-narrative">
+        <p class="ki-summary-text">
+          当期支出 <strong class="mono">{{ props.zaigongData?.metrics?.capital?.toFixed(2) || '—' }} 万</strong>，进度 <strong style="color:var(--accent)">{{ capitalProgress }}%</strong>，{{ deficitLabel }}。<template v-if="budgetYearMismatch">本年度预算未上传，全年支出与立项进度暂不计算。</template><template v-else>全年支出进度 <strong>{{ annualCapitalProgress }}%</strong>，立项进度 <strong>{{ approvalProgress }}%</strong>。</template>转固率 <strong :style="{ color: parseFloat(transferRate) < 60 ? 'var(--bad)' : 'var(--ok)' }">{{ transferRate }}%</strong>，较当月目标 {{ transferTimelineTarget }}% {{ parseFloat(transferTimelineGap) < 0 ? '落后' : '领先' }} <strong :style="{ color: parseFloat(transferTimelineGap) < 0 ? 'var(--bad)' : 'var(--ok)' }">{{ Math.abs(parseFloat(transferTimelineGap)) }}pp</strong>{{ parseFloat(transferRate) < 60 ? '，需集中推进转固。' : '，已达标。' }}
+        </p>
+        <div class="ki-summary-foot">
+          <span>基于上传数据 · 当前周期</span>
+          <button class="ki-btn ghost" style="height:24px;font-size:11px" @click="copyNarrative">复制文本</button>
+        </div>
       </div>
+      <InvestmentCarryoverMetric
+        :amount="props.zaigongData?.metrics?.transfer"
+        :budget="props.budgetData?.budget_total"
+        :engineering-date="props.zaigongData?.period?.business_date || ''"
+        :budget-date="props.budgetData?.period?.business_date || ''"
+      />
     </div>
 
     <!-- ── Two-Column Magazine Layout ── -->
@@ -120,16 +128,16 @@
                 />
               </svg>
               <div class="ki-kpi-center">
-                <div class="ki-kpi-val" :class="parseFloat(annualCapitalProgress) > 100 ? 'is-low' : ''">{{ animatedGauges[2].toFixed(1) }}<span class="ki-kpi-unit">%</span></div>
+                <div class="ki-kpi-val" :class="parseFloat(annualCapitalProgress) > 100 ? 'is-low' : ''">{{ budgetYearMismatch ? '—' : animatedGauges[2].toFixed(1) }}<span v-if="!budgetYearMismatch" class="ki-kpi-unit">%</span></div>
                 <div class="ki-kpi-target">目标 100%</div>
               </div>
             </div>
             <div class="ki-kpi-label">整体支出进度</div>
-            <div class="ki-kpi-sub mono">{{ props.budgetData?.annual_spend_total?.toFixed(1) || '0.0' }} / {{ props.budgetData?.budget_total?.toFixed(1) || '0.0' }} 万</div>
+            <div class="ki-kpi-sub mono">{{ budgetYearMismatch ? '本年度预算未上传' : `${overallAnnualSpend.toFixed(1)} / ${props.budgetData?.budget_total?.toFixed(1) || '0.0'} 万` }}</div>
             <div class="ki-kpi-delta" :class="parseFloat(annualCapitalProgress) > 100 ? 'down' : 'up'">
-              <span v-if="parseFloat(annualCapitalProgress) > 100" class="tri-dn"></span>
-              <span v-else class="tri-up"></span>
-              {{ parseFloat(annualCapitalProgress) > 100 ? '超支' : `${(100 - parseFloat(annualCapitalProgress)).toFixed(1)}pp 待执行` }}
+              <span v-if="!budgetYearMismatch && parseFloat(annualCapitalProgress) > 100" class="tri-dn"></span>
+              <span v-else-if="!budgetYearMismatch" class="tri-up"></span>
+              {{ budgetYearMismatch ? '请上传本年度预算' : parseFloat(annualCapitalProgress) > 100 ? '超支' : `${(100 - parseFloat(annualCapitalProgress)).toFixed(1)}pp 待执行` }}
             </div>
           </div>
 
@@ -146,14 +154,14 @@
                 />
               </svg>
               <div class="ki-kpi-center">
-                <div class="ki-kpi-val">{{ animatedGauges[3].toFixed(1) }}<span class="ki-kpi-unit">%</span></div>
+                <div class="ki-kpi-val">{{ budgetYearMismatch ? '—' : animatedGauges[3].toFixed(1) }}<span v-if="!budgetYearMismatch" class="ki-kpi-unit">%</span></div>
                 <div class="ki-kpi-target">目标 90%</div>
               </div>
             </div>
             <div class="ki-kpi-label">整体立项进度</div>
-            <div class="ki-kpi-sub mono">{{ props.budgetData?.occupied_total?.toFixed(1) || '0.0' }} / {{ props.budgetData?.budget_total?.toFixed(1) || '0.0' }} 万</div>
+            <div class="ki-kpi-sub mono">{{ budgetYearMismatch ? '本年度预算未上传' : `已占+预占 ${approvalUsedTotal.toFixed(1)} / ${props.budgetData?.budget_total?.toFixed(1) || '0.0'} 万` }}</div>
             <div class="ki-kpi-delta" :class="parseFloat(approvalProgress) < 90 ? 'up' : 'flat'">
-              {{ parseFloat(approvalProgress) < 90 ? `${(90 - parseFloat(approvalProgress)).toFixed(1)}pp 未绑定` : '已达标' }}
+              {{ budgetYearMismatch ? '请上传本年度预算' : parseFloat(approvalProgress) < 90 ? `${(90 - parseFloat(approvalProgress)).toFixed(1)}pp 未绑定` : '已达标' }}
             </div>
           </div>
 
@@ -185,7 +193,12 @@
               <div class="warning-count">
                 {{ (fcWarnings.summary?.[type.name]?.triggered || 0) + (fcWarnings.summary?.[type.name]?.warning || 0) }}
               </div>
-              <div class="warning-mgr-text">{{ getManagerTextForType(type.name) }}</div>
+              <div class="warning-mgr-text">
+                <template v-if="getManagersForType(type.name).length">
+                  <span v-for="manager in getManagersForType(type.name)" :key="manager.name" class="warning-mgr-entry">{{ manager.name }} {{ manager.count }}</span>
+                </template>
+                <span v-else>—</span>
+              </div>
             </div>
           </div>
           <div v-else class="ki-right-empty">暂无预警数据</div>
@@ -295,6 +308,7 @@ import html2canvas from 'html2canvas'
 import { useGlobalData } from '../composables/useGlobalData'
 import { useAppTools } from '../composables/useAppTools'
 import { useFormatters } from '../composables/useFormatters'
+import InvestmentCarryoverMetric from '../components/InvestmentCarryoverMetric.vue'
 
 const globalData = useGlobalData()
 const appTools = useAppTools()
@@ -384,17 +398,35 @@ const deficitLabel = computed(() => {
   return `缺口 ${d.toFixed(2)} 万`
 })
 
+const overallAnnualSpend = computed(() => {
+  const capital = props.zaigongData?.metrics?.capital
+  return Number(capital ?? props.budgetData?.annual_spend_total ?? 0)
+})
+
+const budgetYearMismatch = computed(() => {
+  const engineeringYear = props.zaigongData?.period?.business_date?.slice(0, 4)
+  const budgetYear = props.budgetData?.period?.business_date?.slice(0, 4)
+  return Boolean(engineeringYear && budgetYear && engineeringYear !== budgetYear)
+})
+
 const annualCapitalProgress = computed(() => {
-  const annualSpend = Number(props.budgetData?.annual_spend_total || 0)
+  if (budgetYearMismatch.value) return '0.0'
+  const annualSpend = overallAnnualSpend.value
   const budgetTotal = Number(props.budgetData?.budget_total || 0)
   if (!annualSpend || !budgetTotal || budgetTotal <= 0) return '0.0'
   return ((annualSpend / budgetTotal) * 100).toFixed(1)
 })
 
 const approvalProgress = computed(() => {
+  if (budgetYearMismatch.value) return '0.0'
   if (!props.budgetData?.approval_progress) return '0.0'
   return (props.budgetData.approval_progress * 100).toFixed(1)
 })
+
+const approvalUsedTotal = computed(() => Number(
+  props.budgetData?.total_used ??
+  (Number(props.budgetData?.occupied_total || 0) + Number(props.budgetData?.preoccupied_total || 0))
+))
 
 const transferRate = computed(() => {
   if (!props.zaigongData?.metrics?.rate) return '0.0'
@@ -588,7 +620,10 @@ function getWarningPillClass(key) {
 // Presentation mode — 使用 composable 中的 presentationMode 和 togglePresentationMode
 
 function copyNarrative() {
-  const text = `当期资本性支出 ${props.zaigongData?.metrics?.capital?.toFixed(2) || '—'} 万元（当期目标 ${displayTargetValue.value} 万，进度 ${capitalProgress.value}%），${deficitLabel.value}。全年支出进度 ${annualCapitalProgress.value}%，立项进度 ${approvalProgress.value}%。整体转固率 ${transferRate.value}%（当月时序目标 ${transferTimelineTarget.value}%，差距 ${Math.abs(parseFloat(transferTimelineGap.value))}pp${parseFloat(transferTimelineGap.value) < 0 ? ' 落后' : ' 领先'}），低于60%期望值，需在下一周期集中推进转固。`
+  const budgetText = budgetYearMismatch.value
+    ? '本年度预算未上传，全年支出与立项进度暂不计算。'
+    : `全年支出进度 ${annualCapitalProgress.value}%，立项进度 ${approvalProgress.value}%。`
+  const text = `当期资本性支出 ${props.zaigongData?.metrics?.capital?.toFixed(2) || '—'} 万元（当期目标 ${displayTargetValue.value} 万，进度 ${capitalProgress.value}%），${deficitLabel.value}。${budgetText}整体转固率 ${transferRate.value}%（当月时序目标 ${transferTimelineTarget.value}%，差距 ${Math.abs(parseFloat(transferTimelineGap.value))}pp${parseFloat(transferTimelineGap.value) < 0 ? ' 落后' : ' 领先'}），低于60%期望值，需在下一周期集中推进转固。`
   navigator.clipboard.writeText(text).catch(() => {})
 }
 
@@ -678,22 +713,28 @@ async function exportPNG() {
 
 /* ── Summary banner ── */
 .ki-summary-banner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 22px;
+  align-items: center;
+  min-height: 128px;
   margin-bottom: 24px;
   background: var(--surface-2);
   border: 1px dashed var(--line-2);
   border-radius: var(--r-lg);
-  padding: 18px 20px 0;
+  padding: 18px 20px;
 }
+.ki-summary-narrative { min-width: 0; }
 .ki-summary-text {
-  font-size: 13.5px; line-height: 1.8; color: var(--ink-2);
-  margin: 0 0 14px;
+  font-size: 13px; line-height: 1.8; color: var(--ink-2);
+  margin: 0 0 8px;
 }
 .ki-summary-text strong { color: var(--ink); }
 .ki-summary-text .mono { font-family: var(--font-mono); font-weight: 550; }
 .ki-summary-foot {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 10px 0; border-top: 1px solid var(--line);
-  font-size: 10.5px; color: var(--ink-3); font-family: var(--font-mono);
+  display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center;
+  padding: 5px 0 0; border-top: 1px solid var(--line);
+  font-size: 10px; color: var(--ink-3); font-family: var(--font-mono);
 }
 
 /* ── Two-column layout ── */
@@ -784,16 +825,17 @@ async function exportPNG() {
 .ki-right-empty { padding: 28px 20px; text-align: center; color: var(--ink-3); font-size: 13px; }
 
 .warning-item {
-  flex: 1; padding: 0 18px;
+  flex: 1; padding: 6px 18px; min-height: 44px;
   border-bottom: 1px solid var(--line);
-  display: grid; grid-template-columns: 1fr auto 88px; align-items: center; gap: 12px;
+  display: grid; grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1.35fr); align-items: center; gap: 10px;
   cursor: pointer; transition: background 120ms;
 }
 .warning-item:last-child { border-bottom: none; }
 .warning-item:hover { background: var(--surface-2); }
 
-.warning-count { font-family: var(--font-mono); font-size: 24px; color: var(--ink); font-weight: 500; letter-spacing: -0.02em; flex-shrink: 0; }
-.warning-mgr-text { font-size: 10.5px; color: var(--ink-4); font-family: var(--font-mono); min-width: 80px; text-align: right; white-space: nowrap; }
+.warning-count { font-family: var(--font-mono); font-size: 24px; color: var(--ink); font-weight: 500; letter-spacing: -0.02em; text-align: center; }
+.warning-mgr-text { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 2px 8px; min-width: 0; font-size: 10.5px; line-height: 1.5; color: var(--ink-3); font-family: var(--font-mono); text-align: right; }
+.warning-mgr-entry { white-space: nowrap; }
 
 /* Pill badges */
 .pill {
@@ -916,6 +958,12 @@ async function exportPNG() {
 .group-count { font-size: 11px; opacity: 0.8; }
 
 /* ── Responsive ── */
+@media (max-width: 1200px) {
+  .ki-summary-banner { grid-template-columns: minmax(0, 1fr) 245px; gap: 16px; }
+}
+@media (max-width: 960px) {
+  .ki-summary-banner { grid-template-columns: minmax(0, 1fr); }
+}
 @media (max-width: 960px) {
   .ki-two-col {
     grid-template-columns: 1fr;

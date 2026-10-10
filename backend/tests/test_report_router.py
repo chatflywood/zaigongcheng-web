@@ -25,6 +25,34 @@ from models import Base, ZaigongRecord, BudgetRecord  # noqa: E402
 import routers.report as report_mod  # noqa: E402
 
 
+def test_core_kpis_overall_spend_uses_full_capital_total():
+    kpis = report_mod._extract_core_kpis(
+        {"total_current": 2007.8, "year_target": 2145.44},
+        {"annual_spend_total": 1952.5, "budget_total": 2126.9},
+    )
+    assert kpis["annual_spend"] == 2007.8
+    assert round(kpis["annual_progress"], 1) == 94.4
+    assert kpis["gauges"][2]["sub"] == "2007.8 / 2126.9 万"
+
+
+def test_core_kpis_approval_amount_includes_preoccupied():
+    kpis = report_mod._extract_core_kpis(
+        {}, {"occupied_total": 2088.8, "preoccupied_total": 38.1,
+             "budget_total": 2126.9, "approval_progress": 1.0},
+    )
+    assert kpis["gauges"][3]["value"] == 100.0
+    assert kpis["gauges"][3]["sub"] == "已占+预占 2126.9 / 2126.9 万"
+
+
+def test_core_kpis_do_not_mix_budget_from_another_year():
+    kpis = report_mod._extract_core_kpis(
+        {"total_current": 120, "period": {"business_date": "2027-01-10"}},
+        {"budget_total": 1000, "period": {"business_date": "2026-12-31"}},
+    )
+    assert kpis["has_budget"] is False
+    assert kpis["gauges"][2]["sub"] == "暂无预算数据"
+
+
 @pytest.fixture
 def test_db():
     engine = create_engine(

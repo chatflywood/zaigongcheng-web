@@ -83,6 +83,8 @@ cd frontend && npm run dev
 
 ## 核心业务模块
 
+指标分析和计算前先阅读 [在建工程指标口径](docs/metric-definitions.md)：投资结转率与综合转固率是两个独立指标，分母与字段取值不得混用。
+
 - **Dashboard.vue**：在建工程主看板，含各工程管理员汇总、预警分析、转固推进清单
 - **Budget.vue**：预算分析看板
 - **KeyIndicators.vue**：关键指标页面

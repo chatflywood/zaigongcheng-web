@@ -65,6 +65,15 @@ def build_budget_categories(df, project_summary=None, spend_summary=None):
             })
         except Exception:
             pass
+    # 工程数据中有预算表未列出的专业时，也保留其支出，避免总额被静默丢弃。
+    existing = {cat["name"] for cat in cats}
+    for name, annual_spend in spend_summary.items():
+        if name not in existing:
+            cats.append({
+                "name": name, "budget": 0, "annual_spend": round(annual_spend, 2),
+                "occupied": 0, "preoccupied": 0, "subtotal": 0,
+                "progress": 0, "spend_progress": 0,
+            })
     return cats
 
 

@@ -202,11 +202,20 @@ describe('目标值与 KPI 计算', () => {
 
   it('annualCapitalProgress 正确计算', () => {
     const wrapper = mountKI({
-      zaigongData: makeZaigongData(),
+      zaigongData: makeZaigongData({ metrics: { capital: 2007.8 } }),
       budgetData: makeBudgetData({ annual_spend_total: 2100, budget_total: 8000 }),
     })
-    // 2100 / 8000 * 100 = 26.25
-    expect(parseFloat(wrapper.vm.annualCapitalProgress)).toBeCloseTo(26.25, 0)
+    expect(wrapper.vm.annualCapitalProgress).toBe('25.1')
+    expect(wrapper.findAll('.ki-kpi-sub')[2].text()).toContain('2007.8 / 8000.0 万')
+  })
+
+  it('整体支出进度使用全年累计资本性支出，不受预算专业汇总遗漏影响', () => {
+    const wrapper = mountKI({
+      zaigongData: makeZaigongData({ metrics: { capital: 2007.8 } }),
+      budgetData: makeBudgetData({ annual_spend_total: 1952.5, budget_total: 2126.9 }),
+    })
+    expect(wrapper.vm.annualCapitalProgress).toBe('94.4')
+    expect(wrapper.findAll('.ki-kpi-sub')[2].text()).toContain('2007.8 / 2126.9 万')
   })
 
   it('annualCapitalProgress 无预算数据时返回 0.0', () => {
@@ -214,9 +223,28 @@ describe('目标值与 KPI 计算', () => {
     expect(wrapper.vm.annualCapitalProgress).toBe('0.0')
   })
 
+  it('跨年度时不把新年支出除以上年预算', () => {
+    const wrapper = mountKI({
+      zaigongData: makeZaigongData({ period: { business_date: '2027-01-10' } }),
+      budgetData: makeBudgetData({ period: { business_date: '2026-12-31' } }),
+    })
+    expect(wrapper.vm.budgetYearMismatch).toBe(true)
+    expect(wrapper.text()).toContain('本年度预算未上传，全年支出与立项进度暂不计算')
+    expect(wrapper.findAll('.ki-kpi-sub')[2].text()).toBe('本年度预算未上传')
+  })
+
   it('approvalProgress 从 budgetData.approval_progress 读取', () => {
     const wrapper = mountKI({ budgetData: makeBudgetData({ approval_progress: 0.44 }) })
     expect(wrapper.vm.approvalProgress).toBe('44.0')
+  })
+
+  it('立项进度金额显示已占用与预占用合计', () => {
+    const wrapper = mountKI({ budgetData: makeBudgetData({
+      occupied_total: 2088.8, preoccupied_total: 38.1, budget_total: 2126.9,
+      approval_progress: 1,
+    }) })
+    expect(wrapper.vm.approvalProgress).toBe('100.0')
+    expect(wrapper.findAll('.ki-kpi-sub')[3].text()).toBe('已占+预占 2126.9 / 2126.9 万')
   })
 
   it('approvalProgress 无 approval_progress 时返回 0.0', () => {
@@ -502,6 +530,18 @@ describe('投屏模式', () => {
 // ──────────────────────────────────────────────────────────────
 
 describe('Summary banner', () => {
+  it('投资结转率使用正式预算，与转固率、当期支出目标独立，并保留四张环形指标卡', () => {
+    const wrapper = mountKI({
+      zaigongData: makeZaigongData({
+        metrics: { transfer: 682.462796, yearTarget: 2145.44, rate: 0.2839 },
+        period: { business_date: '2026-10-10' },
+      }),
+      budgetData: makeBudgetData({ budget_total: 2129.1913, period: { business_date: '2026-09-30' } }),
+    })
+    expect(wrapper.find('.ki-summary-banner .ic-value').text()).toBe('32.05%')
+    expect(wrapper.vm.transferRate).toBe('28.4')
+    expect(wrapper.findAll('.ki-kpi-card')).toHaveLength(4)
+  })
   it('有 zaigongData.metrics 时显示 banner', async () => {
     const wrapper = mountKI({ zaigongData: makeZaigongData() })
     await nextTick()
@@ -521,10 +561,10 @@ describe('Summary banner', () => {
     expect(wrapper.text()).toContain('转固率')
   })
 
-  it('banner 包含 AUTO-DRAFTED 标记', async () => {
+  it('banner 标注摘要基于上传数据', async () => {
     const wrapper = mountKI({ zaigongData: makeZaigongData() })
     await nextTick()
-    expect(wrapper.text()).toContain('AUTO-DRAFTED')
+    expect(wrapper.find('.ki-summary-foot').text()).toContain('基于上传数据 · 当前周期')
   })
 })
 

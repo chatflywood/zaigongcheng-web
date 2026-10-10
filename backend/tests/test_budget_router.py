@@ -162,6 +162,17 @@ def _seed_zaigong(db, detail_rows=None, uploaded_at=None):
 # ── 类 1：build_zaigong_spend_summary_from_record 三条分支 ─────
 
 class TestBuildZaigongSpendSummary:
+    def test_category_rounding_reconciles_to_full_total(self):
+        record = SimpleNamespace(
+            detail_data=json.dumps([
+                {"一级专业": "传输", "本年累计资本性支出": 1000449},
+                {"一级专业": "无线", "本年累计资本性支出": 1000449},
+            ], ensure_ascii=False),
+            raw_data="[]",
+        )
+        out = budget_mod.build_zaigong_spend_summary_from_record(record)
+        assert round(sum(out.values()), 2) == 200.09
+
     def test_detail_data_with_profession_column(self):
         """分支 A：detail_data 含『一级专业』列 → 按 key 累加、/10000、空 category 被跳过。"""
         record = SimpleNamespace(
@@ -252,6 +263,16 @@ class TestBudgetHelpers:
 # ── 类 3：analyze_budget 端到端算账 ────────────────────────────
 
 class TestAnalyzeBudget:
+    def test_unbudgeted_profession_spend_is_included(self):
+        df_summary = pd.DataFrame([
+            ["一级专业", "年度预算", "已占用", "预占用"],
+            ["传输", 100, 0, 0],
+            ["合计", 100, 0, 0],
+        ])
+        out = analyze_budget(df_summary, None, {"传输": 40, "新专业": 15})
+        assert out["annual_spend_total"] == 55
+        assert next(c for c in out["categories"] if c["name"] == "新专业")["budget"] == 0
+
     def test_aligned_budget_projects_spend(self):
         """预算 + 项目明细 + 在建 spend_summary 三者对齐，核对关键字段。"""
         df_summary = pd.DataFrame([

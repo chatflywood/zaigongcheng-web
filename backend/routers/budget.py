@@ -52,6 +52,18 @@ def load_budget_sheets(contents: bytes):
 
 def build_zaigong_spend_summary_from_record(record):
     """从最近一次在建工程记录（detail_data 或 raw_data）构建一级专业年度支出汇总。"""
+    def rounded_summary(amounts):
+        # 先按原始金额求总额，再把分专业四舍五入产生的尾差分配到舍入误差最大的专业。
+        rounded = {name: round(amount / 10000, 2) for name, amount in amounts.items()}
+        if rounded:
+            total = round(sum(amounts.values()) / 10000, 2)
+            residual = round(total - sum(rounded.values()), 2)
+            if residual:
+                direction = 1 if residual > 0 else -1
+                nearest = max(amounts, key=lambda name: direction * (amounts[name] / 10000 - rounded[name]))
+                rounded[nearest] = round(rounded[nearest] + residual, 2)
+        return rounded
+
     detail_data = json.loads(record.detail_data) if record and record.detail_data else []
     if detail_data and any("一级专业" in item for item in detail_data):
         summary = {}
@@ -60,7 +72,7 @@ def build_zaigong_spend_summary_from_record(record):
             if not category:
                 continue
             summary[category] = summary.get(category, 0) + float(item.get("本年累计资本性支出") or 0)
-        return {key: round(value / 10000, 2) for key, value in summary.items()}
+        return rounded_summary(summary)
 
     if not record:
         return {}
@@ -79,11 +91,7 @@ def build_zaigong_spend_summary_from_record(record):
                 .groupby("一级专业", dropna=False)["本年累计资本性支出"]
                 .sum()
             )
-            return {
-                str(key): round(float(value) / 10000, 2)
-                for key, value in grouped.items()
-                if str(key).strip()
-            }
+            return rounded_summary({str(key): float(value) for key, value in grouped.items() if str(key).strip()})
 
     return {}
 
@@ -198,7 +206,12 @@ async def refresh_budget_spend():
 
         stored = json.loads(record.budget_data)
         period = period_of(record)
-        source = select_source(db, ZaigongRecord, period.get("business_date"))
+        # 实时视图按预算年度关联最新工程数据；预算上传时的历史快照仍保留当日口径。
+        budget_date = period.get("business_date")
+        source = select_source(
+            db, ZaigongRecord,
+            f"{budget_date[:4]}-12-31" if budget_date else None,
+        )
         spend_summary = build_zaigong_spend_summary_from_record(source)
         stored["period"] = period
         stored["source_link"] = linkage(period, source)
@@ -211,6 +224,16 @@ async def refresh_budget_spend():
             cat["annual_spend"] = round(spend_summary.get(cat["name"], 0), 2)
             budget = cat.get("budget") or 0
             cat["spend_progress"] = round(cat["annual_spend"] / budget, 4) if budget > 0 else 0
+
+        # 新增的工程专业可能尚未出现在旧预算快照中，实时视图补齐零预算行。
+        existing = {cat["name"] for cat in categories}
+        for name, annual_spend in spend_summary.items():
+            if name not in existing:
+                categories.append({
+                    "name": name, "budget": 0, "annual_spend": round(annual_spend, 2),
+                    "occupied": 0, "preoccupied": 0, "subtotal": 0,
+                    "progress": 0, "spend_progress": 0,
+                })
 
         annual_spend_total = round(sum(c.get("annual_spend", 0) for c in categories), 2)
         budget_total = stored.get("budget_total") or 0

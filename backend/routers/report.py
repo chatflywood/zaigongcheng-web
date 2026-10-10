@@ -67,7 +67,7 @@ def _extract_core_kpis(metrics: dict, budget: dict | None) -> dict:
     与前端 KeyIndicators.vue 四个进度圆环同一口径：
       1. 当期资本性支出进度 = capital / yearTarget × 100，目标 100%
       2. 转固率             = rate × 100，目标 60%
-      3. 整体支出进度       = annual_spend_total / budget_total × 100，目标 100%
+      3. 整体支出进度       = 本年累计资本性支出 / budget_total × 100，目标 100%
       4. 整体立项进度       = approval_progress × 100，目标 90%
 
     metrics_data 存库为 snake_case（total_current / year_target / total_rate…），
@@ -75,6 +75,10 @@ def _extract_core_kpis(metrics: dict, budget: dict | None) -> dict:
     """
     metrics = metrics or {}
     budget = budget or {}
+    engineering_date = (metrics.get("period") or {}).get("business_date")
+    budget_date = (budget.get("period") or {}).get("business_date")
+    if engineering_date and budget_date and engineering_date[:4] != budget_date[:4]:
+        budget = {}
 
     # 兼容两种字段命名：前端 camelCase（capital/yearTarget/rate） 与后端 snake_case（total_current/year_target/total_rate）
     _cap = metrics.get("capital")
@@ -102,9 +106,12 @@ def _extract_core_kpis(metrics: dict, budget: dict | None) -> dict:
     capital_progress = (capital / year_target * 100.0) if year_target > 0 else 0.0
     transfer_rate = rate * 100.0
 
-    annual_spend = _safe_float(budget.get("annual_spend_total"))
+    # 整体进度使用在建工程总额；预算分类汇总可能遗漏未归类的支出。
+    annual_spend = capital if _cap is not None else _safe_float(budget.get("annual_spend_total"))
     budget_total = _safe_float(budget.get("budget_total"))
     occupied_total = _safe_float(budget.get("occupied_total"))
+    preoccupied_total = _safe_float(budget.get("preoccupied_total"))
+    approval_used_total = _safe_float(budget.get("total_used"), occupied_total + preoccupied_total)
     approval_progress = _safe_float(budget.get("approval_progress")) * 100.0
     annual_progress = (annual_spend / budget_total * 100.0) if budget_total > 0 else 0.0
 
@@ -204,7 +211,7 @@ def _extract_core_kpis(metrics: dict, budget: dict | None) -> dict:
                 "value": approval_progress,
                 "target": 90.0,
                 "sub": (
-                    f"{occupied_total:.1f} / {budget_total:.1f} 万"
+                    f"已占+预占 {approval_used_total:.1f} / {budget_total:.1f} 万"
                     if budget_total > 0 else "暂无预算数据"
                 ),
                 "delta": approval_delta,
