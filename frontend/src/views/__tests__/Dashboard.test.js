@@ -25,6 +25,9 @@ vi.mock('../../api', () => ({
   exportTransferPriority: vi.fn(),
   pushNotify: vi.fn(),
   updateTargetValue: vi.fn(),
+  getCompliance: vi.fn(() => Promise.resolve({ success: false })),
+  saveComplianceReview: vi.fn(),
+  exportCompliance: vi.fn(),
 }))
 
 // ── Mock html2canvas (避免 canvas 依赖) ──

@@ -132,7 +132,7 @@ function getDaysClass(daysLabel, status) {
 .four-class-modal .modal-close:hover { background: var(--paper-2); color: var(--ink); }
 .four-class-modal-table { width: 100%; border-collapse: collapse; min-width: 1000px; table-layout: fixed; }
 .four-class-modal-table th { background: var(--paper-2); color: var(--ink-3); font-weight: 500; font-size: 11px; padding: 7px 6px; text-align: left; border-bottom: 1px solid var(--line); position: sticky; top: 0; word-break: break-word; }
-.four-class-modal-table td { padding: 5px 6px; border-bottom: 1px solid var(--paper-2); color: var(--ink); font-size: 11px; }
+.four-class-modal-table td { padding: 4px 6px; border-bottom: 1px solid var(--paper-2); color: var(--ink); font-size: 11px; }
 .four-class-modal-table tr:hover td { background: var(--paper); }
 .four-class-modal-table .col-status { width: 48px; white-space: nowrap; }
 .four-class-modal-table .col-name { width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -10,8 +10,10 @@ from services.analysis import analyze, build_transfer_priority
 from services.validation import build_zaigong_validation, format_validation_message
 from models import ZaigongRecord, AppConfig, get_db
 from services.periods import new_period, period_of, ordered_records, select_source
+from routers.compliance import router as compliance_router
 
 router = APIRouter()
+router.include_router(compliance_router)
 
 logger = logging.getLogger(__name__)
 

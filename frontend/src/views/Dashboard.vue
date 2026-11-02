@@ -227,7 +227,7 @@
         </div>
         <div class="warning-manager-grid">
           <!-- Warnings -->
-          <div class="card">
+          <div class="card warning-compliance-card">
             <div class="card-head">
               <div><h3>四类工程预警</h3><div class="sub" style="margin-top:2">从数据中自动识别</div></div>
               <div style="display:flex;gap:6px">
@@ -241,12 +241,12 @@
               <template v-if="fcWarnings?.summary">
                 <div v-for="(type, idx) in fourClassTypes" :key="type.name" class="warning-item" @click="showFourClassDetail(type.name)">
                   <div style="min-width:0">
-                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                    <div class="warning-title">
                       <span class="pill" :class="getWarningPillClass(type.key)"><span class="dot"></span>{{ type.name }}</span>
+                      <span v-if="type.key !== 'liezhang'" class="warning-period">90 天</span>
                     </div>
-                    <div v-if="type.key !== 'liezhang'" style="font-size:12px;color:var(--ink-3)">预警期 90 天</div>
                   </div>
-                  <div style="font-family:var(--font-mono);font-size:24px;color:var(--ink);font-weight:500;letter-spacing:-0.02em">
+                  <div style="font-family:var(--font-mono);font-size:20px;color:var(--ink);font-weight:500;letter-spacing:-0.02em">
                     {{ (fcWarnings.summary?.[type.name]?.triggered || 0) + (fcWarnings.summary?.[type.name]?.warning || 0) }}
                   </div>
                   <div style="font-size:10.5px;color:var(--ink-4);font-family:var(--font-mono);min-width:80px;text-align:right">
@@ -256,10 +256,11 @@
               </template>
               <div v-else class="empty" style="padding:32px 20px">暂无预警数据</div>
             </div>
+            <CompliancePanel :record-id="currentRecordId" />
           </div>
 
           <!-- Manager ranking -->
-          <div class="card">
+          <div class="card manager-card">
             <div class="card-head">
               <div><h3>管理员视图</h3><div class="sub" style="margin-top:2">数据日期：{{ displayAnalysisDate || '-' }}</div></div>
               <div style="display:flex;gap:6px">
@@ -543,6 +544,7 @@ import ManagerDetailDrawer from '../components/ManagerDetailDrawer.vue'
 import TransferPriorityModal from '../components/TransferPriorityModal.vue'
 import KpiGrid from '../components/KpiGrid.vue'
 import HistoryPanel from '../components/HistoryPanel.vue'
+import CompliancePanel from '../components/CompliancePanel.vue'
 
 const globalData = useGlobalData()
 const { formatNum, formatPercent, formatDelta, formatHistoryDateOnly } = useFormatters()
@@ -1521,10 +1523,15 @@ onUnmounted(() => {
 .warning-manager-grid {
   display: grid; grid-template-columns: 1fr 1.5fr; gap: 24px;
 }
+.warning-compliance-card, .manager-card { display: flex; flex-direction: column; min-width: 0; }
+.warning-compliance-card > .card-head { padding: 13px 16px; }
+.manager-card .progress-summary { margin-top: auto; }
+.warning-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.warning-period { font-size: 10.5px; color: var(--ink-3); white-space: nowrap; }
 .warning-item {
-  padding: 16px 20px;
+  padding: 9px 16px;
   border-bottom: 1px solid var(--line);
-  display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 14px;
+  display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px;
   cursor: pointer; transition: background 120ms;
 }
 .warning-item:last-child { border-bottom: none; }

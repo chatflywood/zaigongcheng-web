@@ -42,12 +42,14 @@ zaigongcheng-web/
 ├── backend/
 │   ├── main.py              # FastAPI 主入口
 │   ├── requirements.txt     # Python 依赖
-│   ├── routers/             # API 路由（analysis/budget/ai/notify/report/archive/budget_batch/backup）
+│   ├── routers/             # API 路由（analysis/compliance/budget/ai/notify/report/archive/budget_batch/backup）
 │   │   ├── analysis.py      # 在建工程分析接口
+│   │   ├── compliance.py    # 工程合规核查、结果登记与导出
 │   │   ├── budget.py        # 预算分析接口
 │   │   └── backup.py        # 数据备份 / 恢复
 │   └── services/            # 业务逻辑
 │       ├── analysis.py      # 在建工程核心计算逻辑
+│       ├── compliance.py    # 两个月核查区间与项目筛选
 │       ├── budget.py        # 预算分析计算逻辑
 │       ├── validation.py    # 上传校验摘要
 │       └── backup.py        # 备份打包与恢复
@@ -70,6 +72,7 @@ zaigongcheng-web/
     │   │   ├── DataCard.vue         # 数据指标卡片
     │   │   ├── FileRow.vue          # 文件列表行
     │   │   ├── FourClassWarningModal.vue  # 四类预警明细弹窗
+    │   │   ├── CompliancePanel.vue  # 工程合规核查卡片与明细登记
     │   │   ├── ManagerDetailDrawer.vue   # 管理员明细抽屉
     │   │   ├── TransferPriorityModal.vue # 转固推进清单弹窗
     │   │   ├── KpiGrid.vue          # KPI 指标卡网格（含滚动动画）
@@ -265,13 +268,25 @@ npm run dev
 - 顶部 4 个指标卡片
 - 左侧：当期资本性支出进度仪表盘
 - 右侧：工程管理员支出排名柱状图（显示较上期变化）
-- 四类工程预警面板：四张统计卡片（列账不及时、预转固不及时、关闭不及时、长期挂账），点击可查看分类明细或全部明细弹窗，支持导出预警清单
+- 四类工程预警面板：四行紧凑统计（列账不及时、预转固不及时、关闭不及时、长期挂账），点击行查看分类明细，「查看全部」打开分组明细，支持导出预警清单
+- 工程合规核查：位于四类预警下方，收紧原有预警行距，与右侧管理员视图上下对齐；显示安全生产费核实、质检申报核实两张数量卡片
 - 下方：各工程管理员汇总表格（点击「当期资本性支出进度」行展开/收起，含较上期变化列）
 
 **历史查看功能：**
 - 支持从页面内历史记录面板查看某次上传快照
 - 支持从全局历史记录中心查看某次上传快照
 - 相同文件名上传时保存新版本，保留旧记录
+
+**工程合规核查使用方式：**
+
+1. 上传或加载在建工程报表后，在「四类工程预警」下方查看「工程合规核查」及其核查区间。
+2. 点击「安全生产费核实」或「质检申报核实」卡片，查看项目明细；可按管理员和已保存的核实状态筛选。
+3. 逐项选择「待核实」「已核实正常」或「发现问题」，填写核实日期、凭证或申报备注，再点击「保存核实结果」。已核实正常或发现问题时必须填写核实日期，备注最多 4,000 字。
+4. 点击「导出清单」下载 Excel，包含两类核查的完整清单及当前已保存的核实结果，不受弹窗临时筛选条件影响；未保存的编辑不参与导出。
+
+区间以所选原始报表的**上传日期**往前推两个自然月，包含首尾。安全生产费核实按「工程开工日期」筛选，并按「项目类型」剔除「单纯购置项目」（兼容「单纯性购置项目」）和「零星购置项目」；质检申报核实按「设计批复日期(初次)」筛选。费用为账面金额，不自动判定实际支付情况。
+
+核实结果按工程编码与核查类型独立保存，后续上传继承并随数据库备份。查看历史版本时，项目范围取该版本，核实结果显示当前登记结果；修改支出目标产生的派生版本沿用原始报表上传日。日期缺失、无效或历史版本缺少原始明细时，页面显示相应数量或提示，不将无法计算显示为零项。完整字段及边界见[工程合规核查口径](docs/metric-definitions.md#工程合规核查)。
 
 ### 预算立项页
 
@@ -375,6 +390,21 @@ npm run dev
 | `/api/zaigong/compare` | GET | 获取最新数据与历史数据对比 |
 | `/api/zaigong/four-class-warnings/{record_id}` | GET | 获取四类工程预警结果 |
 | `/api/zaigong/four-class-warnings/{record_id}/export` | GET | 导出四类工程预警 Excel |
+| `/api/zaigong/compliance/{record_id}` | GET | 获取所选版本的合规核查范围、明细、当前核实结果及数量 |
+| `/api/zaigong/compliance/{record_id}/{kind}/{code}` | PUT | 保存指定工程、核查类型的核实状态、日期及备注 |
+| `/api/zaigong/compliance/{record_id}/export` | GET | 导出两类合规核查 Excel 清单及已保存结果 |
+
+核查类型 `kind` 为 `safety`（安全生产费）或 `quality`（质检申报），`code` 为 URL 编码后的工程编码。登记请求格式如下：
+
+```json
+{
+  "status": "已核实正常",
+  "reviewed_on": "2026-11-02",
+  "note": "已核对支付凭证"
+}
+```
+
+`status` 仅接受「待核实」「已核实正常」「发现问题」。非待核实状态必须提供有效的 `reviewed_on`，`note` 最多 4,000 字；不在该版本核查范围内的工程不能登记。核实记录保存于本机数据库，不写回原始报表及上传快照。
 
 ### 预算分析
 

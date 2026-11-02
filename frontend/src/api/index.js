@@ -80,6 +80,21 @@ export async function getTransferPriority(recordId) {
   return response.data
 }
 
+export async function getCompliance(recordId) {
+  const response = await axios.get(`${API_BASE}/zaigong/compliance/${recordId}`)
+  return response.data
+}
+
+export async function saveComplianceReview(recordId, kind, code, review) {
+  const response = await axios.put(`${API_BASE}/zaigong/compliance/${recordId}/${kind}/${encodeURIComponent(code)}`, review)
+  return response.data
+}
+
+export async function exportCompliance(recordId) {
+  const response = await axios.get(`${API_BASE}/zaigong/compliance/${recordId}/export`, { responseType: 'blob' })
+  return response.data
+}
+
 export async function generateAIAnalysis(payload) {
   const response = await axios.post(`${API_BASE}/ai/analyze`, payload)
   return response.data
