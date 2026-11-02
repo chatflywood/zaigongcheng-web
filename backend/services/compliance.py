@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 
 CHECKS = {
     "safety": {"label": "安全生产费核实", "field": "工程开工日期"},
-    "quality": {"label": "质检申报核实", "field": "设计批复日期(初次)"},
+    "quality": {"label": "质监申报核实", "field": "设计批复日期(初次)"},
 }
 STATUSES = ("待核实", "已核实正常", "发现问题")
 EXCLUDED_SAFETY_TYPES = {"单纯购置项目", "单纯性购置项目", "零星购置项目"}

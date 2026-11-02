@@ -17,7 +17,7 @@ const saveError = ref('')
 const savedMessage = ref('')
 const drafts = ref({})
 const modal = ref(null)
-const kinds = [{ key: 'safety', label: '安全生产费核实' }, { key: 'quality', label: '质检申报核实' }]
+const kinds = [{ key: 'safety', label: '安全生产费核实' }, { key: 'quality', label: '质监申报核实' }]
 const statuses = ['待核实', '已核实正常', '发现问题']
 let requestVersion = 0
 let previousFocus = null
@@ -190,7 +190,7 @@ async function download() {
           <button class="compliance-text-button compliance-rules-toggle" :aria-expanded="showRules" @click="showRules = !showRules">{{ showRules ? '收起口径' : '筛选口径' }}</button>
         </div>
         <div v-if="showRules" class="compliance-rules">
-          <p>以本次原始报表上传日往前推两个自然月，包含首尾。安全生产费按“工程开工日期”筛选，剔除“单纯购置项目”（含“单纯性购置项目”）及“零星购置项目”。质检申报按“设计批复日期(初次)”筛选。</p>
+          <p>以本次原始报表上传日往前推两个自然月，包含首尾。安全生产费按“工程开工日期”筛选，剔除“单纯购置项目”（含“单纯性购置项目”）及“零星购置项目”。质监申报按“设计批复日期(初次)”筛选。</p>
           <p>不额外按工程状态、专业或费用金额排除。费用为账面金额，实际支付及申报情况需核实。核实记录独立保存，后续上传会继承；查看历史版本时展示当前登记结果。</p>
           <p>本类日期缺失 {{ current.missing_dates }} 项，日期无效 {{ current.invalid_dates }} 项，未纳入清单。<span v-if="active === 'safety'">本期按项目类型剔除 {{ current.excluded }} 项。</span></p>
         </div>

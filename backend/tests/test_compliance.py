@@ -159,7 +159,7 @@ async def test_export_reconciles_included_projects_and_neutralizes_formulas(data
         response = await api.get(f"/api/zaigong/compliance/{rid}/export")
     assert response.status_code == 200
     book = openpyxl.load_workbook(io.BytesIO(response.content))
-    assert book.sheetnames == ["安全生产费核实", "质检申报核实"]
+    assert book.sheetnames == ["安全生产费核实", "质监申报核实"]
     sheet = book.worksheets[0]
     assert sheet.max_row == 7 and book.worksheets[1].max_row == 8
     assert sheet["A7"].value == "GC1"
