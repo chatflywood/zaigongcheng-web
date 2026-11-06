@@ -108,11 +108,15 @@ async def test_reviews_persist_across_uploads_and_do_not_rewrite_snapshots(datab
             "status": "已核实正常", "reviewed_on": "2026-11-02", "note": "付款凭证已核对"})
         assert response.status_code == 200
         result = (await api.get(f"/api/zaigong/compliance/{second}")).json()["data"]
-        assert result["checks"]["safety"]["normal"] == 0  # milestone left the rolling window
-        # A corrected later milestone for the same project inherits the saved review.
+        assert result["checks"]["safety"]["normal"] == 1  # completed records remain accessible
+        assert result["checks"]["safety"]["actionable"] == 0
+        # A corrected milestone requires a new review while retaining the old evidence.
         third = seed(database, rows=[project(**{"工程开工日期": "2026-10-01"})], uploaded=datetime(2026, 11, 4))
         result = (await api.get(f"/api/zaigong/compliance/{third}")).json()["data"]
-        assert result["checks"]["safety"]["normal"] == 1
+        assert result["checks"]["safety"]["normal"] == 0
+        assert result["checks"]["safety"]["recheck"] == 1
+        assert result["checks"]["safety"]["pending"] == 1
+        assert result["checks"]["safety"]["items"][0]["previous_reviewed_on"] == "2026-11-02"
         assert result["checks"]["safety"]["items"][0]["note"] == "付款凭证已核对"
         assert result["checks"]["quality"]["items"] == []
         original = (await api.get(f"/api/zaigong/compliance/{first}")).json()["data"]
@@ -168,3 +172,129 @@ async def test_export_reconciles_included_projects_and_neutralizes_formulas(data
     assert sheet["I7"].value == 1901.79
     assert sheet["L7"].value == "'=1+1"
     assert sheet.freeze_panes == "C7"
+
+
+@pytest.mark.asyncio
+async def test_two_normal_one_issue_unchanged_reupload_only_one_actionable(database):
+    rows = [project(str(i), **{"工程开工日期": "2026-10-01"}) for i in range(3)]
+    first = seed(database, rows=rows)
+    async with client() as api:
+        for i in range(3):
+            response = await api.put(f"/api/zaigong/compliance/{first}/safety/{i}", json={
+                "status": "发现问题" if i == 2 else "已核实正常", "reviewed_on": "2026-11-02", "note": f"核实记录{i}"})
+            assert response.status_code == 200
+        second = seed(database, rows=rows, uploaded=datetime(2026, 11, 6))
+        check = (await api.get(f"/api/zaigong/compliance/{second}")).json()["data"]["checks"]["safety"]
+        assert (check["total"], check["actionable"], check["normal"], check["issues"], check["pending"]) == (3, 1, 2, 1, 0)
+        assert check["items"][0]["status"] == "发现问题"
+        assert check["recheck"] == 0
+        assert check["items"][1]["note"] == "核实记录0"
+
+
+@pytest.mark.asyncio
+async def test_open_issue_survives_window_expiry_and_missing_project_until_resolved(database):
+    first = seed(database)
+    async with client() as api:
+        await api.put(f"/api/zaigong/compliance/{first}/safety/GC1", json={
+            "status": "发现问题", "reviewed_on": "2026-11-02", "note": "安全生产费待补付"})
+        later = seed(database, uploaded=datetime(2027, 1, 20))
+        missing = seed(database, rows=[], uploaded=datetime(2027, 1, 21))
+        for rid in (later, missing):
+            check = (await api.get(f"/api/zaigong/compliance/{rid}")).json()["data"]["checks"]["safety"]
+            assert check["issues"] == check["actionable"] == check["carried_forward"] == 1
+            assert check["items"][0]["name"] == "工程A"
+            assert check["items"][0]["note"] == "安全生产费待补付"
+        pending = await api.put(f"/api/zaigong/compliance/{missing}/safety/GC1", json={
+            "status": "待核实", "note": "转为复核中"})
+        assert pending.json()["data"]["checks"]["safety"]["actionable"] == 1
+        normal = await api.put(f"/api/zaigong/compliance/{missing}/safety/GC1", json={
+            "status": "已核实正常", "reviewed_on": "2027-01-21", "note": "已补付"})
+        check = normal.json()["data"]["checks"]["safety"]
+        assert (check["actionable"], check["normal"], check["total"]) == (0, 1, 1)
+        exported = await api.get(f"/api/zaigong/compliance/{missing}/export")
+        book = openpyxl.load_workbook(io.BytesIO(exported.content))
+        assert book.worksheets[0]["A7"].value == "GC1"
+        assert book.worksheets[0]["J7"].value == "已核实正常"
+        # Manually reopening an archived case must not drop it from the response
+        # or lose its follow-up state on subsequent uploads.
+        reopened = await api.put(f"/api/zaigong/compliance/{missing}/safety/GC1", json={
+            "status": "待核实", "note": "再次核查"})
+        assert reopened.json()["data"]["checks"]["safety"]["pending"] == 1
+        next_upload = seed(database, rows=[], uploaded=datetime(2027, 2, 1))
+        check = (await api.get(f"/api/zaigong/compliance/{next_upload}")).json()["data"]["checks"]["safety"]
+        assert check["actionable"] == 1 and check["items"][0]["note"] == "再次核查"
+
+
+@pytest.mark.parametrize("field,value,kind", [
+    ("工程开工日期", "2026-10-02", "safety"),
+    ("安全生产费", 2000, "safety"),
+    ("累计待摊-安全生产费", 0, "safety"),
+    ("设计批复日期(初次)", "2026-10-02", "quality"),
+    ("设计批复文号（初次）", "新文号", "quality"),
+])
+@pytest.mark.asyncio
+async def test_material_changes_reopen_normal_review_then_new_confirmation_clears_it(database, field, value, kind):
+    row = project(**{"工程开工日期": "2026-10-01", "设计批复日期(初次)": "2026-10-01"})
+    first = seed(database, rows=[row])
+    async with client() as api:
+        await api.put(f"/api/zaigong/compliance/{first}/{kind}/GC1", json={
+            "status": "已核实正常", "reviewed_on": "2026-11-02", "note": "上次凭证"})
+        later = seed(database, rows=[{**row, field: value}], uploaded=datetime(2026, 11, 6))
+        result = (await api.get(f"/api/zaigong/compliance/{later}")).json()["data"]["checks"][kind]
+        assert (result["pending"], result["normal"], result["recheck"], result["actionable"]) == (1, 0, 1, 1)
+        item = result["items"][0]
+        assert item["reviewed_on"] == "" and item["previous_status"] == "已核实正常"
+        assert item["note"] == "上次凭证" and "→" in item["tracking_note"]
+        normal = await api.put(f"/api/zaigong/compliance/{later}/{kind}/GC1", json={
+            "status": "已核实正常", "reviewed_on": "2026-11-06", "note": "变化已复核"})
+        assert normal.json()["data"]["checks"][kind]["actionable"] == 0
+        historical = (await api.get(f"/api/zaigong/compliance/{first}")).json()["data"]["checks"][kind]
+        assert historical["normal"] == 1 and historical["recheck"] == 0
+
+
+@pytest.mark.asyncio
+async def test_irrelevant_changes_and_equivalent_representation_do_not_reopen_review(database):
+    first = seed(database)
+    async with client() as api:
+        await api.put(f"/api/zaigong/compliance/{first}/safety/GC1", json={
+            "status": "已核实正常", "reviewed_on": "2026-11-02"})
+        later = seed(database, rows=[project(**{"工程开工日期": "2026/09/02", "安全生产费": "0.00",
+            "累计待摊-安全生产费": 1901.79000001, "工程管理员": "张文", "工程状态": "工程已开工",
+            "工程名称": "更正后的工程名称", "最近一次设计变更批复日期": "2026-11-06"})], uploaded=datetime(2026, 11, 6))
+        check = (await api.get(f"/api/zaigong/compliance/{later}")).json()["data"]["checks"]["safety"]
+        assert check["normal"] == 1 and check["actionable"] == 0 and check["recheck"] == 0
+
+
+@pytest.mark.asyncio
+async def test_legacy_reviews_recover_baseline_without_mutating_saved_records(database):
+    first = seed(database)
+    values = {"status": "已核实正常", "reviewed_on": "2026-11-02", "record_id": first, "note": "旧版已核实备注"}
+    original_json = json.dumps(values, ensure_ascii=False)
+    with database() as db:
+        db.add(AppConfig(key="compliance:safety:GC1", value=original_json))
+        db.commit()
+    later = seed(database, uploaded=datetime(2026, 11, 6))
+    async with client() as api:
+        check = (await api.get(f"/api/zaigong/compliance/{later}")).json()["data"]["checks"]["safety"]
+        assert check["normal"] == 1 and check["actionable"] == 0
+        changed = seed(database, rows=[project(**{"累计待摊-安全生产费": 5000})], uploaded=datetime(2026, 11, 7))
+        check = (await api.get(f"/api/zaigong/compliance/{changed}")).json()["data"]["checks"]["safety"]
+        assert check["recheck"] == 1 and check["items"][0]["note"] == values["note"]
+    with database() as db:
+        assert db.query(AppConfig).one().value == original_json
+
+
+@pytest.mark.asyncio
+async def test_saved_recheck_stays_actionable_outside_window_and_with_missing_source_date(database):
+    first = seed(database)
+    async with client() as api:
+        await api.put(f"/api/zaigong/compliance/{first}/safety/GC1", json={
+            "status": "已核实正常", "reviewed_on": "2026-11-02"})
+        later = seed(database, rows=[project(**{"工程开工日期": None})], uploaded=datetime(2027, 1, 20))
+        check = (await api.get(f"/api/zaigong/compliance/{later}")).json()["data"]["checks"]["safety"]
+        assert check["pending"] == check["recheck"] == check["carried_forward"] == 1
+        result = await api.put(f"/api/zaigong/compliance/{later}/safety/GC1", json={"status": "待核实", "note": "请补充日期"})
+        assert result.status_code == 200
+        check = result.json()["data"]["checks"]["safety"]
+        assert check["pending"] == check["recheck"] == 1
+        assert "复核" in check["items"][0]["tracking_note"] or "→" in check["items"][0]["tracking_note"]

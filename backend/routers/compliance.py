@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 
 from models import AppConfig, ZaigongRecord, get_db
-from services.compliance import CHECKS, build_compliance
+from services.compliance import CHECKS, build_compliance, project_snapshot, text, verification_basis
 from services.periods import period_of
 
 router = APIRouter()
@@ -29,12 +29,7 @@ class ReviewInput(BaseModel):
         return self
 
 
-def load_compliance(db, record_id):
-    record = db.query(ZaigongRecord).filter(ZaigongRecord.id == record_id).first()
-    if not record:
-        raise HTTPException(404, "记录不存在")
-    if not record.raw_data:
-        raise HTTPException(422, "该版本没有原始工程明细，请重新上传在建工程报表")
+def original_upload(db, record):
     # Editing a target creates a new version, not a new engineering upload.
     source = record
     visited = {record.id}
@@ -46,10 +41,37 @@ def load_compliance(db, record_id):
         source = db.query(ZaigongRecord).filter(ZaigongRecord.id == parent_id).first()
         if source is None:
             raise HTTPException(422, "原始上传版本已删除，无法确认核查区间")
+    return source
+
+
+def load_compliance(db, record_id):
+    record = db.query(ZaigongRecord).filter(ZaigongRecord.id == record_id).first()
+    if not record:
+        raise HTTPException(404, "记录不存在")
+    if not record.raw_data:
+        raise HTTPException(422, "该版本没有原始工程明细，请重新上传在建工程报表")
+    source = original_upload(db, record)
     reviews = {}
     for config in db.query(AppConfig).filter(AppConfig.key.startswith(PREFIX)).all():
         _, kind, code = config.key.split(":", 2)
         reviews[(kind, code)] = json.loads(config.value)
+    # Old reviews only stored a record ID. Recover their source evidence in
+    # memory, without rewriting either the review or the immutable upload.
+    legacy_ids = {review.get("record_id") for review in reviews.values()
+                  if "baseline" not in review and review.get("record_id")}
+    legacy_records = db.query(ZaigongRecord).filter(ZaigongRecord.id.in_(legacy_ids)).all() if legacy_ids else []
+    legacy_sources = {}
+    for legacy in legacy_records:
+        legacy_sources[legacy.id] = (json.loads(legacy.raw_data or "[]"), original_upload(db, legacy).uploaded_at)
+    for (kind, code), review in reviews.items():
+        if "baseline" in review or kind not in CHECKS:
+            continue
+        old_rows, old_upload = legacy_sources.get(review.get("record_id"), ([], None))
+        matches = [row for row in old_rows if text(row.get("工程编码")) == code]
+        if len(matches) == 1:
+            review["source_item"] = project_snapshot(kind, matches[0])
+            review["baseline"] = verification_basis(kind, review["source_item"])
+            review["basis_uploaded_at"] = old_upload.isoformat()
     try:
         data = build_compliance(json.loads(record.raw_data), source.uploaded_at, reviews)
     except ValueError as exc:
@@ -74,7 +96,8 @@ async def save_compliance_review(record_id: int, kind: str, code: str, review: R
     db = get_db()
     try:
         data = load_compliance(db, record_id)
-        if not any(item["code"] == code for item in data["checks"][kind]["items"]):
+        item = next((item for item in data["checks"][kind]["items"] if item["code"] == code), None)
+        if item is None:
             raise HTTPException(404, "该工程不在当前核查范围内")
         key = f"{PREFIX}{kind}:{code}"
         config = db.query(AppConfig).filter(AppConfig.key == key).first()
@@ -85,6 +108,18 @@ async def save_compliance_review(record_id: int, kind: str, code: str, review: R
             "status": review.status,
             "reviewed_on": review.reviewed_on.isoformat() if review.reviewed_on else "",
             "note": review.note.strip(), "record_id": record_id,
+            "baseline": verification_basis(kind, item),
+            "source_item": {key: item[key] for key in (
+                "code", "name", "manager", "project_type", "project_status", "construction_unit",
+                "key_date", "approval_number", "current_safety_fee", "total_safety_fee")},
+            "basis_uploaded_at": original_upload(db, db.query(ZaigongRecord).filter_by(id=record_id).one()).uploaded_at.isoformat(),
+            "follow_up": review.status != "已核实正常" and (
+                review.status == "发现问题" or item["needs_recheck"] or item["follow_up"]
+                or item["status"] == "已核实正常" or not item["in_window"]),
+            "recheck_required": review.status == "待核实" and item["needs_recheck"],
+            "recheck_reason": item["tracking_note"] if review.status == "待核实" and item["needs_recheck"] else "",
+            "previous_status": item["previous_status"] if review.status == "待核实" else "",
+            "previous_reviewed_on": item["previous_reviewed_on"] if review.status == "待核实" else "",
         }, ensure_ascii=False)
         config.updated_at = datetime.now()
         db.commit()
@@ -116,9 +151,9 @@ async def export_compliance(record_id: int):
                    "工程状态", "施工单位"]
         if kind == "safety":
             headers += ["安全生产费（本年，元）", "累计安全生产费（元）"]
-        headers += ["核实状态", "核实日期", "备注"]
+        headers += ["核实状态", "核实日期", "备注", "跟踪及复核说明", "上次核实状态", "上次核实日期"]
         sheet.append([f"工程合规核查：{check['label']}"])
-        sheet.append([f"核查区间：{data['start_date']} 至 {data['end_date']}（含首尾）"])
+        sheet.append([f"新项目筛选区间：{data['start_date']} 至 {data['end_date']}（含首尾）；待处理{check['actionable']}项，已核实正常{check['normal']}项"])
         sheet.append([neutralize_spreadsheet_formula(f"来源：{data['source_filename']}")])
         sheet.append(["安全生产费为账面金额，实际支付需核实。核实结果为当前登记结果。"
                       if kind == "safety" else "按首次设计批复日期筛选，核实结果为当前登记结果。"])
@@ -129,17 +164,19 @@ async def export_compliance(record_id: int):
         sheet.append(headers)
         for item in check["items"]:
             values = [item["code"], item["name"], item["manager"], item["project_type"],
-                      date.fromisoformat(item["key_date"]), item["project_status"], item["construction_unit"]]
+                      date.fromisoformat(item["key_date"]) if item["key_date"] else None,
+                      item["project_status"], item["construction_unit"]]
             if kind == "safety":
                 values += [item["current_safety_fee"], item["total_safety_fee"]]
             values += [item["status"], date.fromisoformat(item["reviewed_on"]) if item["reviewed_on"] else None,
-                       item["note"]]
+                       item["note"], item["tracking_note"], item["previous_status"],
+                       date.fromisoformat(item["previous_reviewed_on"]) if item["previous_reviewed_on"] else None]
             sheet.append([neutralize_spreadsheet_formula(value) for value in values])
         sheet.sheet_view.showGridLines = False
         sheet.freeze_panes = "C7"
         sheet.auto_filter.ref = f"A6:{get_column_letter(len(headers))}{sheet.max_row}"
         for index, header in enumerate(headers, 1):
-            sheet.column_dimensions[get_column_letter(index)].width = 65 if index == 2 else 40 if header in {"施工单位", "备注"} else 23
+            sheet.column_dimensions[get_column_letter(index)].width = 65 if index == 2 else 40 if header in {"施工单位", "备注", "跟踪及复核说明"} else 23
         for row in sheet:
             for cell in row:
                 cell.font = Font(name="微软雅黑", size=10, color="1F1D18")
